@@ -19,5 +19,5 @@ https://open-meteo.com/en/docs
 ## Calendar API:
 
 ```bash
-https://developers.google.cn/workspace/calendar/api/guides/overview
+https://github.com/nager/Nager.Date
 ```
