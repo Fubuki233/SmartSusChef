@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: smartsuschef_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: smartsuschef
+      MYSQL_USER: smartsuschef
+      MYSQL_PASSWORD: smartsuschef123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - smartsuschef_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smartsuschef_backend
+    restart: always
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=mysql;Database=smartsuschef;User=smartsuschef;Password=smartsuschef123;"
+    ports:
+      - "5000:8080"
+    depends_on:
+      - mysql
+    networks:
+      - smartsuschef_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smartsuschef_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - smartsuschef_network
+
+volumes:
+  mysql_data:
+
+networks:
+  smartsuschef_network:
+    driver: bridge
