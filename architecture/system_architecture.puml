@@ -1,0 +1,159 @@
+@startuml SmartSusChef_System_Architecture
+
+!define ICONURL https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/v2.4.0
+!include <C4/C4_Container>
+!include <C4/C4_Component>
+
+title SmartSusChef System Architecture - Deployment View
+
+skinparam backgroundColor #FEFEFE
+skinparam handwritten false
+skinparam defaultFontName "Segoe UI"
+skinparam componentStyle rectangle
+
+' ========================================
+' 用户层 (Users Layer)
+' ========================================
+actor "Manager\n(Web Browser)" as Manager <<Web User>>
+actor "Employee\n(Mobile Device)" as Employee <<Mobile User>>
+
+' ========================================
+' CDN/静态资源层
+' ========================================
+cloud "CDN / Static Hosting" as CDN {
+    node "Vercel / Netlify" as StaticHost {
+        component [React SPA\n(Vite Build)] as Frontend
+        note right of Frontend
+            - TypeScript + React 18
+            - Tailwind CSS
+            - Recharts
+            - shadcn/ui
+        end note
+    }
+}
+
+' ========================================
+' API网关层 (可选)
+' ========================================
+rectangle "API Gateway (Optional)" as APIGateway #LightYellow {
+    component [Nginx / Kong\nReverse Proxy] as ReverseProxy
+    component [Rate Limiting\nLoad Balancing] as LoadBalancer
+}
+
+' ========================================
+' 应用服务器层 (Application Server)
+' ========================================
+node "Application Server\n(Docker Container / IIS)" as AppServer {
+    rectangle "Backend API" as BackendContainer #LightBlue {
+        component [.NET 8 Web API] as DotNetAPI
+        
+        rectangle "Controllers" as Controllers {
+            component [AuthController] as AuthCtrl
+            component [RecipesController] as RecipeCtrl
+            component [IngredientsController] as IngredientCtrl
+            component [SalesController] as SalesCtrl
+            component [WastageController] as WastageCtrl
+            component [ForecastController] as ForecastCtrl
+        }
+        
+        rectangle "Services Layer" as Services {
+            component [AuthService] as AuthSvc
+            component [RecipeService] as RecipeSvc
+            component [IngredientService] as IngredientSvc
+            component [SalesService] as SalesSvc
+            component [WastageService] as WastageSvc
+            component [ForecastService\n(Mock ML)] as ForecastSvc
+        }
+        
+        rectangle "Data Access" as DataAccess {
+            component [Entity Framework Core] as EFCore
+            component [ApplicationDbContext] as DbContext
+        }
+        
+        component [JWT Authentication\nMiddleware] as JWTAuth
+        component [BCrypt\nPassword Hashing] as BCrypt
+    }
+}
+
+' ========================================
+' 数据库层 (Database Layer)
+' ========================================
+database "Database Server\n(MySQL 8.0)" as DBServer {
+    storage "smartsuschef" as DB {
+        collections "Users" as UsersTable
+        collections "Recipes" as RecipesTable
+        collections "Ingredients" as IngredientsTable
+        collections "RecipeIngredients" as RITable
+        collections "SalesData" as SalesTable
+        collections "WastageData" as WastageTable
+    }
+}
+
+' ========================================
+' 外部服务层 (External Services)
+' ========================================
+cloud "External APIs" as ExternalAPIs {
+    component [Weather API\n(OpenWeatherMap)] as WeatherAPI
+    component [Holiday API\n(Singapore Gov)] as HolidayAPI
+}
+
+cloud "Future ML Service" as MLCloud #LightGreen {
+    component [ML Prediction\nService] as MLService
+    note right of MLService
+        Future: Azure ML / 
+        AWS SageMaker
+        Time-series forecasting
+    end note
+}
+
+' ========================================
+' 连接关系
+' ========================================
+' 用户 -> 前端
+Manager --> Frontend : HTTPS
+Employee --> Frontend : HTTPS
+
+' 前端 -> API网关/后端
+Frontend --> ReverseProxy : REST API\n(JSON over HTTPS)
+ReverseProxy --> LoadBalancer
+LoadBalancer --> DotNetAPI
+
+' 或直接连接 (开发环境)
+Frontend ..> DotNetAPI : Direct (Dev)\nHTTP:5000
+
+' 后端内部
+DotNetAPI --> JWTAuth
+JWTAuth --> Controllers
+Controllers --> Services
+Services --> DataAccess
+DataAccess --> DbContext
+DbContext --> DB : MySQL Protocol\nPort 3306/33333
+
+' 认证相关
+AuthCtrl --> AuthSvc
+AuthSvc --> BCrypt
+AuthSvc --> DbContext
+
+' 外部API调用
+ForecastSvc --> WeatherAPI : REST API
+ForecastSvc --> HolidayAPI : REST API
+ForecastSvc ..> MLService : Future\nIntegration
+
+' ========================================
+' 注释说明
+' ========================================
+note bottom of DB
+    MySQL Server: oversea.zyh111.icu:33333
+    Database: smartsuschef
+    User: grp4
+end note
+
+note bottom of AppServer
+    Hosting Options:
+    - Docker Container
+    - Azure App Service
+    - AWS ECS / EC2
+    - IIS on Windows Server
+end note
+
+@enduml

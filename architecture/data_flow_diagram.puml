@@ -1,0 +1,117 @@
+@startuml SmartSusChef_Data_Flow
+
+title SmartSusChef - Data Flow & Sequence Diagram
+
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam defaultFontName "Segoe UI"
+
+actor "User\n(Manager/Employee)" as User
+participant "React SPA\n(Frontend)" as Frontend #LightCyan
+participant "API Gateway\n(Nginx)" as Gateway #LightYellow
+participant ".NET API\n(Backend)" as Backend #LightBlue
+participant "JWT\nMiddleware" as JWT #Pink
+database "MySQL\nDatabase" as DB #LightGreen
+participant "External\nAPIs" as External #Orange
+
+== Authentication Flow ==
+
+User -> Frontend : Enter credentials
+Frontend -> Gateway : POST /api/auth/login
+Gateway -> Backend : Forward request
+Backend -> DB : Query user by username
+DB --> Backend : User record
+Backend -> Backend : BCrypt.Verify(password)
+Backend -> Backend : Generate JWT token
+Backend --> Gateway : { token, user }
+Gateway --> Frontend : Response
+Frontend -> Frontend : Store token in localStorage
+Frontend --> User : Redirect to Dashboard
+
+== Data Loading Flow ==
+
+User -> Frontend : Access Dashboard
+Frontend -> Frontend : Get token from storage
+
+group Parallel API Calls
+    Frontend -> Gateway : GET /api/recipes\n[Authorization: Bearer token]
+    Frontend -> Gateway : GET /api/sales\n[Authorization: Bearer token]
+    Frontend -> Gateway : GET /api/wastage\n[Authorization: Bearer token]
+    Frontend -> Gateway : GET /api/forecast\n[Authorization: Bearer token]
+end
+
+Gateway -> JWT : Validate token
+JWT --> Gateway : Token valid
+Gateway -> Backend : Forward requests
+
+Backend -> DB : Query recipes with ingredients
+Backend -> DB : Query sales data
+Backend -> DB : Query wastage data
+Backend -> External : Fetch weather data
+Backend -> External : Fetch holidays
+
+DB --> Backend : Data results
+External --> Backend : Weather & holidays
+
+Backend -> Backend : Generate forecast\n(Mock ML)
+Backend --> Gateway : JSON responses
+Gateway --> Frontend : All data
+
+Frontend -> Frontend : Update AppContext
+Frontend -> Frontend : Render charts & tables
+Frontend --> User : Display Dashboard
+
+== Sales Data Entry Flow ==
+
+User -> Frontend : Enter sales data
+Frontend -> Gateway : POST /api/sales\n{ date, recipeId, quantity }
+Gateway -> JWT : Validate token
+JWT --> Gateway : Valid
+Gateway -> Backend : Forward request
+
+Backend -> Backend : Validate data
+Backend -> DB : INSERT sales record
+DB --> Backend : Success
+Backend --> Gateway : Created sales record
+Gateway --> Frontend : Response
+Frontend -> Frontend : Update local state
+Frontend --> User : Show success message
+
+== Data Export Flow ==
+
+User -> Frontend : Click Export
+Frontend -> Frontend : Gather data from context
+Frontend -> Frontend : Convert to CSV
+Frontend -> Frontend : Create download blob
+Frontend --> User : Download CSV file
+
+== Forecast Generation Flow ==
+
+note over Backend, External
+  Mock ML Implementation:
+  - Uses historical sales average
+  - Applies weather factors
+  - Considers day of week
+  - Adds holiday adjustments
+end note
+
+User -> Frontend : View Forecast
+Frontend -> Gateway : GET /api/forecast?days=7
+Gateway -> Backend : Forward request
+
+Backend -> DB : Get recent sales data
+Backend -> DB : Get recipe list
+Backend -> External : Get weather forecast
+Backend -> External : Get upcoming holidays
+
+Backend -> Backend : Calculate base prediction
+Backend -> Backend : Apply weather coefficient
+Backend -> Backend : Apply holiday multiplier
+Backend -> Backend : Generate confidence intervals
+
+Backend --> Gateway : Forecast data
+Gateway --> Frontend : JSON response
+Frontend -> Frontend : Render prediction charts
+Frontend --> User : Display forecast
+
+@enduml

@@ -16,6 +16,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; }
     public DbSet<SalesData> SalesData { get; set; }
     public DbSet<WastageData> WastageData { get; set; }
+    public DbSet<Store> Store { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -83,6 +84,19 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
             entity.Property(e => e.Quantity).HasPrecision(10, 3);
             entity.HasIndex(e => e.Date);
+        });
+
+        // Store configuration (singleton - only one record allowed)
+        modelBuilder.Entity<Store>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasDefaultValue(1);
+            entity.Property(e => e.StoreName).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Latitude).HasPrecision(10, 7);
+            entity.Property(e => e.Longitude).HasPrecision(10, 7);
+            entity.Property(e => e.Address).HasMaxLength(500);
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.OpeningDate);
         });
 
         // Seed data

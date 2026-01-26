@@ -1,0 +1,191 @@
+@startuml SmartSusChef_Component_Diagram
+
+title SmartSusChef - Component Architecture (C4 Level 3)
+
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+skinparam defaultFontName "Segoe UI"
+skinparam packageStyle frame
+
+' ========================================
+' 前端组件
+' ========================================
+package "Frontend (React + TypeScript)" as FrontendPkg #LightCyan {
+    
+    package "Pages / Views" as Pages {
+        [LoginPage] as LoginPage
+        [Dashboard] as Dashboard
+        [ManagementSystem] as ManagementSystem
+    }
+    
+    package "Dashboard Components" as DashboardComponents {
+        [SalesTrendChart] as SalesTrend
+        [DistributionPieChart] as SalesPie
+        [IngredientTable] as IngredientTable
+        [PredictionSummary] as PredSummary
+        [PredictionDetail] as PredDetail
+        [WastageTrendChart] as WastageTrend
+        [WastageDistribution] as WastageDist
+        [CalendarWidget] as Calendar
+        [WeatherWidget] as Weather
+        [DataInputForm] as DataInput
+    }
+    
+    package "Management Components" as MgmtComponents {
+        [RecipeManagement] as RecipeMgmt
+        [IngredientManagement] as IngredientMgmt
+        [ImportSalesData] as ImportData
+        [WastageManagement] as WastageMgmt
+        [ExportData] as ExportData
+    }
+    
+    package "Core" as CoreFE {
+        [AppContext] as AppContext
+        [API Service] as APIService
+        [Types] as Types
+    }
+    
+    package "UI Components" as UIComponents {
+        [shadcn/ui] as ShadcnUI
+        [Recharts] as Recharts
+    }
+}
+
+' ========================================
+' 后端组件
+' ========================================
+package "Backend (.NET 8 Web API)" as BackendPkg #LightBlue {
+    
+    package "API Layer" as APILayer {
+        [AuthController] as AuthAPI
+        [RecipesController] as RecipesAPI
+        [IngredientsController] as IngredientsAPI
+        [SalesController] as SalesAPI
+        [WastageController] as WastageAPI
+        [ForecastController] as ForecastAPI
+    }
+    
+    package "Business Logic Layer" as BLLayer {
+        [AuthService] as AuthSvc
+        [RecipeService] as RecipeSvc
+        [IngredientService] as IngredientSvc
+        [SalesService] as SalesSvc
+        [WastageService] as WastageSvc
+        [MockForecastService] as ForecastSvc
+    }
+    
+    package "Security" as Security {
+        [JWT Token Handler] as JWT
+        [BCrypt Hasher] as BCrypt
+        [Authorization Middleware] as AuthMiddleware
+    }
+    
+    package "Data Access Layer" as DAL {
+        [ApplicationDbContext] as DbContext
+        [Entity Framework Core] as EFCore
+    }
+    
+    package "Models" as Models {
+        [User] as UserModel
+        [Recipe] as RecipeModel
+        [Ingredient] as IngredientModel
+        [RecipeIngredient] as RIModel
+        [SalesData] as SalesModel
+        [WastageData] as WastageModel
+    }
+    
+    package "DTOs" as DTOs {
+        [Request DTOs] as RequestDTOs
+        [Response DTOs] as ResponseDTOs
+    }
+}
+
+' ========================================
+' 数据库
+' ========================================
+database "MySQL Database" as MySQL #LightGreen {
+    [Users Table]
+    [Recipes Table]
+    [Ingredients Table]
+    [RecipeIngredients Table]
+    [SalesData Table]
+    [WastageData Table]
+}
+
+' ========================================
+' 外部服务
+' ========================================
+cloud "External Services" as External #LightYellow {
+    [OpenWeatherMap API] as WeatherAPI
+    [Singapore Holiday API] as HolidayAPI
+}
+
+' ========================================
+' 连接关系 - 前端内部
+' ========================================
+LoginPage --> AppContext
+Dashboard --> AppContext
+ManagementSystem --> AppContext
+
+Dashboard --> SalesTrend
+Dashboard --> SalesPie
+Dashboard --> IngredientTable
+Dashboard --> PredSummary
+Dashboard --> PredDetail
+Dashboard --> WastageTrend
+Dashboard --> WastageDist
+Dashboard --> Calendar
+Dashboard --> Weather
+Dashboard --> DataInput
+
+ManagementSystem --> RecipeMgmt
+ManagementSystem --> IngredientMgmt
+ManagementSystem --> ImportData
+ManagementSystem --> WastageMgmt
+ManagementSystem --> ExportData
+
+AppContext --> APIService
+DashboardComponents --> UIComponents
+MgmtComponents --> UIComponents
+
+' ========================================
+' 连接关系 - 前端到后端
+' ========================================
+APIService --> AuthAPI : "POST /api/auth/login"
+APIService --> RecipesAPI : "CRUD /api/recipes"
+APIService --> IngredientsAPI : "CRUD /api/ingredients"
+APIService --> SalesAPI : "CRUD /api/sales"
+APIService --> WastageAPI : "CRUD /api/wastage"
+APIService --> ForecastAPI : "GET /api/forecast"
+
+' ========================================
+' 连接关系 - 后端内部
+' ========================================
+AuthAPI --> AuthSvc
+RecipesAPI --> RecipeSvc
+IngredientsAPI --> IngredientSvc
+SalesAPI --> SalesSvc
+WastageAPI --> WastageSvc
+ForecastAPI --> ForecastSvc
+
+AuthSvc --> JWT
+AuthSvc --> BCrypt
+AuthSvc --> DbContext
+
+RecipeSvc --> DbContext
+IngredientSvc --> DbContext
+SalesSvc --> DbContext
+WastageSvc --> DbContext
+ForecastSvc --> DbContext
+ForecastSvc --> WeatherAPI
+ForecastSvc --> HolidayAPI
+
+DbContext --> EFCore
+EFCore --> MySQL
+
+' ========================================
+' 模型关系
+' ========================================
+DbContext --> Models
+
+@enduml

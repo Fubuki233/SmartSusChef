@@ -1,0 +1,78 @@
+@startuml SmartSusChef_Deployment_Diagram
+
+!include <C4/C4_Deployment>
+
+title SmartSusChef - Production Deployment Architecture
+
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+
+Deployment_Node(userDevice, "User Devices", "Browser/Mobile"){
+    Deployment_Node(browser, "Web Browser", "Chrome/Safari/Firefox"){
+        Container(spa, "React SPA", "TypeScript, Vite, React 18", "Single Page Application\nResponsive Web UI")
+    }
+}
+
+Deployment_Node(cdn, "CDN Layer", "Vercel/Cloudflare"){
+    Container(staticAssets, "Static Assets", "HTML/CSS/JS", "Cached static files\nGlobal edge distribution")
+}
+
+Deployment_Node(cloud, "Cloud Infrastructure", "AWS/Azure/Docker"){
+    
+    Deployment_Node(dmz, "DMZ / Edge Layer", "Public Subnet"){
+        Deployment_Node(lb, "Load Balancer", "Nginx/ALB"){
+            Container(reverseProxy, "Reverse Proxy", "Nginx", "SSL Termination\nRate Limiting\nLoad Balancing")
+        }
+    }
+    
+    Deployment_Node(appTier, "Application Tier", "Private Subnet"){
+        Deployment_Node(appServer1, "App Server 1", "Docker/Linux"){
+            Container(api1, ".NET 8 API", "ASP.NET Core", "RESTful API\nJWT Auth\nBusiness Logic")
+        }
+        Deployment_Node(appServer2, "App Server 2", "Docker/Linux"){
+            Container(api2, ".NET 8 API", "ASP.NET Core", "RESTful API\nJWT Auth\nBusiness Logic")
+        }
+    }
+    
+    Deployment_Node(dataTier, "Data Tier", "Private Subnet"){
+        Deployment_Node(dbPrimary, "DB Primary", "MySQL 8.0"){
+            ContainerDb(mysqlPrimary, "MySQL Primary", "MySQL 8.0", "Primary Database\nRead/Write")
+        }
+        Deployment_Node(dbReplica, "DB Replica", "MySQL 8.0"){
+            ContainerDb(mysqlReplica, "MySQL Replica", "MySQL 8.0", "Read Replica\nBackup")
+        }
+    }
+    
+    Deployment_Node(cacheTier, "Cache Layer", "Optional"){
+        Container(redis, "Redis Cache", "Redis 7", "Session Cache\nQuery Cache")
+    }
+}
+
+Deployment_Node(external, "External Services", "Third-party APIs"){
+    Container(weatherApi, "Weather API", "OpenWeatherMap", "Weather Data")
+    Container(holidayApi, "Holiday API", "data.gov.sg", "Singapore Holidays")
+}
+
+Deployment_Node(monitoring, "Monitoring", "Observability"){
+    Container(logs, "Logging", "Seq/ELK", "Centralized Logs")
+    Container(metrics, "Metrics", "Prometheus/Grafana", "Performance Metrics")
+}
+
+Rel(spa, staticAssets, "Loads from", "HTTPS")
+Rel(spa, reverseProxy, "API Calls", "HTTPS/REST")
+Rel(reverseProxy, api1, "Routes to", "HTTP")
+Rel(reverseProxy, api2, "Routes to", "HTTP")
+Rel(api1, mysqlPrimary, "Read/Write", "MySQL/3306")
+Rel(api2, mysqlPrimary, "Read/Write", "MySQL/3306")
+Rel(api1, mysqlReplica, "Read", "MySQL/3306")
+Rel(api2, mysqlReplica, "Read", "MySQL/3306")
+Rel(mysqlPrimary, mysqlReplica, "Replication", "MySQL")
+Rel(api1, redis, "Cache", "Redis/6379")
+Rel(api2, redis, "Cache", "Redis/6379")
+Rel(api1, weatherApi, "Fetch Weather", "HTTPS")
+Rel(api1, holidayApi, "Fetch Holidays", "HTTPS")
+Rel(api1, logs, "Send Logs", "TCP")
+Rel(api2, logs, "Send Logs", "TCP")
+
+@enduml

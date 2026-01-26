@@ -1,5 +1,8 @@
 # Architecture Overview
 
+## PlantUML Architecture Diagrams
+---
+
 This is an overview of the architecture of the SmartSus Chef​ system, a Demand Forecasting and Food Prep Recommendation Tool for more sustainable F&B operations​.
 
 ## Background

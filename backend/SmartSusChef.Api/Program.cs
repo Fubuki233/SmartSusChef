@@ -90,6 +90,7 @@ builder.Services.AddScoped<IWastageService, WastageService>();
 builder.Services.AddScoped<IForecastService, MockForecastService>();
 builder.Services.AddScoped<IWeatherService, WeatherService>();
 builder.Services.AddScoped<IHolidayService, HolidayService>();
+builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddHttpClient();
 
 var app = builder.Build();

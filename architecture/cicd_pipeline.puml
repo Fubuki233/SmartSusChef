@@ -1,0 +1,143 @@
+@startuml SmartSusChef_CI_CD_Pipeline
+
+title SmartSusChef - CI/CD Pipeline & DevOps Architecture
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName "Segoe UI"
+skinparam rectangle {
+    BackgroundColor<<source>> #E8F5E9
+    BackgroundColor<<build>> #E3F2FD
+    BackgroundColor<<test>> #FFF3E0
+    BackgroundColor<<deploy>> #F3E5F5
+    BackgroundColor<<monitor>> #FFEBEE
+}
+
+' ==== Development Phase ====
+rectangle "Development Phase" <<source>> {
+    actor Developer
+    
+    component "Git Repository\n(GitHub/GitLab)" as Git {
+        folder "main branch" as Main
+        folder "develop branch" as Dev
+        folder "feature/* branches" as Feature
+    }
+    
+    component "Local Dev\nEnvironment" as LocalDev {
+        component "VS Code" as IDE
+        component "Docker Compose\n(Dev)" as DevDocker
+    }
+}
+
+' ==== CI Pipeline ====
+rectangle "Continuous Integration" <<build>> {
+    component "CI Server\n(GitHub Actions)" as CI {
+        component "Build Job" as Build
+        component "Unit Tests" as UnitTest
+        component "Code Analysis" as CodeQuality
+    }
+    
+    component "Artifact Registry\n(Container Registry)" as Registry {
+        artifact "frontend:tag" as FEImage
+        artifact "backend:tag" as BEImage
+    }
+}
+
+' ==== Testing Phase ====
+rectangle "Testing Phase" <<test>> {
+    component "Test Environment" as TestEnv {
+        component "Integration\nTests" as IntTest
+        component "API Tests\n(Postman/Newman)" as APITest
+        component "E2E Tests\n(Playwright)" as E2ETest
+    }
+    
+    component "Quality Gates" as QG {
+        component "SonarQube\nCode Quality" as Sonar
+        component "Snyk\nSecurity Scan" as Security
+    }
+}
+
+' ==== Deployment Phase ====
+rectangle "Deployment Phase" <<deploy>> {
+    component "Staging\nEnvironment" as Staging {
+        node "Staging Server" as StagingServer
+        database "Staging DB" as StagingDB
+    }
+    
+    component "Production\nEnvironment" as Prod {
+        node "Production\nServer(s)" as ProdServer
+        database "Production DB\n(MySQL)" as ProdDB
+    }
+    
+    component "Deployment Tools" as DeployTools {
+        component "Helm Charts" as Helm
+        component "Docker Swarm/\nKubernetes" as K8s
+    }
+}
+
+' ==== Monitoring Phase ====
+rectangle "Monitoring & Operations" <<monitor>> {
+    component "Observability Stack" as Observability {
+        component "Prometheus\nMetrics" as Prometheus
+        component "Grafana\nDashboards" as Grafana
+        component "ELK Stack\nLogging" as ELK
+    }
+    
+    component "Alerting" as Alerts {
+        component "PagerDuty/\nSlack Alerts" as PagerDuty
+        component "Health Checks" as HealthCheck
+    }
+}
+
+' ==== Connections ====
+Developer --> IDE : Develop
+IDE --> Feature : Push code
+Feature --> Dev : Pull Request
+Dev --> Main : Merge
+
+Main --> CI : Trigger build
+
+Build --> UnitTest : Run tests
+UnitTest --> CodeQuality : Analyze
+CodeQuality --> Registry : Push images
+
+Registry --> TestEnv : Deploy to test
+TestEnv --> QG : Quality checks
+
+QG --> Staging : Approved
+Staging --> Prod : Manual/Auto deploy
+
+Prod --> Observability : Collect metrics
+Observability --> Alerts : Threshold breach
+Alerts --> Developer : Notify issues
+
+' ==== Pipeline Details ====
+note right of CI
+  **Build Pipeline:**
+  1. Checkout code
+  2. Restore dependencies
+  3. Build frontend (npm run build)
+  4. Build backend (dotnet publish)
+  5. Run unit tests
+  6. Build Docker images
+  7. Push to registry
+end note
+
+note right of DeployTools
+  **Deployment Steps:**
+  1. Pull latest images
+  2. Run database migrations
+  3. Rolling update deployment
+  4. Health check validation
+  5. Traffic switching
+end note
+
+note bottom of Observability
+  **Key Metrics Monitored:**
+  - API response times
+  - Error rates (5xx, 4xx)
+  - Database query times
+  - Memory/CPU usage
+  - Active user sessions
+end note
+
+@enduml

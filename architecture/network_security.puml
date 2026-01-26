@@ -1,0 +1,159 @@
+@startuml SmartSusChef_Network_Architecture
+
+title SmartSusChef - Network & Security Architecture
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName "Segoe UI"
+
+skinparam cloud {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+}
+
+skinparam node {
+    BackgroundColor #FFFDE7
+    BorderColor #F57C00
+}
+
+skinparam database {
+    BackgroundColor #E8F5E9
+    BorderColor #388E3C
+}
+
+' ==== Internet Zone ====
+cloud "Internet" as Internet {
+    actor "End Users\n(Browser)" as Users
+    
+    component "DNS\n(Route 53)" as DNS #LightCyan
+    
+    component "WAF\n(Web Application\nFirewall)" as WAF #FFCDD2
+}
+
+' ==== DMZ ====
+rectangle "DMZ (Demilitarized Zone)" #E1F5FE {
+    node "CDN Edge Nodes\n(CloudFlare/AWS CloudFront)" as CDN {
+        component "Static Assets\nCache" as StaticCache
+        component "SSL/TLS\nTermination" as TLS
+    }
+    
+    node "Load Balancer\n(Layer 7)" as LB {
+        component "Health Checks" as Health
+        component "Rate Limiting" as RateLimit
+        component "SSL Offloading" as SSL
+    }
+}
+
+' ==== Application Zone ====
+rectangle "Application Zone (Private Subnet)" #FFF3E0 {
+    node "Application Server 1" as App1 {
+        component "Nginx\n(Reverse Proxy)" as Nginx1
+        component ".NET API\nContainer" as API1
+        component "React SPA\n(Static Files)" as SPA1
+    }
+    
+    node "Application Server 2" as App2 {
+        component "Nginx" as Nginx2
+        component ".NET API\nContainer" as API2
+        component "React SPA" as SPA2
+    }
+    
+    node "Background Services" as Workers {
+        component "Forecast\nScheduler" as ForecastWorker
+        component "Cleanup\nJobs" as CleanupWorker
+    }
+}
+
+' ==== Cache Zone ====
+rectangle "Cache Layer" #F3E5F5 {
+    node "Redis Cluster" as Redis {
+        component "Session\nStore" as Session
+        component "API Response\nCache" as APICache
+    }
+}
+
+' ==== Database Zone ====
+rectangle "Database Zone (Isolated Subnet)" #E8F5E9 {
+    database "MySQL Primary\n(oversea.zyh111.icu:33333)" as DBPrimary {
+        component "smartsuschef DB" as MainDB
+    }
+    
+    database "MySQL Replica\n(Read Replica)" as DBReplica
+    
+    component "DB Backup\n(S3/Object Storage)" as Backup
+}
+
+' ==== External Services ====
+rectangle "External APIs" #FCE4EC {
+    component "Weather API\n(OpenWeatherMap)" as WeatherAPI
+    component "Holidays API\n(Nager.Date)" as HolidayAPI
+}
+
+' ==== Security Controls ====
+note right of WAF
+  **WAF Rules:**
+  - SQL Injection prevention
+  - XSS filtering
+  - Rate limiting
+  - Geo-blocking
+  - Bot detection
+end note
+
+note right of LB
+  **Load Balancer Config:**
+  - Round Robin distribution
+  - Sticky sessions (optional)
+  - Health check: /health
+  - Failover timeout: 30s
+end note
+
+note left of DBPrimary
+  **Database Security:**
+  - Encrypted at rest
+  - SSL connections
+  - IP whitelist
+  - Automated backups
+end note
+
+' ==== Connections ====
+Users --> DNS : Resolve domain
+DNS --> CDN : Route to edge
+CDN --> WAF : HTTPS
+WAF --> LB : Filtered traffic
+
+LB --> App1 : HTTP (internal)
+LB --> App2 : HTTP (internal)
+
+App1 --> Redis : Cache queries
+App2 --> Redis : Cache queries
+
+API1 --> DBPrimary : Write queries
+API2 --> DBPrimary : Write queries
+API1 --> DBReplica : Read queries
+API2 --> DBReplica : Read queries
+
+API1 --> WeatherAPI : HTTPS
+API2 --> HolidayAPI : HTTPS
+
+Workers --> DBPrimary : Background jobs
+DBPrimary --> DBReplica : Replication
+DBPrimary --> Backup : Scheduled backup
+
+' ==== Firewall Rules ====
+rectangle "Firewall Rules Summary" #ECEFF1 {
+    note as FW
+      **Inbound Rules:**
+      ├─ Internet → CDN: 443 (HTTPS)
+      ├─ CDN → LB: 443 (HTTPS)
+      ├─ LB → App: 80, 5000 (HTTP)
+      ├─ App → Redis: 6379
+      ├─ App → MySQL: 33333
+      └─ App → External APIs: 443
+      
+      **Outbound Rules:**
+      ├─ App → Weather API: 443
+      ├─ App → Holidays API: 443
+      └─ DB → Backup Storage: 443
+    end note
+}
+
+@enduml

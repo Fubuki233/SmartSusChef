@@ -1,0 +1,120 @@
+@startuml SmartSusChef_Database_ERD
+
+title SmartSusChef - Database Entity Relationship Diagram
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName "Segoe UI"
+skinparam linetype ortho
+
+hide circle
+skinparam class {
+    BackgroundColor #FFFDE7
+    BorderColor #FF6F00
+    ArrowColor #FF6F00
+}
+
+entity "Users" as users {
+    * **Id** : CHAR(36) <<PK>>
+    --
+    * Username : VARCHAR(50) <<Unique>>
+    * PasswordHash : VARCHAR(255)
+    * Role : ENUM('Manager','Employee')
+    * CreatedAt : DATETIME
+    * UpdatedAt : DATETIME
+}
+
+entity "Ingredients" as ingredients {
+    * **Id** : CHAR(36) <<PK>>
+    --
+    * Name : VARCHAR(100) <<Unique>>
+    Unit : VARCHAR(20)
+    * UnitPrice : DECIMAL(10,2)
+    * CurrentStock : DECIMAL(10,3)
+    * MinimumStock : DECIMAL(10,3)
+    Category : VARCHAR(50)
+    * CreatedAt : DATETIME
+    * UpdatedAt : DATETIME
+}
+
+entity "Recipes" as recipes {
+    * **Id** : CHAR(36) <<PK>>
+    --
+    * Name : VARCHAR(100)
+    Description : TEXT
+    Category : VARCHAR(50)
+    * PrepTime : INT
+    * BasePrice : DECIMAL(10,2)
+    * IsActive : BOOLEAN
+    * CreatedAt : DATETIME
+    * UpdatedAt : DATETIME
+}
+
+entity "RecipeIngredients" as recipe_ingredients {
+    * **Id** : CHAR(36) <<PK>>
+    --
+    * RecipeId : CHAR(36) <<FK>>
+    * IngredientId : CHAR(36) <<FK>>
+    * Quantity : DECIMAL(10,3)
+    --
+    <<INDEX>> (RecipeId, IngredientId)
+}
+
+entity "SalesData" as sales_data {
+    * **Id** : CHAR(36) <<PK>>
+    --
+    * Date : DATE
+    * RecipeId : CHAR(36) <<FK>>
+    * QuantitySold : INT
+    * Revenue : DECIMAL(10,2)
+    WeatherCondition : VARCHAR(50)
+    Temperature : DECIMAL(5,2)
+    IsHoliday : BOOLEAN
+    DayOfWeek : INT
+    * CreatedAt : DATETIME
+    --
+    <<INDEX>> (Date)
+    <<INDEX>> (RecipeId)
+}
+
+entity "WastageData" as wastage_data {
+    * **Id** : CHAR(36) <<PK>>
+    --
+    * Date : DATE
+    * IngredientId : CHAR(36) <<FK>>
+    * Quantity : DECIMAL(10,3)
+    Reason : VARCHAR(255)
+    EstimatedValue : DECIMAL(10,2)
+    * CreatedAt : DATETIME
+    --
+    <<INDEX>> (Date)
+    <<INDEX>> (IngredientId)
+}
+
+' Relationships
+recipes ||--|{ recipe_ingredients : "contains"
+ingredients ||--|{ recipe_ingredients : "used in"
+recipes ||--|{ sales_data : "sold as"
+ingredients ||--|{ wastage_data : "wasted"
+
+' Additional Notes
+note right of users
+  **Authentication:**
+  - BCrypt hashed passwords
+  - JWT token based auth
+  - Role-based access control
+end note
+
+note right of sales_data
+  **External Data Integration:**
+  - WeatherCondition: API fetch
+  - IsHoliday: Holidays API
+  - Used for ML predictions
+end note
+
+note bottom of recipe_ingredients
+  **Junction Table:**
+  Links recipes to ingredients
+  with quantity ratios
+end note
+
+@enduml
