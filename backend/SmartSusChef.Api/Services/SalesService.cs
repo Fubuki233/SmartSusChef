@@ -130,8 +130,13 @@ public class SalesService : ISalesService
         {
             foreach (var recipeIngredient in sale.Recipe.RecipeIngredients)
             {
+                if (recipeIngredient.IngredientId is null || recipeIngredient.Ingredient is null)
+                {
+                    continue;
+                }
+
                 var totalQuantity = recipeIngredient.Quantity * sale.Quantity;
-                var ingredientId = recipeIngredient.IngredientId;
+                var ingredientId = recipeIngredient.IngredientId.Value;
 
                 if (ingredientUsage.ContainsKey(ingredientId))
                 {
@@ -144,7 +149,7 @@ public class SalesService : ISalesService
                 else
                 {
                     ingredientUsage[ingredientId] = new IngredientUsageDto(
-                        recipeIngredient.IngredientId.ToString(),
+                        ingredientId.ToString(),
                         recipeIngredient.Ingredient.Name,
                         recipeIngredient.Ingredient.Unit,
                         totalQuantity

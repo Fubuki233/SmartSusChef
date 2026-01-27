@@ -42,4 +42,16 @@ public class Store
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    
+    // Navigation properties - Inverse relationships for EF Core
+    
+    public ICollection<User> Users { get; set; } = new List<User>();
+    
+    public ICollection<Ingredient> Ingredients { get; set; } = new List<Ingredient>();
+    
+    public ICollection<Recipe> Recipes { get; set; } = new List<Recipe>();
+    
+    public ICollection<SalesData> SalesRecords { get; set; } = new List<SalesData>();
+    
+    public ICollection<WastageData> WastageRecords { get; set; } = new List<WastageData>();
 }
