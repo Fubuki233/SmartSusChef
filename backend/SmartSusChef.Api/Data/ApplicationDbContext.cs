@@ -17,94 +17,164 @@ public class ApplicationDbContext : DbContext
     public DbSet<SalesData> SalesData { get; set; }
     public DbSet<WastageData> WastageData { get; set; }
     public DbSet<Store> Store { get; set; }
+    
+    public DbSet<GlobalCalendarSignals> GlobalCalendarSignals { get; set; }
+    
+    public DbSet<ForecastData> ForecastData { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    base.OnModelCreating(modelBuilder);
+
+    // Store Configuration (Enhanced with corporate fields)
+    modelBuilder.Entity<Store>(entity =>
     {
-        base.OnModelCreating(modelBuilder);
+        entity.HasKey(e => e.Id);
+        entity.Property(e => e.Id).ValueGeneratedNever(); // Singleton-friendly ID
+        entity.Property(e => e.CompanyName).IsRequired().HasMaxLength(255);
+        entity.Property(e => e.UEN).IsRequired().HasMaxLength(20);
+        entity.Property(e => e.StoreName).IsRequired().HasMaxLength(200);
+        entity.Property(e => e.OutletLocation).HasMaxLength(200);
+        entity.Property(e => e.Latitude).HasPrecision(10, 7);
+        entity.Property(e => e.Longitude).HasPrecision(10, 7);
+        entity.Property(e => e.ContactNumber).HasMaxLength(20);
+    });
 
-        // User configuration
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Username).IsUnique();
-            entity.Property(e => e.Username).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.Role).HasConversion<string>();
-        });
+    // User Configuration
+    modelBuilder.Entity<User>(entity =>
+    {
+        entity.HasKey(e => e.Id);
+        entity.HasIndex(e => e.Username).IsUnique();
+        entity.Property(e => e.Username).IsRequired().HasMaxLength(50);
+        entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
+        entity.Property(e => e.UserStatus).HasDefaultValue("Active");
+        entity.Property(e => e.Role).HasConversion<string>();
+        
+        // Link to Store
+        entity.HasOne(e => e.Store)
+              .WithMany(s => s.Users)
+              .HasForeignKey(e => e.StoreId);
+    });
 
-        // Ingredient configuration
-        modelBuilder.Entity<Ingredient>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.Unit).IsRequired().HasMaxLength(20);
-            entity.Property(e => e.CarbonFootprint).HasPrecision(10, 3);
-        });
+    // Ingredient Configuration
+    modelBuilder.Entity<Ingredient>(entity =>
+    {
+        entity.HasKey(e => e.Id);
+        entity.Property(e => e.CarbonFootprint).HasPrecision(18, 3);
+        
+        entity.HasOne(e => e.Store)
+              .WithMany(s => s.Ingredients)
+              .HasForeignKey(e => e.StoreId);
+    });
 
-        // Recipe configuration
-        modelBuilder.Entity<Recipe>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
-        });
+    // Recipe Configuration (Support for sub-recipes)
+    modelBuilder.Entity<Recipe>(entity =>
+    {
+        entity.HasKey(e => e.Id);
+        entity.HasOne(e => e.Store)
+              .WithMany(s => s.Recipes)
+              .HasForeignKey(e => e.StoreId);
+    });
 
-        // RecipeIngredient configuration
-        modelBuilder.Entity<RecipeIngredient>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasOne(e => e.Recipe)
-                .WithMany(r => r.RecipeIngredients)
-                .HasForeignKey(e => e.RecipeId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Ingredient)
-                .WithMany(i => i.RecipeIngredients)
-                .HasForeignKey(e => e.IngredientId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.Property(e => e.Quantity).HasPrecision(10, 3);
-        });
+    // RecipeIngredient Configuration (Recursive BOM Logic)
+    modelBuilder.Entity<RecipeIngredient>(entity =>
+    {
+        entity.HasKey(e => e.Id);
+        entity.Property(e => e.Quantity).HasPrecision(18, 3);
 
-        // SalesData configuration
-        modelBuilder.Entity<SalesData>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasOne(e => e.Recipe)
-                .WithMany(r => r.SalesRecords)
-                .HasForeignKey(e => e.RecipeId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => e.Date);
-        });
+        // Link to Parent Recipe
+        entity.HasOne(e => e.Recipe)
+              .WithMany(r => r.RecipeIngredients)
+              .HasForeignKey(e => e.RecipeId);
 
-        // WastageData configuration
-        modelBuilder.Entity<WastageData>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasOne(e => e.Ingredient)
-                .WithMany(i => i.WastageRecords)
-                .HasForeignKey(e => e.IngredientId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.Property(e => e.Quantity).HasPrecision(10, 3);
-            entity.HasIndex(e => e.Date);
-        });
+        // Optional link to Raw Ingredient
+        entity.HasOne(e => e.Ingredient)
+              .WithMany(i => i.RecipeIngredients)
+              .HasForeignKey(e => e.IngredientId)
+              .OnDelete(DeleteBehavior.SetNull);
 
-        // Store configuration (singleton - only one record allowed)
-        modelBuilder.Entity<Store>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasDefaultValue(1);
-            entity.Property(e => e.StoreName).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.Latitude).HasPrecision(10, 7);
-            entity.Property(e => e.Longitude).HasPrecision(10, 7);
-            entity.Property(e => e.Address).HasMaxLength(500);
-            entity.HasIndex(e => e.IsActive);
-            entity.HasIndex(e => e.OpeningDate);
-        });
+        // Optional link to Child Sub-Recipe
+        entity.HasOne(e => e.ChildRecipe)
+              .WithMany()
+              .HasForeignKey(e => e.ChildRecipeId)
+              .OnDelete(DeleteBehavior.Restrict); // Prevent circular deletes
+    });
 
-        // Seed data
-        SeedData(modelBuilder);
-    }
+    // SalesData Configuration
+    modelBuilder.Entity<SalesData>(entity =>
+    {
+        entity.HasKey(e => e.Id);
+        entity.HasOne(e => e.Store)
+              .WithMany(s => s.SalesData)
+              .HasForeignKey(e => e.StoreId);
+        entity.HasOne(e => e.Recipe)
+              .WithMany(r => r.SalesRecords)
+              .HasForeignKey(e => e.RecipeId);
+    });
+
+    // WastageData Configuration (Either/Or Logic)
+    modelBuilder.Entity<WastageData>(entity =>
+    {
+        entity.HasKey(e => e.Id);
+        entity.Property(e => e.Quantity).HasPrecision(18, 3);
+        
+        entity.HasOne(e => e.Store)
+              .WithMany(s => s.WastageData)
+              .HasForeignKey(e => e.StoreId);
+
+        // Flexible links
+        entity.HasOne(e => e.Ingredient)
+              .WithMany(i => i.WastageRecords)
+              .HasForeignKey(e => e.IngredientId);
+
+        entity.HasOne(e => e.Recipe)
+              .WithMany(r => r.WastageRecords)
+              .HasForeignKey(e => e.RecipeId);
+    });
+
+    // ForecastData Configuration (New Predictive Entity)
+    modelBuilder.Entity<ForecastData>(entity =>
+    {
+        entity.HasKey(e => e.Id);
+        entity.HasOne(e => e.Store)
+              .WithMany(s => s.ForecastData)
+              .HasForeignKey(e => e.StoreId);
+        entity.HasOne(e => e.Recipe)
+              .WithMany()
+              .HasForeignKey(e => e.RecipeId);
+    });
+
+    // GlobalCalendarSignals Configuration (Date as Key)
+    modelBuilder.Entity<GlobalCalendarSignals>(entity =>
+    {
+        entity.HasKey(e => e.Date);
+        entity.Property(e => e.RainMm).HasPrecision(10, 2);
+    });
+
+    // Seed data
+    SeedData(modelBuilder);
+}
 
     private void SeedData(ModelBuilder modelBuilder)
     {
+        // Seed Store
+        var storeId = 1;
+        modelBuilder.Entity<Store>().HasData(
+            new Store
+            {
+                Id = storeId,
+                CompanyName = "Smart Sus Chef Corp",
+                UEN = "202400001A",
+                StoreName = "Downtown Outlet",
+                OutletLocation = "123 Orchard Road",
+                ContactNumber = "+65 6000 0000",
+                OpeningDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                IsActive = true
+            }
+        );
+
         // Seed default admin user
         var adminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var employeeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -113,6 +183,7 @@ public class ApplicationDbContext : DbContext
             new User
             {
                 Id = adminId,
+                StoreId = storeId,
                 Username = "admin",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
                 Name = "Administrator",
@@ -123,6 +194,7 @@ public class ApplicationDbContext : DbContext
             new User
             {
                 Id = employeeId,
+                StoreId = storeId,
                 Username = "employee",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("employee123"),
                 Name = "Employee User",
@@ -140,11 +212,11 @@ public class ApplicationDbContext : DbContext
         var beefId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
         modelBuilder.Entity<Ingredient>().HasData(
-            new Ingredient { Id = tomatoId, Name = "Tomato", Unit = "kg", CarbonFootprint = 1.1m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Ingredient { Id = cheeseId, Name = "Cheese", Unit = "kg", CarbonFootprint = 13.5m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Ingredient { Id = doughId, Name = "Dough", Unit = "kg", CarbonFootprint = 0.9m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Ingredient { Id = lettuceId, Name = "Lettuce", Unit = "kg", CarbonFootprint = 0.5m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Ingredient { Id = beefId, Name = "Beef", Unit = "kg", CarbonFootprint = 27.0m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            new Ingredient { Id = tomatoId, StoreId = storeId, Name = "Tomato", Unit = "kg", CarbonFootprint = 1.1m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Ingredient { Id = cheeseId, StoreId = storeId, Name = "Cheese", Unit = "kg", CarbonFootprint = 13.5m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Ingredient { Id = doughId, StoreId = storeId, Name = "Dough", Unit = "kg", CarbonFootprint = 0.9m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Ingredient { Id = lettuceId, StoreId = storeId, Name = "Lettuce", Unit = "kg", CarbonFootprint = 0.5m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Ingredient { Id = beefId, StoreId = storeId, Name = "Beef", Unit = "kg", CarbonFootprint = 27.0m, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
         );
 
         // Seed sample recipes
@@ -152,18 +224,18 @@ public class ApplicationDbContext : DbContext
         var burgerId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
         modelBuilder.Entity<Recipe>().HasData(
-            new Recipe { Id = pizzaId, Name = "Margherita Pizza", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Recipe { Id = burgerId, Name = "Beef Burger", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            new Recipe { Id = pizzaId, StoreId = storeId, Name = "Margherita Pizza", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Recipe { Id = burgerId, StoreId = storeId, Name = "Beef Burger", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
         );
 
         // Seed recipe ingredients
         modelBuilder.Entity<RecipeIngredient>().HasData(
-            new RecipeIngredient { Id = Guid.NewGuid(), RecipeId = pizzaId, IngredientId = doughId, Quantity = 0.3m },
-            new RecipeIngredient { Id = Guid.NewGuid(), RecipeId = pizzaId, IngredientId = tomatoId, Quantity = 0.2m },
-            new RecipeIngredient { Id = Guid.NewGuid(), RecipeId = pizzaId, IngredientId = cheeseId, Quantity = 0.15m },
-            new RecipeIngredient { Id = Guid.NewGuid(), RecipeId = burgerId, IngredientId = beefId, Quantity = 0.2m },
-            new RecipeIngredient { Id = Guid.NewGuid(), RecipeId = burgerId, IngredientId = lettuceId, Quantity = 0.05m },
-            new RecipeIngredient { Id = Guid.NewGuid(), RecipeId = burgerId, IngredientId = tomatoId, Quantity = 0.05m }
+            new RecipeIngredient { Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), RecipeId = pizzaId, IngredientId = doughId, Quantity = 0.3m },
+            new RecipeIngredient { Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), RecipeId = pizzaId, IngredientId = tomatoId, Quantity = 0.2m },
+            new RecipeIngredient { Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), RecipeId = pizzaId, IngredientId = cheeseId, Quantity = 0.15m },
+            new RecipeIngredient { Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), RecipeId = burgerId, IngredientId = beefId, Quantity = 0.2m },
+            new RecipeIngredient { Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), RecipeId = burgerId, IngredientId = lettuceId, Quantity = 0.05m },
+            new RecipeIngredient { Id = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff"), RecipeId = burgerId, IngredientId = tomatoId, Quantity = 0.05m }
         );
     }
 }

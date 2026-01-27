@@ -10,34 +10,20 @@ public class Store
     /// </summary>
     public int Id { get; set; } = 1;
 
-    /// <summary>
-    /// Store name
-    /// </summary>
+   
+    // Corporate & Identity Fields
+    public string CompanyName { get; set; } = string.Empty; //
+    public string UEN { get; set; } = string.Empty; //
     public string StoreName { get; set; } = string.Empty;
+    public string OutletLocation { get; set; } = string.Empty; 
 
-    /// <summary>
-    /// Opening date
-    /// </summary>
+    // Store Details
     public DateTime OpeningDate { get; set; }
-
-    /// <summary>
-    /// Latitude (-90 to 90)
-    /// </summary>
     public decimal Latitude { get; set; }
-
-    /// <summary>
-    /// Longitude (-180 to 180)
-    /// </summary>
     public decimal Longitude { get; set; }
-
-    /// <summary>
-    /// Detailed address (optional)
-    /// </summary>
     public string? Address { get; set; }
-
-    /// <summary>
-    /// Is the store currently active
-    /// </summary>
+    public string ContactNumber { get; set; } = string.Empty; 
+    
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; }
@@ -46,12 +32,9 @@ public class Store
     // Navigation properties - Inverse relationships for EF Core
     
     public ICollection<User> Users { get; set; } = new List<User>();
-    
     public ICollection<Ingredient> Ingredients { get; set; } = new List<Ingredient>();
-    
     public ICollection<Recipe> Recipes { get; set; } = new List<Recipe>();
-    
-    public ICollection<SalesData> SalesRecords { get; set; } = new List<SalesData>();
-    
-    public ICollection<WastageData> WastageRecords { get; set; } = new List<WastageData>();
+    public ICollection<SalesData> SalesData { get; set; } = new List<SalesData>();
+    public ICollection<WastageData> WastageData { get; set; } = new List<WastageData>();
+    public ICollection<ForecastData> ForecastData { get; set; } = new List<ForecastData>();
 }
