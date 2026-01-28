@@ -106,7 +106,29 @@ public partial class IngredientService : IIngredientService
             .SumAsync(i => i.CarbonFootprint);
     }
 
+<<<<<<< HEAD
     // Bulk Import: Ensuring StoreId is enforced for all new records
+=======
+    public async Task<decimal> GetTotalCarbonImpactAsync(List<(Guid Id, decimal Quantity)> items)
+    {
+        var ids = items.Select(x => x.Id).ToList();
+        var ingredients = await _context.Ingredients
+            .Where(i => ids.Contains(i.Id) && i.StoreId == _currentStoreId)
+            .ToDictionaryAsync(i => i.Id, i => i.CarbonFootprint);
+
+        decimal totalImpact = 0;
+        foreach (var item in items)
+        {
+            if (ingredients.TryGetValue(item.Id, out var footprint))
+            {
+                totalImpact += footprint * item.Quantity;
+            }
+        }
+        return totalImpact;
+    }
+
+// Bulk Import: Ensuring StoreId is enforced for all new records
+>>>>>>> 1096159beeaa7c0b880e5fe80ef9433584e3c292
     public async Task ImportIngredientsAsync(List<CreateIngredientRequest> requests)
     {
         var allowedUnits = new[] { "g", "ml", "kg", "L" };
