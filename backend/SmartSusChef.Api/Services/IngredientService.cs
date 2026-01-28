@@ -106,29 +106,32 @@ public partial class IngredientService : IIngredientService
             .SumAsync(i => i.CarbonFootprint);
     }
 
-<<<<<<< HEAD
-    // Bulk Import: Ensuring StoreId is enforced for all new records
-=======
+    // Calculates total carbon impact for specific ingredients with quantities
     public async Task<decimal> GetTotalCarbonImpactAsync(List<(Guid Id, decimal Quantity)> items)
     {
-        var ids = items.Select(x => x.Id).ToList();
+        if (items == null || items.Count == 0)
+            return 0;
+
+        var ingredientIds = items.Select(x => x.Id).ToList();
         var ingredients = await _context.Ingredients
-            .Where(i => ids.Contains(i.Id) && i.StoreId == _currentStoreId)
-            .ToDictionaryAsync(i => i.Id, i => i.CarbonFootprint);
+            .Where(i => i.StoreId == CurrentStoreId && ingredientIds.Contains(i.Id))
+            .ToListAsync();
 
         decimal totalImpact = 0;
         foreach (var item in items)
         {
-            if (ingredients.TryGetValue(item.Id, out var footprint))
+            var ingredient = ingredients.FirstOrDefault(i => i.Id == item.Id);
+            if (ingredient != null)
             {
-                totalImpact += footprint * item.Quantity;
+                // Carbon impact = carbon footprint per unit * quantity
+                totalImpact += ingredient.CarbonFootprint * item.Quantity;
             }
         }
+
         return totalImpact;
     }
 
-// Bulk Import: Ensuring StoreId is enforced for all new records
->>>>>>> 1096159beeaa7c0b880e5fe80ef9433584e3c292
+    // Bulk Import: Ensuring StoreId is enforced for all new records
     public async Task ImportIngredientsAsync(List<CreateIngredientRequest> requests)
     {
         var allowedUnits = new[] { "g", "ml", "kg", "L" };
