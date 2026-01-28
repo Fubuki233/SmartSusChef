@@ -69,18 +69,79 @@ export interface LoginResponse {
         id: string;
         username: string;
         name: string;
+        email: string;
         role: string;
+        status: string;
     };
+    storeSetupRequired: boolean;
+}
+
+export interface RegisterRequest {
+    username: string;
+    password: string;
+    name: string;
+    email: string;
+}
+
+export interface RegisterResponse {
+    token: string;
+    user: {
+        id: string;
+        username: string;
+        name: string;
+        email: string;
+        role: string;
+        status: string;
+    };
+    storeSetupRequired: boolean;
 }
 
 export interface UserDto {
     id: string;
     username: string;
     name: string;
+    email: string;
+    role: string;
+    status: string;
+}
+
+export interface UserListDto {
+    id: string;
+    username: string;
+    name: string;
+    email: string;
+    role: string;
+    status: string;
+    createdAt: string;
+}
+
+export interface CreateUserRequest {
+    username: string;
+    password: string;
+    name: string;
+    email: string;
     role: string;
 }
 
+export interface UpdateUserRequest {
+    username?: string;
+    password?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    status?: string;
+}
+
 export const authApi = {
+    register: async (data: RegisterRequest): Promise<RegisterResponse> => {
+        const response = await apiRequest<RegisterResponse>('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        setAuthToken(response.token);
+        return response;
+    },
+
     login: async (credentials: LoginRequest): Promise<LoginResponse> => {
         const response = await apiRequest<LoginResponse>('/auth/login', {
             method: 'POST',
@@ -94,8 +155,93 @@ export const authApi = {
         return apiRequest<UserDto>('/auth/me');
     },
 
+    checkStoreSetupRequired: async (): Promise<{ storeSetupRequired: boolean }> => {
+        return apiRequest<{ storeSetupRequired: boolean }>('/auth/store-setup-required');
+    },
+
     logout: () => {
         setAuthToken(null);
+    },
+};
+
+// ============ Users API ============
+export const usersApi = {
+    getAll: async (): Promise<UserListDto[]> => {
+        return apiRequest<UserListDto[]>('/users');
+    },
+
+    create: async (data: CreateUserRequest): Promise<UserListDto> => {
+        return apiRequest<UserListDto>('/users', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    update: async (id: string, data: UpdateUserRequest): Promise<UserListDto> => {
+        return apiRequest<UserListDto>(`/users/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+
+    delete: async (id: string): Promise<void> => {
+        await apiRequest<void>(`/users/${id}`, {
+            method: 'DELETE',
+        });
+    },
+};
+
+// ============ Store API ============
+export interface StoreDto {
+    id: number;
+    companyName: string;
+    uen: string;
+    storeName: string;
+    outletLocation: string;
+    contactNumber: string;
+    openingDate: string;
+    latitude: number;
+    longitude: number;
+    address: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface UpdateStoreRequest {
+    companyName?: string;
+    uen?: string;
+    storeName?: string;
+    outletLocation?: string;
+    contactNumber?: string;
+    openingDate?: string;
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+    isActive?: boolean;
+}
+
+export const storeApi = {
+    get: async (): Promise<StoreDto> => {
+        return apiRequest<StoreDto>('/store');
+    },
+
+    getStatus: async (): Promise<{ isSetupComplete: boolean; storeSetupRequired: boolean }> => {
+        return apiRequest<{ isSetupComplete: boolean; storeSetupRequired: boolean }>('/store/status');
+    },
+
+    setup: async (data: UpdateStoreRequest): Promise<StoreDto> => {
+        return apiRequest<StoreDto>('/store/setup', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    update: async (data: UpdateStoreRequest): Promise<StoreDto> => {
+        return apiRequest<StoreDto>('/store', {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
     },
 };
 
@@ -145,8 +291,9 @@ export const ingredientsApi = {
 
 // ============ Recipes API ============
 export interface RecipeIngredientDto {
-    ingredientId: string;
-    ingredientName: string;
+    ingredientId?: string;
+    childRecipeId?: string;
+    displayName: string;
     unit: string;
     quantity: number;
 }
@@ -154,16 +301,21 @@ export interface RecipeIngredientDto {
 export interface RecipeDto {
     id: string;
     name: string;
+    isSellable: boolean;
+    isSubRecipe: boolean;
     ingredients: RecipeIngredientDto[];
 }
 
 export interface CreateRecipeIngredientRequest {
-    ingredientId: string;
+    ingredientId?: string;
+    childRecipeId?: string;
     quantity: number;
 }
 
 export interface CreateRecipeRequest {
     name: string;
+    isSellable: boolean;
+    isSubRecipe: boolean;
     ingredients: CreateRecipeIngredientRequest[];
 }
 
@@ -202,7 +354,6 @@ export interface SalesDataDto {
     id: string;
     date: string;
     recipeId: string;
-    recipeName: string;
     quantity: number;
 }
 
@@ -215,17 +366,16 @@ export interface CreateSalesDataRequest {
 export interface SalesTrendDto {
     date: string;
     totalQuantity: number;
-    recipeBreakdown: {
+    recipeBreakdown: Array<{
         recipeId: string;
         recipeName: string;
         quantity: number;
-    }[];
+    }>;
 }
 
 export interface IngredientUsageDto {
     ingredientId: string;
     ingredientName: string;
-    unit: string;
     quantity: number;
 }
 
@@ -273,13 +423,6 @@ export const salesApi = {
             method: 'DELETE',
         });
     },
-
-    import: async (salesData: CreateSalesDataRequest[]): Promise<void> => {
-        await apiRequest<{ message: string; count: number }>('/sales/import', {
-            method: 'POST',
-            body: JSON.stringify({ salesData }),
-        });
-    },
 };
 
 // ============ Wastage API ============
@@ -287,10 +430,7 @@ export interface WastageDataDto {
     id: string;
     date: string;
     ingredientId: string;
-    ingredientName: string;
-    unit: string;
     quantity: number;
-    carbonFootprint: number;
 }
 
 export interface CreateWastageDataRequest {
@@ -302,14 +442,11 @@ export interface CreateWastageDataRequest {
 export interface WastageTrendDto {
     date: string;
     totalQuantity: number;
-    totalCarbonFootprint: number;
-    ingredientBreakdown: {
+    ingredientBreakdown: Array<{
         ingredientId: string;
         ingredientName: string;
-        unit: string;
         quantity: number;
-        carbonFootprint: number;
-    }[];
+    }>;
 }
 
 export const wastageApi = {
@@ -359,10 +496,11 @@ export interface ForecastIngredientDto {
 }
 
 export interface ForecastDto {
+    id: string;
     date: string;
     recipeId: string;
     recipeName: string;
-    quantity: number;
+    predictedQuantity: number;
     ingredients: ForecastIngredientDto[];
 }
 
@@ -405,6 +543,8 @@ export const forecastApi = {
 // Export all APIs
 export const api = {
     auth: authApi,
+    users: usersApi,
+    store: storeApi,
     ingredients: ingredientsApi,
     recipes: recipesApi,
     sales: salesApi,

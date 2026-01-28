@@ -2,43 +2,70 @@
 
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
+  --background: #F9FBF7;
+  --foreground: #1A1C18;
+  --card: #FFFFFF;
+  --card-foreground: #1A1C18;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1C18;
+  --primary: #4F6F52;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E6EFE0;
+  --secondary-foreground: #4F6F52;
+  --muted: #F0F4ED;
+  --muted-foreground: #6B7280;
+  --accent: #E6EFE0;
+  --accent-foreground: #1A1C18;
+  --destructive: #E67E22;
+  --destructive-foreground: #FFFFFF;
+  --border: #D1D1D1;
   --input: transparent;
-  --input-background: #f3f3f5;
+  --input-background: #FFFFFF;
+  --input-border: #D1D1D1;
   --switch-background: #cbced4;
-  --font-weight-medium: 500;
+  --font-weight-medium: 600;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --ring: #4F6F52;
+  --chart-1: #4F6F52;
+  --chart-2: #E67E22;
+  --chart-3: #4A90E2;
+  --chart-4: #8A9A5B;
+  --chart-5: #B4A373;
+  --sales-primary: #4F6F52;
+  --sales-trend-line: #2C3E2D;
+  --wastage-primary: #E67E22;
+  --carbon-footprint: #8A9A5B;
+  --forecast-bar: #B4A373;
+  --forecast-trend: #8E7AB5;
+  --success-interactive: #27AE60;
+  --weather-azure: #4A90E2;
+  --deep-forest-sage: #4F6F52;
+  --burnt-orange: #E67E22;
+  --muted-olive: #8A9A5B;
+  --lavender: #8E7AB5;
+  --muted-gold: #B4A373;
+  --azure-blue: #4A90E2;
+  --charcoal-grey: #1A1C18;
+  --surface-white: #FFFFFF;
+  --radius: 8px;
+  --button-radius: 32px;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --button-height-mobile: 56px;
+  --button-height-web: 40px;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1A1C18;
+  --sidebar-primary: #4F6F52;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E6EFE0;
+  --sidebar-accent-foreground: #1A1C18;
+  --sidebar-border: #D1D1D1;
+  --sidebar-ring: #4F6F52;
+  --text-h1-mobile: 24px;
+  --text-h1-web: 32px;
+  --text-h2-mobile: 18px;
+  --text-h2-web: 22px;
+  --text-body: 16px;
+  --text-data-label: 12px;
 }
 
 .dark {
@@ -177,5 +204,19 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground font-semibold px-6 py-3 rounded-[var(--button-radius)] transition-colors hover:bg-[#3D563F];
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground font-semibold px-6 py-3 rounded-[var(--button-radius)] transition-colors hover:bg-[#D9E4D1];
+  }
+
+  .btn-tertiary {
+    @apply bg-transparent text-primary font-semibold px-6 py-3 rounded-[var(--button-radius)] hover:underline;
   }
 }

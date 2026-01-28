@@ -69,7 +69,20 @@ public class ForecastController : ControllerBase
             return BadRequest(new { message = "Year must be between 2020 and 2030" });
         }
 
-        var holidays = await _holidayService.GetHolidaysAsync(year);
+        // Get store coordinates to determine country
+        var store = await _storeService.GetStoreAsync();
+        string countryCode;
+
+        if (store != null)
+        {
+            countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+        }
+        else
+        {
+            countryCode = "SG"; // Default to Singapore
+        }
+
+        var holidays = await _holidayService.GetHolidaysAsync(year, countryCode);
         return Ok(holidays);
     }
 

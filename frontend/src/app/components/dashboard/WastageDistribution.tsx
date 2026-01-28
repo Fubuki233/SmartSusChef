@@ -2,63 +2,113 @@ import React, { useMemo } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
+import { Badge } from '@/app/components/ui/badge';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { format, parseISO } from 'date-fns';
-import { PieChartIcon, List } from 'lucide-react';
+import { PieChartIcon, List, Leaf } from 'lucide-react';
 
 interface WastageDistributionProps {
   date: string;
 }
 
-const COLORS = ['#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#0ea5e9', '#16a34a'];
+const CATEGORY_COLORS = {
+  'Main Dishes': '#3498DB',    // Blue
+  'Sub-Recipes': '#E67E22',    // Orange
+  'Raw Ingredients': '#95A5A6' // Gray
+};
 
 export function WastageDistribution({ date }: WastageDistributionProps) {
-  const { wastageData, ingredients, recipes, salesData } = useApp();
+  const { wastageData, ingredients, recipes } = useApp();
 
   const { pieData, tableData } = useMemo(() => {
     const ingredientMap = new Map(ingredients.map((i) => [i.id, i]));
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
 
-    // Calculate wastage by recipe (based on ingredients used)
-    const recipeWastage: { [key: string]: number } = {};
-    const ingredientDetails: Array<{ name: string; unit: string; quantity: number; carbon: number }> = [];
+    const categoryTotals: { [key: string]: number } = {
+      'Main Dishes': 0,
+      'Sub-Recipes': 0,
+      'Raw Ingredients': 0
+    };
 
-    // Get wastage by ingredient
+    const itemDetails: Array<{ 
+      name: string; 
+      type: 'Dish' | 'Sub-Recipe' | 'Raw'; 
+      unit: string; 
+      quantity: number; 
+      carbon: number;
+      badgeColor: string;
+    }> = [];
+
+    // --- HELPER: Convert Quantity to Standard Unit (kg/L) ---
+    const getStandardizedQuantity = (qty: number, unit: string) => {
+      if (unit === 'g' || unit === 'ml') {
+        return qty / 1000;
+      }
+      return qty; // Assumes kg, L, or 'plate' is already standard
+    };
+
     wastageData
       .filter((waste) => waste.date === date)
       .forEach((waste) => {
-        const ingredient = ingredientMap.get(waste.ingredientId);
-        if (ingredient) {
-          ingredientDetails.push({
-            name: ingredient.name,
-            unit: ingredient.unit,
-            quantity: waste.quantity,
-            carbon: waste.quantity * ingredient.carbonFootprint,
-          });
+        let itemProcessed = false;
+        let calculatedCarbon = 0;
 
-          // Find which recipes use this ingredient
-          recipes.forEach((recipe) => {
-            const usesIngredient = recipe.ingredients.find(
-              (ri) => ri.ingredientId === waste.ingredientId
-            );
-            if (usesIngredient) {
-              if (!recipeWastage[recipe.name]) {
-                recipeWastage[recipe.name] = 0;
-              }
-              recipeWastage[recipe.name] += waste.quantity;
-            }
-          });
+        // --- Check for Recipe ID ---
+        if (waste.recipeId) {
+          const recipe = recipeMap.get(waste.recipeId);
+          if (recipe) {
+            const type = recipe.isSubRecipe ? 'Sub-Recipe' : 'Dish';
+            const category = recipe.isSubRecipe ? 'Sub-Recipes' : 'Main Dishes';
+            const unit = recipe.isSubRecipe ? 'L' : 'plate';
+            const badgeColor = recipe.isSubRecipe ? 'bg-[#E67E22]' : 'bg-[#3498DB]';
+            
+            // Mock carbon calculation for dishes (0.5 multiplier per plate/unit)
+            // For sub-recipes (L), we should also ideally check ingredients, but using 0.5 as proxy for now
+            calculatedCarbon = waste.quantity * 0.5;
+            
+            categoryTotals[category] += calculatedCarbon;
+            
+            itemDetails.push({
+              name: recipe.name,
+              type: type,
+              unit: unit,
+              quantity: waste.quantity,
+              carbon: calculatedCarbon,
+              badgeColor
+            });
+            itemProcessed = true;
+          }
+        } 
+        
+        // --- Check for Ingredient ID ---
+        if (!itemProcessed && waste.ingredientId) {
+          const ingredient = ingredientMap.get(waste.ingredientId);
+          if (ingredient) {
+            // FIX: Convert grams to kg before multiplying by Carbon Factor
+            const standardQty = getStandardizedQuantity(waste.quantity, ingredient.unit);
+            calculatedCarbon = standardQty * ingredient.carbonFootprint;
+            
+            categoryTotals['Raw Ingredients'] += calculatedCarbon;
+            
+            itemDetails.push({
+              name: ingredient.name,
+              type: 'Raw',
+              unit: ingredient.unit,
+              quantity: waste.quantity,
+              carbon: calculatedCarbon,
+              badgeColor: 'bg-[#95A5A6]'
+            });
+          }
         }
       });
 
-    const pieChartData = Object.entries(recipeWastage).map(([name, value]) => ({
-      name,
-      value: parseFloat(value.toFixed(2)),
-    }));
+    const pieChartData = Object.entries(categoryTotals)
+      .map(([name, value]) => ({ name, value }))
+      .filter(item => item.value > 0);
 
     return {
       pieData: pieChartData,
-      tableData: ingredientDetails.sort((a, b) => a.name.localeCompare(b.name)),
+      tableData: itemDetails.sort((a, b) => b.carbon - a.carbon),
     };
   }, [wastageData, ingredients, recipes, date]);
 
@@ -66,15 +116,15 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Pie Chart - Wastage by Recipe */}
-      <Card>
+      {/* Pie Chart - Wastage Sources (By Carbon) */}
+      <Card className="rounded-[8px]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <PieChartIcon className="w-5 h-5" />
-            Wastage by Recipe
+            Wastage Impact (by CO₂)
           </CardTitle>
           <CardDescription>
-            {format(parseISO(date), 'PPP')}
+            Carbon footprint breakdown - {format(parseISO(date), 'd MMM yyyy')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -86,16 +136,18 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   outerRadius={80}
-                  fill="#8884d8"
                   dataKey="value"
                 >
                   {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={CATEGORY_COLORS[entry.name as keyof typeof CATEGORY_COLORS] || '#8884d8'} 
+                    />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(value: number) => [`${value.toFixed(2)} kg`, 'CO₂ Emission']} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -107,25 +159,26 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
         </CardContent>
       </Card>
 
-      {/* Table - Wastage by Ingredient */}
-      <Card>
+      {/* Table - Top Wasted Items */}
+      <Card className="rounded-[8px]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <List className="w-5 h-5" />
-            Wastage by Ingredient
+            Top Wasted Items
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="flex items-center gap-2">
+            <Leaf className="w-3 h-3 text-[#4F6F52]" />
             Total CO₂: {totalCarbonFootprint.toFixed(2)} kg
           </CardDescription>
         </CardHeader>
         <CardContent>
           {tableData.length > 0 ? (
-            <div className="border rounded-lg">
+            <div className="border rounded-[8px] overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Ingredient</TableHead>
-                    <TableHead>Unit</TableHead>
+                    <TableHead>Item Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead className="text-right">CO₂ (kg)</TableHead>
                   </TableRow>
@@ -134,9 +187,13 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
                   {tableData.map((item, index) => (
                     <TableRow key={index}>
                       <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>{item.unit}</TableCell>
-                      <TableCell className="text-right">{item.quantity.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{item.carbon.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge className={`${item.badgeColor} text-white border-none`}>
+                          {item.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{item.quantity.toFixed(2)} {item.unit}</TableCell>
+                      <TableCell className="text-right font-medium text-[#E74C3C]">{item.carbon.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -11,16 +11,21 @@ namespace SmartSusChef.Api.Services;
 public class MockForecastService : IForecastService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
     private readonly Random _random = new();
 
-    public MockForecastService(ApplicationDbContext context)
+    private int CurrentStoreId => _currentUserService.StoreId;
+
+    public MockForecastService(ApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<List<ForecastDto>> GetForecastAsync(int days = 7)
     {
         var recipes = await _context.Recipes
+            .Where(r => r.StoreId == CurrentStoreId)
             .Include(r => r.RecipeIngredients)
                 .ThenInclude(ri => ri.Ingredient)
             .Include(r => r.SalesRecords)
@@ -59,10 +64,12 @@ public class MockForecastService : IForecastService
                 var randomFactor = 0.9 + (_random.NextDouble() * 0.2);
                 var predictedQuantity = (int)Math.Max(1, avgQuantity * multiplier * randomFactor);
 
-                var forecastIngredients = recipe.RecipeIngredients.Select(ri =>
+                var forecastIngredients = recipe.RecipeIngredients
+                    .Where(ri => ri.Ingredient != null && ri.IngredientId.HasValue) // Filter out null ingredients
+                    .Select(ri =>
                     new ForecastIngredientDto(
-                        ri.IngredientId.ToString(),
-                        ri.Ingredient.Name,
+                        ri.IngredientId!.Value.ToString(),
+                        ri.Ingredient!.Name,
                         ri.Ingredient.Unit,
                         ri.Quantity * predictedQuantity
                     )).ToList();

@@ -8,18 +8,21 @@ namespace SmartSusChef.Api.Services;
 public class SalesService : ISalesService
 {
     private readonly ApplicationDbContext _context;
-    
-    private readonly int _currentStoreId = 1;
-    public SalesService(ApplicationDbContext context)
+    private readonly ICurrentUserService _currentUserService;
+
+    private int CurrentStoreId => _currentUserService.StoreId;
+
+    public SalesService(ApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<List<SalesDataDto>> GetAllAsync(DateTime? startDate = null, DateTime? endDate = null)
     {
         var query = _context.SalesData
             .Include(s => s.Recipe)
-            .Where(s => s.StoreId == _currentStoreId) // Filter by Store
+            .Where(s => s.StoreId == CurrentStoreId) // Filter by Store
             .AsQueryable();
 
         if (startDate.HasValue)
@@ -39,7 +42,7 @@ public class SalesService : ISalesService
     {
         var salesData = await _context.SalesData
             .Include(s => s.Recipe)
-            .FirstOrDefaultAsync(s => s.Id == id);
+            .FirstOrDefaultAsync(s => s.Id == id && s.StoreId == CurrentStoreId);
 
         return salesData == null ? null : MapToDto(salesData);
     }
@@ -49,7 +52,7 @@ public class SalesService : ISalesService
         var salesData = new SalesData
         {
             Id = Guid.NewGuid(),
-            StoreId = _currentStoreId, // Assign current store
+            StoreId = CurrentStoreId, // Assign current store
             Date = DateTime.Parse(request.Date).Date,
             RecipeId = Guid.Parse(request.RecipeId),
             Quantity = request.Quantity,
@@ -67,7 +70,7 @@ public class SalesService : ISalesService
     {
         var salesData = await _context.SalesData
             .Include(s => s.Recipe)
-            .FirstOrDefaultAsync(s => s.Id == id);
+            .FirstOrDefaultAsync(s => s.Id == id && s.StoreId == CurrentStoreId);
 
         if (salesData == null) return null;
 
@@ -83,7 +86,8 @@ public class SalesService : ISalesService
 
     public async Task<bool> DeleteAsync(Guid id)
     {
-        var salesData = await _context.SalesData.FindAsync(id);
+        var salesData = await _context.SalesData
+            .FirstOrDefaultAsync(s => s.Id == id && s.StoreId == CurrentStoreId);
         if (salesData == null) return false;
 
         _context.SalesData.Remove(salesData);
@@ -97,22 +101,22 @@ public class SalesService : ISalesService
         // 1. Fetch data from DB filtered by Store
         var salesData = await _context.SalesData
             .Include(s => s.Recipe)
-            .Where(s => s.StoreId == _currentStoreId && s.Date >= startDate.Date && s.Date <= endDate.Date)
+            .Where(s => s.StoreId == CurrentStoreId && s.Date >= startDate.Date && s.Date <= endDate.Date)
             .ToListAsync();
         // 2. Fetch external signals (weather/holidays) for the same period
         var signals = await _context.GlobalCalendarSignals
             .Where(sig => sig.Date.Date >= startDate.Date && sig.Date.Date <= endDate.Date)
             .ToDictionaryAsync(sig => sig.Date.Date);
-        
+
         // 3. Generate the full range of dates to ensure exactly N data points for your unit test
         var allDates = Enumerable.Range(0, (endDate.Date - startDate.Date).Days + 1)
             .Select(d => startDate.AddDays(d).Date);
-        
+
         // 4. Map everything to the new SalesWithSignalsDto
-        var trend = allDates.Select(date => 
+        var trend = allDates.Select(date =>
         {
             var daySales = salesData.Where(s => s.Date.Date == date).ToList();
-        
+
             // Check if we have signals for this day, otherwise use defaults
             signals.TryGetValue(date, out var signal);
 
@@ -141,7 +145,7 @@ public class SalesService : ISalesService
             .Include(s => s.Recipe)
                 .ThenInclude(r => r.RecipeIngredients)
                     .ThenInclude(ri => ri.Ingredient)
-            .Where(s => s.Date.Date == date.Date)
+            .Where(s => s.Date.Date == date.Date && s.StoreId == CurrentStoreId)
             .ToListAsync();
 
         var ingredientUsage = new Dictionary<Guid, IngredientUsageDto>();
@@ -185,7 +189,7 @@ public class SalesService : ISalesService
     {
         var salesData = await _context.SalesData
             .Include(s => s.Recipe)
-            .Where(s => s.Date.Date == date.Date)
+            .Where(s => s.Date.Date == date.Date && s.StoreId == CurrentStoreId)
             .ToListAsync();
 
         return salesData
@@ -196,20 +200,20 @@ public class SalesService : ISalesService
             ))
             .ToList();
     }
-    
+
     // Link the interface method to implementation
     public async Task<List<SalesWithSignalsDto>> GetSalesTrendsWithSignalsAsync(DateTime startDate, DateTime endDate)
     {
         return await GetTrendAsync(startDate, endDate);
     }
-    
-    
+
+
     public async Task ImportAsync(List<CreateSalesDataRequest> salesData)
     {
         var entities = salesData.Select(s => new SalesData
         {
             Id = Guid.NewGuid(),
-            StoreId = _currentStoreId, // Assign StoreId for data isolation
+            StoreId = CurrentStoreId, // Assign StoreId for data isolation
             Date = DateTime.Parse(s.Date).Date,
             RecipeId = Guid.Parse(s.RecipeId),
             Quantity = s.Quantity,
@@ -220,7 +224,7 @@ public class SalesService : ISalesService
         _context.SalesData.AddRange(entities);
         await _context.SaveChangesAsync();
     }
-    
+
     private static SalesDataDto MapToDto(SalesData salesData)
     {
         return new SalesDataDto(

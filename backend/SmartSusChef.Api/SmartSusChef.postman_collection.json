@@ -1,0 +1,1288 @@
+{
+    "info": {
+        "name": "SmartSusChef API",
+        "description": "# SmartSusChef Restaurant Management System API\n\n## Overview\nComplete API documentation for SmartSusChef restaurant management system.\n\n## Authentication\nAll APIs require Bearer Token authentication except Register and Login endpoints.\n\n## Getting Started\n1. Call Register or Login to get a token\n2. Token will be automatically saved to variables\n3. Subsequent requests will automatically include the token\n\n## Base URL\nDefault: `http://localhost:5000/api`\nYou can modify it in the Variables section.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:5000/api",
+            "type": "string",
+            "description": "API base URL (localhost:5000 for development)"
+        },
+        {
+            "key": "token",
+            "value": "",
+            "type": "string",
+            "description": "JWT Token (auto-filled after login)"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "Auth",
+            "description": "Authentication endpoints for user registration and login.\n\n**Note**: Register and Login do not require authentication.",
+            "item": [
+                {
+                    "name": "Register Manager",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"manager1\",\n  \"password\": \"password123\",\n  \"name\": \"John Manager\",\n  \"email\": \"manager@example.com\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/register",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "register"
+                            ]
+                        },
+                        "description": "## Register a New Manager Account\n\n### Description\n- Creates a new manager account\n- Automatically creates an associated store\n- Returns JWT Token for authentication\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| username | string | Yes | Username (must be unique, case-insensitive) |\n| password | string | Yes | Password |\n| name | string | Yes | Full name |\n| email | string | Yes | Email address |\n\n### Response\n```json\n{\n  \"token\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"user\": {\n    \"id\": \"guid\",\n    \"username\": \"manager1\",\n    \"name\": \"John Manager\",\n    \"email\": \"manager@example.com\",\n    \"role\": \"manager\",\n    \"status\": \"Active\"\n  },\n  \"storeSetupRequired\": true\n}\n```\n\n### Notes\n- After registration, call Store Setup to complete store information\n- Username must be unique (checked case-insensitively)"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.collectionVariables.set('token', jsonData.token);",
+                                    "    console.log('Token saved successfully');",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Login",
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"manager1\",\n  \"password\": \"password123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/login",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "login"
+                            ]
+                        },
+                        "description": "## User Login\n\n### Description\n- Authenticates user credentials\n- Returns JWT Token for subsequent API calls\n- Supports both manager and employee login\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| username | string | Yes | Username |\n| password | string | Yes | Password |\n\n### Response\n```json\n{\n  \"token\": \"eyJhbGciOiJIUzI1NiIs...\",\n  \"user\": {\n    \"id\": \"guid\",\n    \"username\": \"manager1\",\n    \"name\": \"John Manager\",\n    \"email\": \"manager@example.com\",\n    \"role\": \"manager\",\n    \"status\": \"Active\"\n  },\n  \"storeSetupRequired\": false\n}\n```\n\n### Error Codes\n- 401: Invalid username or password\n- 403: Account disabled"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.collectionVariables.set('token', jsonData.token);",
+                                    "    console.log('Token saved successfully');",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Get Current User",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/me",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "me"
+                            ]
+                        },
+                        "description": "## Get Current User Information\n\n### Description\n- Retrieves the authenticated user's details\n- Useful for token validation\n\n### Response\n```json\n{\n  \"id\": \"guid\",\n  \"username\": \"manager1\",\n  \"name\": \"John Manager\",\n  \"email\": \"manager@example.com\",\n  \"role\": \"manager\",\n  \"status\": \"Active\"\n}\n```\n\n### Error Codes\n- 401: Invalid or expired token"
+                    }
+                },
+                {
+                    "name": "Check Store Setup Required",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/store-setup-required",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "store-setup-required"
+                            ]
+                        },
+                        "description": "## Check if Store Setup is Required\n\n### Description\n- Newly registered managers must complete store setup\n- Frontend uses this to display setup wizard\n\n### Response\n```json\n{\n  \"storeSetupRequired\": true\n}\n```\n\n### Use Cases\n- Call after user login\n- If true, prompt user to complete store setup"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Users",
+            "description": "Employee account management endpoints.\n\n**Permission**: Manager only",
+            "item": [
+                {
+                    "name": "Get All Users",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users"
+                            ]
+                        },
+                        "description": "## Get All Users in Store\n\n### Description\n- Returns all users in the current store (managers and employees)\n- Ordered by creation date\n\n### Permission\nManager only\n\n### Response\n```json\n[\n  {\n    \"id\": \"guid\",\n    \"username\": \"staff1\",\n    \"name\": \"Staff Member\",\n    \"email\": \"staff@example.com\",\n    \"role\": \"employee\",\n    \"status\": \"Active\",\n    \"createdAt\": \"2026-01-29T10:00:00Z\"\n  }\n]\n```\n\n### Response Fields\n| Field | Description |\n|-------|-------------|\n| role | manager or employee |\n| status | Active or Inactive |"
+                    }
+                },
+                {
+                    "name": "Create User",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"staff1\",\n  \"password\": \"password123\",\n  \"name\": \"Staff Member\",\n  \"email\": \"staff@example.com\",\n  \"role\": \"Employee\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users"
+                            ]
+                        },
+                        "description": "## Create New Employee Account\n\n### Description\n- Creates a new user in the current store\n- Can create either employee or manager role\n\n### Permission\nManager only\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| username | string | Yes | Username (globally unique) |\n| password | string | Yes | Password |\n| name | string | Yes | Full name |\n| email | string | Yes | Email address |\n| role | string | Yes | Employee or Manager |\n\n### Error Codes\n- 409: Username already exists"
+                    }
+                },
+                {
+                    "name": "Update User",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"staff1_updated\",\n  \"name\": \"Updated Staff Name\",\n  \"email\": \"updated@example.com\",\n  \"role\": \"Employee\",\n  \"status\": \"Active\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/users/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "user-guid-here",
+                                    "description": "User ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Update User Information\n\n### Description\n- Updates user details\n- Can reset password (leave empty to keep current)\n- Can enable/disable account\n\n### Permission\nManager only\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | User ID (GUID) |\n\n### Request Parameters\nAll optional - only send fields to update\n| Parameter | Type | Description |\n|-----------|------|-------------|\n| username | string | New username |\n| password | string | New password (leave empty to not change) |\n| name | string | Full name |\n| email | string | Email address |\n| role | string | Role (Employee or Manager) |\n| status | string | Active or Inactive |\n\n### Error Codes\n- 404: User not found\n- 409: Username already taken"
+                    }
+                },
+                {
+                    "name": "Delete User",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/users/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "user-guid-here",
+                                    "description": "User ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Delete User Account\n\n### Description\n- Permanently deletes a user\n- Cannot delete your own account\n\n### Permission\nManager only\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | User ID (GUID) |\n\n### Notes\n- This action cannot be undone\n- Recommend using Update to set status=Inactive instead\n\n### Error Codes\n- 400: Cannot delete own account\n- 404: User not found"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Store",
+            "description": "Store information and management endpoints.\n\nEach manager account corresponds to one store with details like name, address, contact info.",
+            "item": [
+                {
+                    "name": "Get Store",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/store",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "store"
+                            ]
+                        },
+                        "description": "## Get Store Information\n\n### Description\nRetrieves details of the current user's store\n\n### Response\n```json\n{\n  \"id\": 1,\n  \"companyName\": \"My Restaurant Pte Ltd\",\n  \"uen\": \"202312345A\",\n  \"storeName\": \"My Restaurant\",\n  \"outletLocation\": \"Downtown\",\n  \"contactNumber\": \"+65 1234 5678\",\n  \"address\": \"123 Main Street, Singapore\",\n  \"latitude\": 1.3521,\n  \"longitude\": 103.8198,\n  \"openingDate\": \"2026-01-01\",\n  \"isActive\": true,\n  \"createdAt\": \"2026-01-01T00:00:00Z\",\n  \"updatedAt\": \"2026-01-29T10:00:00Z\"\n}\n```\n\n### Response Fields\n| Field | Description |\n|-------|-------------|\n| latitude/longitude | Used for weather and holiday data |\n| uen | Singapore business registration number |"
+                    }
+                },
+                {
+                    "name": "Get Store Status",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/store/status",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "store",
+                                "status"
+                            ]
+                        },
+                        "description": "## Get Store Setup Status\n\n### Description\nChecks if store has completed initial setup\n\n### Response\n```json\n{\n  \"isSetupComplete\": true,\n  \"storeName\": \"My Restaurant\"\n}\n```"
+                    }
+                },
+                {
+                    "name": "Setup Store",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"companyName\": \"My Restaurant Pte Ltd\",\n  \"uen\": \"202312345A\",\n  \"storeName\": \"My Restaurant\",\n  \"outletLocation\": \"Downtown\",\n  \"contactNumber\": \"+65 1234 5678\",\n  \"address\": \"123 Main Street, Singapore 123456\",\n  \"latitude\": 1.3521,\n  \"longitude\": 103.8198\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/store/setup",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "store",
+                                "setup"
+                            ]
+                        },
+                        "description": "## Initialize Store Information\n\n### Description\n- Newly registered users must complete store setup\n- Can only be called once\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| companyName | string | Yes | Company name |\n| uen | string | Yes | Business registration number |\n| storeName | string | Yes | Store name |\n| outletLocation | string | No | Outlet location/branch name |\n| contactNumber | string | Yes | Contact phone number |\n| address | string | Yes | Full address |\n| latitude | number | Yes | Latitude (for weather/holidays) |\n| longitude | number | Yes | Longitude |\n\n### Singapore Common Coordinates\n- Downtown: 1.3521, 103.8198\n- Changi Airport: 1.3644, 103.9915\n- Orchard Road: 1.3048, 103.8318\n\n### Error Codes\n- 400: Store already setup"
+                    }
+                },
+                {
+                    "name": "Update Store",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"companyName\": \"Updated Restaurant Pte Ltd\",\n  \"storeName\": \"Updated Restaurant\",\n  \"contactNumber\": \"+65 9876 5432\",\n  \"address\": \"456 New Street, Singapore\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/store",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "store"
+                            ]
+                        },
+                        "description": "## Update Store Information\n\n### Description\nUpdates existing store information\n\n### Permission\nManager only\n\n### Request Parameters\nAll optional - only send fields to update\n\n### Notes\nChanging latitude/longitude will affect weather and holiday data retrieval"
+                    }
+                },
+                {
+                    "name": "Initialize Store",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/store/initialize",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "store",
+                                "initialize"
+                            ]
+                        },
+                        "description": "## Initialize Store with Sample Data\n\n### Description\n- Creates sample data for new store\n- Includes sample ingredients and recipes\n- For demonstration purposes only\n\n### Notes\n- Creates sample data\n- Recommended for testing only"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Ingredients",
+            "description": "Ingredient (food item) management endpoints.\n\nIngredients are the base unit of recipes, containing cost and carbon footprint information.",
+            "item": [
+                {
+                    "name": "Get All Ingredients",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/ingredients",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "ingredients"
+                            ]
+                        },
+                        "description": "## Get All Ingredients\n\n### Description\nRetrieve all ingredients in the current store\n\n### Response\n```json\n[\n  {\n    \"id\": \"guid\",\n    \"name\": \"Chicken Breast\",\n    \"unit\": \"g\",\n    \"carbonFootprint\": 0.0069,\n    \"supplierUnit\": \"1kg\",\n    \"supplierUnitCost\": 12.50,\n    \"totalUnitsInPackage\": 1000\n  }\n]\n```\n\n### Response Fields\n| Field | Description |\n|-------|-------------|\n| unit | Base measurement unit (g/ml/pcs) |\n| carbonFootprint | CO2 emissions per unit (kg CO2) |\n| supplierUnit | Supplier package unit |\n| supplierUnitCost | Supplier unit price (S$) |\n| totalUnitsInPackage | Base units per package |"
+                    }
+                },
+                {
+                    "name": "Get Ingredient by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/ingredients/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "ingredients",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "ingredient-guid-here",
+                                    "description": "Ingredient ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Single Ingredient Details\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Ingredient ID (GUID) |\n\n### Error Codes\n- 404: Ingredient not found"
+                    }
+                },
+                {
+                    "name": "Create Ingredient",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Chicken Breast\",\n  \"unit\": \"g\",\n  \"carbonFootprint\": 0.0069,\n  \"supplierUnit\": \"1kg\",\n  \"supplierUnitCost\": 12.50,\n  \"totalUnitsInPackage\": 1000\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/ingredients",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "ingredients"
+                            ]
+                        },
+                        "description": "## Create New Ingredient\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| name | string | Yes | Ingredient name |\n| unit | string | Yes | Base unit (g/ml/pcs) |\n| carbonFootprint | number | No | CO2 emissions per unit (kg) |\n| supplierUnit | string | No | Supplier package (e.g., \"1kg\") |\n| supplierUnitCost | number | No | Supplier unit price (S$) |\n| totalUnitsInPackage | number | No | Base units per package |\n\n### Example: Chicken Breast\n- Supplier sells 1kg packages at S$12.50\n- Base unit: grams (g)\n- Package contains: 1000g\n- Unit cost: S$12.50/1000 = S$0.0125/g\n\n### Carbon Footprint Reference\n| Ingredient | kg CO2/kg |\n|-----------|----------|\n| Beef | 27.0 |\n| Pork | 12.1 |\n| Chicken | 6.9 |\n| Rice | 2.7 |\n| Vegetables | 2.0 |"
+                    }
+                },
+                {
+                    "name": "Update Ingredient",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Chicken Breast (Updated)\",\n  \"unit\": \"g\",\n  \"carbonFootprint\": 0.007,\n  \"supplierUnitCost\": 13.00\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/ingredients/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "ingredients",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "ingredient-guid-here",
+                                    "description": "Ingredient ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Update Ingredient Information\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Ingredient ID (GUID) |\n\n### Request Parameters\nSame as Create, all fields optional\n\n### Error Codes\n- 404: Ingredient not found"
+                    }
+                },
+                {
+                    "name": "Delete Ingredient",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/ingredients/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "ingredients",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "ingredient-guid-here",
+                                    "description": "Ingredient ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Delete Ingredient\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Ingredient ID (GUID) |\n\n### Notes\n- If ingredient is referenced by recipes, deletion may fail\n- Check recipe usage before deleting\n\n### Error Codes\n- 404: Ingredient not found\n- 409: Ingredient is referenced by recipes"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Recipes",
+            "description": "Recipe management endpoints.\n\nTwo recipe types:\n- **Main Recipe** (isSubRecipe=false): Sellable menu items\n- **Sub-Recipe** (isSubRecipe=true): Semi-finished ingredients (sauces, stocks)",
+            "item": [
+                {
+                    "name": "Get All Recipes",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/recipes",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "recipes"
+                            ]
+                        },
+                        "description": "## Get All Recipes\n\n### Description\nRetrieve all recipes in the current store (main and sub-recipes)\n\n### Response\n```json\n[\n  {\n    \"id\": \"guid\",\n    \"name\": \"Chicken Rice\",\n    \"isSellable\": true,\n    \"isSubRecipe\": false,\n    \"ingredients\": [\n      {\n        \"ingredientId\": \"guid\",\n        \"childRecipeId\": null,\n        \"displayName\": \"Chicken Breast\",\n        \"unit\": \"g\",\n        \"quantity\": 200\n      }\n    ]\n  }\n]\n```\n\n### Response Fields\n| Field | Description |\n|-------|-------------|\n| isSubRecipe | true=sub-recipe, false=main recipe |\n| isSellable | Can be sold independently |\n| ingredientId | Present when referencing ingredient |\n| childRecipeId | Present when referencing sub-recipe |"
+                    }
+                },
+                {
+                    "name": "Get Recipe by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/recipes/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "recipes",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "recipe-guid-here",
+                                    "description": "Recipe ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Single Recipe Details\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Recipe ID (GUID) |\n\n### Error Codes\n- 404: Recipe not found"
+                    }
+                },
+                {
+                    "name": "Create Recipe",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Chicken Rice\",\n  \"isSellable\": true,\n  \"isSubRecipe\": false,\n  \"ingredients\": [\n    {\n      \"ingredientId\": \"ingredient-guid-here\",\n      \"quantity\": 200\n    },\n    {\n      \"ingredientId\": \"rice-ingredient-guid\",\n      \"quantity\": 150\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/recipes",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "recipes"
+                            ]
+                        },
+                        "description": "## Create Main Recipe (Sellable Dish)\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| name | string | Yes | Recipe name |\n| isSellable | boolean | Yes | true for main recipes |\n| isSubRecipe | boolean | Yes | false for main recipes |\n| ingredients | array | Yes | List of ingredients |\n\n### Ingredient Object\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| ingredientId | string | Conditional | Ingredient ID (or childRecipeId) |\n| childRecipeId | string | Conditional | Sub-recipe ID (or ingredientId) |\n| quantity | number | Yes | Quantity needed |\n\n### Example: Chicken Rice\n- Chicken Breast: 200g\n- Rice: 150g"
+                    }
+                },
+                {
+                    "name": "Create Sub-Recipe",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Special Sauce\",\n  \"isSellable\": false,\n  \"isSubRecipe\": true,\n  \"ingredients\": [\n    {\n      \"ingredientId\": \"soy-sauce-guid\",\n      \"quantity\": 30\n    },\n    {\n      \"ingredientId\": \"sesame-oil-guid\",\n      \"quantity\": 10\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/recipes",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "recipes"
+                            ]
+                        },
+                        "description": "## Create Sub-Recipe (Semi-Finished Ingredient)\n\n### Description\nSub-recipes are semi-finished ingredients that can be referenced by other recipes, such as:\n- Sauces\n- Stocks\n- Marinades\n\n### Request Parameters\n| Parameter | Value |\n|-----------|-------|\n| isSellable | false (not sold separately) |\n| isSubRecipe | true |\n\n### Use Case\n1. Create sub-recipe \"Special Sauce\"\n2. Reference it in main recipes\n3. System automatically calculates ingredient quantities"
+                    }
+                },
+                {
+                    "name": "Create Recipe with Sub-Recipe",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Chicken Rice with Special Sauce\",\n  \"isSellable\": true,\n  \"isSubRecipe\": false,\n  \"ingredients\": [\n    {\n      \"ingredientId\": \"chicken-guid\",\n      \"quantity\": 200\n    },\n    {\n      \"ingredientId\": \"rice-guid\",\n      \"quantity\": 150\n    },\n    {\n      \"childRecipeId\": \"special-sauce-recipe-guid\",\n      \"quantity\": 30\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/recipes",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "recipes"
+                            ]
+                        },
+                        "description": "## Create Recipe with Sub-Recipe Reference\n\n### Description\nMain recipe ingredients can be either:\n- Regular ingredients (ingredientId)\n- Sub-recipes (childRecipeId)\n\n### Example: Chicken Rice with Special Sauce\n- Chicken Breast: 200g (ingredient)\n- Rice: 150g (ingredient)\n- Special Sauce: 30ml (sub-recipe)\n\n### Notes\n- Only one of ingredientId or childRecipeId per item\n- Sub-recipe must exist before referencing"
+                    }
+                },
+                {
+                    "name": "Update Recipe",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Chicken Rice (Updated)\",\n  \"isSellable\": true,\n  \"isSubRecipe\": false,\n  \"ingredients\": [\n    {\n      \"ingredientId\": \"chicken-guid\",\n      \"quantity\": 250\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/recipes/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "recipes",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "recipe-guid-here",
+                                    "description": "Recipe ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Update Recipe\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Recipe ID (GUID) |\n\n### Request Parameters\nSame as Create endpoint\n\n### Notes\n- Replaces all ingredients - send complete list\n- Can convert main recipe to sub-recipe\n\n### Error Codes\n- 404: Recipe not found"
+                    }
+                },
+                {
+                    "name": "Delete Recipe",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/recipes/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "recipes",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "recipe-guid-here",
+                                    "description": "Recipe ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Delete Recipe\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Recipe ID (GUID) |\n\n### Notes\n- Sub-recipes referenced by other recipes may not delete\n- Related sales data remains intact\n\n### Error Codes\n- 404: Recipe not found\n- 409: Recipe is referenced by other recipes"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Sales",
+            "description": "Sales data management endpoints.\n\nRecords daily sales quantities per dish, used for trend analysis and forecasting.",
+            "item": [
+                {
+                    "name": "Get All Sales",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/sales?startDate=2026-01-01&endDate=2026-01-31",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-01-01",
+                                    "description": "Start date (YYYY-MM-DD)"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-01-31",
+                                    "description": "End date (YYYY-MM-DD)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Sales Data List\n\n### Query Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| startDate | string | No | Start date (YYYY-MM-DD) |\n| endDate | string | No | End date (YYYY-MM-DD) |\n\n### Response\n```json\n[\n  {\n    \"id\": \"guid\",\n    \"date\": \"2026-01-29\",\n    \"recipeId\": \"guid\",\n    \"recipeName\": \"Chicken Rice\",\n    \"quantity\": 50\n  }\n]\n```\n\n### Notes\n- Omit dates to get all data\n- Results ordered by date descending"
+                    }
+                },
+                {
+                    "name": "Get Sales by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/sales/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "sales-guid-here",
+                                    "description": "Sales record ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Single Sales Record\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Sales record ID (GUID) |\n\n### Error Codes\n- 404: Record not found"
+                    }
+                },
+                {
+                    "name": "Get Sales Trend",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/sales/trend?startDate=2026-01-01&endDate=2026-01-31",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales",
+                                "trend"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-01-01",
+                                    "description": "Start date"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-01-31",
+                                    "description": "End date"
+                                }
+                            ]
+                        },
+                        "description": "## Get Sales Trend Data\n\n### Description\nAggregates sales by date for charting\n\n### Query Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| startDate | string | Yes | Start date |\n| endDate | string | Yes | End date |\n\n### Response\n```json\n[\n  {\n    \"date\": \"2026-01-29\",\n    \"totalQuantity\": 150,\n    \"recipeBreakdown\": [\n      {\n        \"recipeId\": \"guid\",\n        \"recipeName\": \"Chicken Rice\",\n        \"quantity\": 80\n      }\n    ]\n  }\n]\n```\n\n### Use Cases\n- Sales trend charts\n- Daily sales comparison"
+                    }
+                },
+                {
+                    "name": "Get Ingredient Usage by Date",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/sales/ingredients/:date",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales",
+                                "ingredients",
+                                ":date"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "date",
+                                    "value": "2026-01-29",
+                                    "description": "Date (YYYY-MM-DD)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Ingredient Usage for Date\n\n### Description\nCalculates ingredient quantities used based on daily sales\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| date | Date (YYYY-MM-DD) |\n\n### Response\n```json\n[\n  {\n    \"ingredientId\": \"guid\",\n    \"ingredientName\": \"Chicken Breast\",\n    \"quantity\": 10000\n  }\n]\n```\n\n### Calculation\nIngredient usage = Σ(recipe sales × ingredient quantity in recipe)\n\n### Use Cases\n- Ingredient consumption tracking\n- Inventory planning"
+                    }
+                },
+                {
+                    "name": "Get Recipe Sales by Date",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/sales/recipes/:date",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales",
+                                "recipes",
+                                ":date"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "date",
+                                    "value": "2026-01-29",
+                                    "description": "Date (YYYY-MM-DD)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Recipe Sales for Date\n\n### Description\nGets all recipe sales quantities for a specific day\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| date | Date (YYYY-MM-DD) |\n\n### Response\n```json\n[\n  {\n    \"recipeId\": \"guid\",\n    \"recipeName\": \"Chicken Rice\",\n    \"quantity\": 50\n  }\n]\n```"
+                    }
+                },
+                {
+                    "name": "Create Sales Data",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"date\": \"2026-01-29\",\n  \"recipeId\": \"recipe-guid-here\",\n  \"quantity\": 50\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sales",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales"
+                            ]
+                        },
+                        "description": "## Record Sales Data\n\n### Description\nRecords a recipe's daily sales quantity\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| date | string | Yes | Date (YYYY-MM-DD) |\n| recipeId | string | Yes | Recipe ID (GUID) |\n| quantity | number | Yes | Sales quantity |\n\n### Notes\n- Multiple records per recipe per day allowed\n- Employees and managers can record sales"
+                    }
+                },
+                {
+                    "name": "Import Sales Data",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"salesData\": [\n    {\n      \"date\": \"2026-01-29\",\n      \"recipeId\": \"recipe-guid-1\",\n      \"quantity\": 30\n    },\n    {\n      \"date\": \"2026-01-29\",\n      \"recipeId\": \"recipe-guid-2\",\n      \"quantity\": 25\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sales/import",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales",
+                                "import"
+                            ]
+                        },
+                        "description": "## Bulk Import Sales Data\n\n### Description\nImports multiple sales records from CSV or POS system\n\n### Request Parameters\n```json\n{\n  \"salesData\": [\n    {\n      \"date\": \"YYYY-MM-DD\",\n      \"recipeId\": \"GUID\",\n      \"quantity\": number\n    }\n  ]\n}\n```\n\n### Use Cases\n- Import from POS system\n- Bulk upload historical data\n\n### Notes\n- Recommend batch size: max 1000 records\n- Failed records skipped without affecting others"
+                    }
+                },
+                {
+                    "name": "Update Sales Data",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"date\": \"2026-01-29\",\n  \"recipeId\": \"recipe-guid-here\",\n  \"quantity\": 60\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/sales/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "sales-guid-here",
+                                    "description": "Sales record ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Update Sales Data\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Sales record ID (GUID) |\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| date | string | Yes | Date |\n| recipeId | string | Yes | Recipe ID |\n| quantity | number | Yes | Sales quantity |\n\n### Notes\n- Must include all fields\n\n### Error Codes\n- 404: Record not found"
+                    }
+                },
+                {
+                    "name": "Delete Sales Data",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/sales/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sales",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "sales-guid-here",
+                                    "description": "Sales record ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Delete Sales Data\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Sales record ID (GUID) |\n\n### Error Codes\n- 404: Record not found"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Wastage",
+            "description": "Wastage/food waste data management endpoints.\n\nTracks ingredient waste for cost control and sustainability metrics.",
+            "item": [
+                {
+                    "name": "Get All Wastage",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/wastage?startDate=2026-01-01&endDate=2026-01-31",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "wastage"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-01-01",
+                                    "description": "Start date"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-01-31",
+                                    "description": "End date"
+                                }
+                            ]
+                        },
+                        "description": "## Get Wastage Data List\n\n### Query Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| startDate | string | No | Start date |\n| endDate | string | No | End date |\n\n### Response\n```json\n[\n  {\n    \"id\": \"guid\",\n    \"date\": \"2026-01-29\",\n    \"ingredientId\": \"guid\",\n    \"ingredientName\": \"Chicken Breast\",\n    \"quantity\": 500,\n    \"unit\": \"g\"\n  }\n]\n```"
+                    }
+                },
+                {
+                    "name": "Get Wastage by ID",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/wastage/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "wastage",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "wastage-guid-here",
+                                    "description": "Wastage record ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Single Wastage Record\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Wastage record ID (GUID) |\n\n### Error Codes\n- 404: Record not found"
+                    }
+                },
+                {
+                    "name": "Get Wastage Trend",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/wastage/trend?startDate=2026-01-01&endDate=2026-01-31",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "wastage",
+                                "trend"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-01-01"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-01-31"
+                                }
+                            ]
+                        },
+                        "description": "## Get Wastage Trend Data\n\n### Description\nAggregates wastage by date for trend analysis\n\n### Query Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| startDate | string | Yes | Start date |\n| endDate | string | Yes | End date |\n\n### Response\n```json\n[\n  {\n    \"date\": \"2026-01-29\",\n    \"totalQuantity\": 2000,\n    \"ingredientBreakdown\": [\n      {\n        \"ingredientId\": \"guid\",\n        \"ingredientName\": \"Chicken Breast\",\n        \"quantity\": 1200\n      }\n    ]\n  }\n]\n```"
+                    }
+                },
+                {
+                    "name": "Create Wastage Data",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"date\": \"2026-01-29\",\n  \"ingredientId\": \"ingredient-guid-here\",\n  \"quantity\": 500\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/wastage",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "wastage"
+                            ]
+                        },
+                        "description": "## Record Wastage Data\n\n### Description\nRecords ingredient waste/loss for a day\n\n### Request Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| date | string | Yes | Date (YYYY-MM-DD) |\n| ingredientId | string | Yes | Ingredient ID (GUID) |\n| quantity | number | Yes | Wastage amount (base unit) |\n\n### Example\nChicken Breast wastage 500g:\n```json\n{\n  \"date\": \"2026-01-29\",\n  \"ingredientId\": \"chicken-guid\",\n  \"quantity\": 500\n}\n```"
+                    }
+                },
+                {
+                    "name": "Update Wastage Data",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"date\": \"2026-01-29\",\n  \"ingredientId\": \"ingredient-guid-here\",\n  \"quantity\": 600\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/wastage/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "wastage",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "wastage-guid-here",
+                                    "description": "Wastage record ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Update Wastage Data\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Wastage record ID (GUID) |\n\n### Request Parameters\nSame as Create endpoint\n\n### Error Codes\n- 404: Record not found"
+                    }
+                },
+                {
+                    "name": "Delete Wastage Data",
+                    "request": {
+                        "method": "DELETE",
+                        "url": {
+                            "raw": "{{baseUrl}}/wastage/:id",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "wastage",
+                                ":id"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "wastage-guid-here",
+                                    "description": "Wastage record ID (GUID)"
+                                }
+                            ]
+                        },
+                        "description": "## Delete Wastage Data\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| id | Wastage record ID (GUID) |\n\n### Error Codes\n- 404: Record not found"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Forecast",
+            "description": "Sales forecasting and calendar data endpoints.\n\nProvides sales predictions, weather data, holidays, and calendar views.",
+            "item": [
+                {
+                    "name": "Get Forecast",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/forecast?startDate=2026-01-29&endDate=2026-02-05",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "forecast"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-01-29",
+                                    "description": "Start date"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-02-05",
+                                    "description": "End date"
+                                }
+                            ]
+                        },
+                        "description": "## Get Sales Forecast Data\n\n### Description\nPredicts future sales based on historical data\n\n### Query Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| startDate | string | Yes | Start date |\n| endDate | string | Yes | End date |\n\n### Response\n```json\n[\n  {\n    \"date\": \"2026-01-30\",\n    \"recipeId\": \"guid\",\n    \"recipeName\": \"Chicken Rice\",\n    \"predictedQuantity\": 55,\n    \"confidence\": 0.85\n  }\n]\n```\n\n### Prediction Factors\n- Historical sales trends\n- Day of week\n- Holidays\n- Weather"
+                    }
+                },
+                {
+                    "name": "Get Forecast Summary",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/forecast/summary?startDate=2026-01-29&endDate=2026-02-05",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "forecast",
+                                "summary"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-01-29"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-02-05"
+                                }
+                            ]
+                        },
+                        "description": "## Get Forecast Summary\n\n### Description\nAggregates forecast data by date\n\n### Response\n```json\n[\n  {\n    \"date\": \"2026-01-30\",\n    \"totalPredictedQuantity\": 200,\n    \"recipeBreakdown\": [\n      {\n        \"recipeId\": \"guid\",\n        \"recipeName\": \"Chicken Rice\",\n        \"quantity\": 80\n      }\n    ]\n  }\n]\n```"
+                    }
+                },
+                {
+                    "name": "Get Weather",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/forecast/weather",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "forecast",
+                                "weather"
+                            ]
+                        },
+                        "description": "## Get Current Weather Data\n\n### Description\nRetrieves current weather for store location\n\n### Response\n```json\n{\n  \"temperature\": 30.5,\n  \"feelsLike\": 35.2,\n  \"humidity\": 75,\n  \"description\": \"Partly Cloudy\",\n  \"icon\": \"02d\"\n}\n```\n\n### Data Source\nOpenWeatherMap API using store latitude/longitude\n\n### Weather Icons\n| Icon | Meaning |\n|------|----------|\n| 01d/01n | Clear |\n| 02d/02n | Few Clouds |\n| 03d/03n | Scattered Clouds |\n| 04d/04n | Broken Clouds |\n| 09d/09n | Shower Rain |\n| 10d/10n | Rain |\n| 11d/11n | Thunderstorm |\n| 13d/13n | Snow |\n| 50d/50n | Mist |"
+                    }
+                },
+                {
+                    "name": "Get Holidays",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/forecast/holidays/:year?countryCode=SG",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "forecast",
+                                "holidays",
+                                ":year"
+                            ],
+                            "query": [
+                                {
+                                    "key": "countryCode",
+                                    "value": "SG",
+                                    "description": "Country code (optional, auto-detected from store location)"
+                                }
+                            ],
+                            "variable": [
+                                {
+                                    "key": "year",
+                                    "value": "2026",
+                                    "description": "Year"
+                                }
+                            ]
+                        },
+                        "description": "## Get Public Holidays\n\n### Description\nRetrieves public holidays for a year\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| year | Year (e.g., 2026) |\n\n### Query Parameters\n| Parameter | Description |\n|-----------|-------------|\n| countryCode | Country code (optional, e.g., SG/MY/CN) |\n\n### Response\n```json\n[\n  {\n    \"date\": \"2026-01-01\",\n    \"name\": \"New Year's Day\",\n    \"type\": \"public\"\n  },\n  {\n    \"date\": \"2026-02-17\",\n    \"name\": \"Chinese New Year\",\n    \"type\": \"public\"\n  }\n]\n```\n\n### Data Source\nNager.Date API\n\n### Supported Country Codes\n- SG: Singapore\n- MY: Malaysia\n- CN: China\n- US: United States\n- etc."
+                    }
+                },
+                {
+                    "name": "Get Tomorrow Forecast",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/forecast/tomorrow",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "forecast",
+                                "tomorrow"
+                            ]
+                        },
+                        "description": "## Get Tomorrow's Sales Forecast\n\n### Description\nQuick endpoint for tomorrow's forecast\n\n### Response\nIncludes predicted quantities and required ingredients for tomorrow\n\n### Use Cases\n- Dashboard display\n- Inventory reminder"
+                    }
+                },
+                {
+                    "name": "Get Calendar Data by Date",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/forecast/calendar/:date",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "forecast",
+                                "calendar",
+                                ":date"
+                            ],
+                            "variable": [
+                                {
+                                    "key": "date",
+                                    "value": "2026-01-29",
+                                    "description": "Date (YYYY-MM-DD)"
+                                }
+                            ]
+                        },
+                        "description": "## Get Single Day Calendar Data\n\n### Description\nRetrieves comprehensive daily information including:\n- Sales data (historical)\n- Forecast data (future)\n- Holiday info\n- Weather\n\n### URL Parameters\n| Parameter | Description |\n|-----------|-------------|\n| date | Date (YYYY-MM-DD) |\n\n### Response\n```json\n{\n  \"date\": \"2026-01-29\",\n  \"dayOfWeek\": \"Wednesday\",\n  \"isHoliday\": false,\n  \"holidayName\": null,\n  \"weather\": {\n    \"temperature\": 30,\n    \"description\": \"Sunny\"\n  },\n  \"sales\": {\n    \"totalQuantity\": 150,\n    \"recipes\": [...]\n  },\n  \"forecast\": {\n    \"totalQuantity\": 160,\n    \"recipes\": [...]\n  }\n}\n```"
+                    }
+                },
+                {
+                    "name": "Get Calendar Data Range",
+                    "request": {
+                        "method": "GET",
+                        "url": {
+                            "raw": "{{baseUrl}}/forecast/calendar?startDate=2026-01-01&endDate=2026-01-31",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "forecast",
+                                "calendar"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-01-01",
+                                    "description": "Start date"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-01-31",
+                                    "description": "End date"
+                                }
+                            ]
+                        },
+                        "description": "## Get Calendar Data for Date Range\n\n### Description\nRetrieves daily calendar data for a period\n\n### Query Parameters\n| Parameter | Type | Required | Description |\n|-----------|------|----------|-------------|\n| startDate | string | Yes | Start date |\n| endDate | string | Yes | End date |\n\n### Response\nArray of calendar data for each day in range\n\n### Use Cases\n- Calendar view display\n- Monthly reporting"
+                    }
+                }
+            ]
+        }
+    ]
+}

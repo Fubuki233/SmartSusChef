@@ -21,24 +21,64 @@ export function IngredientTable({ date }: IngredientTableProps) {
       .filter((sale) => sale.date === date)
       .forEach((sale) => {
         const recipe = recipeMap.get(sale.recipeId);
-        if (recipe) {
-          recipe.ingredients.forEach((recipeIngredient) => {
-            const quantity = recipeIngredient.quantity * sale.quantity;
-            totals[recipeIngredient.ingredientId] =
-              (totals[recipeIngredient.ingredientId] || 0) + quantity;
-          });
-        }
+        if (!recipe) return;
+
+        // --- SUB-RECIPE EXPLOSION LOGIC ---
+        recipe.ingredients.forEach((component) => {
+          
+          // Case 1: Direct Raw Ingredient
+          if (component.ingredientId) {
+            const quantity = component.quantity * sale.quantity;
+            totals[component.ingredientId] = (totals[component.ingredientId] || 0) + quantity;
+          } 
+          
+          // Case 2: Sub-Recipe (e.g. Mala Sauce in Mala Chicken)
+          else if (component.childRecipeId) {
+            const subRecipe = recipeMap.get(component.childRecipeId);
+            if (subRecipe) {
+              // Calculate total weight of the sub-recipe to determine ratios
+              const totalSubWeight = subRecipe.ingredients.reduce((sum, i) => sum + i.quantity, 0);
+              const amountUsed = component.quantity; // Amount of sauce used in this dish
+
+              if (totalSubWeight > 0) {
+                // Break down the sub-recipe into its raw ingredients
+                subRecipe.ingredients.forEach((subComp) => {
+                  if (subComp.ingredientId) {
+                    const ratio = subComp.quantity / totalSubWeight;
+                    const finalQty = ratio * amountUsed * sale.quantity;
+                    totals[subComp.ingredientId] = (totals[subComp.ingredientId] || 0) + finalQty;
+                  }
+                });
+              }
+            }
+          }
+        });
       });
 
     return Object.entries(totals)
       .map(([ingredientId, quantity]) => {
         const ingredient = ingredientMap.get(ingredientId);
+        
+        // --- NEW: Unit Conversion Logic (g->kg, ml->L) ---
+        let displayUnit = ingredient?.unit || '';
+        let displayQuantity = quantity;
+
+        // Convert if >= 1000
+        if (displayUnit === 'g' && quantity >= 1000) {
+            displayUnit = 'kg';
+            displayQuantity = quantity / 1000;
+        } else if (displayUnit === 'ml' && quantity >= 1000) {
+            displayUnit = 'L';
+            displayQuantity = quantity / 1000;
+        }
+
         return {
           name: ingredient?.name || 'Unknown',
-          quantity: quantity.toFixed(2),
-          unit: ingredient?.unit || '',
+          quantity: displayQuantity.toFixed(2), // Pure number, scaled
+          unit: displayUnit, // Updated unit (e.g. "kg")
         };
       })
+      .filter(item => parseFloat(item.quantity) > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [salesData, recipes, ingredients, date]);
 
@@ -50,12 +90,12 @@ export function IngredientTable({ date }: IngredientTableProps) {
           Ingredient Breakdown
         </CardTitle>
         <CardDescription>
-          Required ingredients for {format(parseISO(date), 'PPP')}
+          Required ingredients for {format(parseISO(date), 'd MMM yyyy')}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {ingredientData.length > 0 ? (
-          <div className="border rounded-lg">
+          <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -69,7 +109,7 @@ export function IngredientTable({ date }: IngredientTableProps) {
                   <TableRow key={index}>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.unit}</TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell className="text-right font-mono">{item.quantity}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

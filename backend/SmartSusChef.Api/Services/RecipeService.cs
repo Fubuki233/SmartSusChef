@@ -8,12 +8,14 @@ namespace SmartSusChef.Api.Services;
 public class RecipeService : IRecipeService
 {
     private readonly ApplicationDbContext _context;
-    // Scoped to current store (simulating authenticated context)
-    private readonly int _currentStoreId = 1;
+    private readonly ICurrentUserService _currentUserService;
 
-    public RecipeService(ApplicationDbContext context)
+    private int CurrentStoreId => _currentUserService.StoreId;
+
+    public RecipeService(ApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<List<RecipeDto>> GetAllAsync()
@@ -21,10 +23,10 @@ public class RecipeService : IRecipeService
         var recipes = await _context.Recipes
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.ChildRecipe)
-            .Where(r => r.StoreId == _currentStoreId)
+            .Where(r => r.StoreId == CurrentStoreId)
             .OrderBy(r => r.Name)
             .ToListAsync();
-        
+
         return recipes.Select(MapToDto).ToList();
     }
 
@@ -33,7 +35,7 @@ public class RecipeService : IRecipeService
         var recipe = await _context.Recipes
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.ChildRecipe)
-            .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == _currentStoreId);
+            .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == CurrentStoreId);
 
         return recipe == null ? null : MapToDto(recipe);
     }
@@ -43,7 +45,7 @@ public class RecipeService : IRecipeService
         var recipe = new Recipe
         {
             Id = Guid.NewGuid(),
-            StoreId = _currentStoreId,
+            StoreId = CurrentStoreId,
             Name = request.Name,
             IsSellable = request.IsSellable,
             IsSubRecipe = request.IsSubRecipe,
@@ -74,7 +76,7 @@ public class RecipeService : IRecipeService
     {
         var recipe = await _context.Recipes
             .Include(r => r.RecipeIngredients)
-            .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == _currentStoreId);
+            .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == CurrentStoreId);
 
         if (recipe == null) return null;
 
@@ -83,19 +85,35 @@ public class RecipeService : IRecipeService
         recipe.IsSubRecipe = request.IsSubRecipe;
         recipe.UpdatedAt = DateTime.UtcNow;
 
-        // Clear existing to prevent duplicates
-        _context.RecipeIngredients.RemoveRange(recipe.RecipeIngredients);
+        // Get existing ingredient IDs to delete them directly from database
+        var existingIngredientIds = recipe.RecipeIngredients.Select(ri => ri.Id).ToList();
 
+        // Delete existing recipe ingredients directly
+        if (existingIngredientIds.Any())
+        {
+            await _context.RecipeIngredients
+                .Where(ri => existingIngredientIds.Contains(ri.Id))
+                .ExecuteDeleteAsync();
+        }
+
+        // Clear the collection from the tracked entity
+        recipe.RecipeIngredients.Clear();
+
+        // Save the recipe changes first
+        await _context.SaveChangesAsync();
+
+        // Add new ingredients
         foreach (var riReq in request.Ingredients)
         {
-            recipe.RecipeIngredients.Add(new RecipeIngredient
+            var newIngredient = new RecipeIngredient
             {
                 Id = Guid.NewGuid(),
                 RecipeId = recipe.Id,
                 IngredientId = string.IsNullOrEmpty(riReq.IngredientId) ? null : Guid.Parse(riReq.IngredientId),
                 ChildRecipeId = string.IsNullOrEmpty(riReq.ChildRecipeId) ? null : Guid.Parse(riReq.ChildRecipeId),
                 Quantity = riReq.Quantity
-            });
+            };
+            _context.RecipeIngredients.Add(newIngredient);
         }
 
         await _context.SaveChangesAsync();
@@ -106,7 +124,7 @@ public class RecipeService : IRecipeService
     {
         var recipe = await _context.Recipes
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
-            .FirstOrDefaultAsync(r => r.Id == recipeId && r.StoreId == _currentStoreId);
+            .FirstOrDefaultAsync(r => r.Id == recipeId && r.StoreId == CurrentStoreId);
 
         if (recipe == null) return 0;
 
@@ -136,8 +154,8 @@ public class RecipeService : IRecipeService
     public async Task<bool> DeleteAsync(Guid id)
     {
         var recipe = await _context.Recipes
-            .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == _currentStoreId);
-            
+            .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == CurrentStoreId);
+
         if (recipe == null) return false;
 
         _context.Recipes.Remove(recipe);

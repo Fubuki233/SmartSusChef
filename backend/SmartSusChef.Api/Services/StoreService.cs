@@ -8,30 +8,63 @@ namespace SmartSusChef.Api.Services;
 public class StoreService : IStoreService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public StoreService(ApplicationDbContext context)
+    private int CurrentStoreId => _currentUserService.StoreId;
+
+    public StoreService(ApplicationDbContext context, ICurrentUserService currentUserService)
     {
         _context = context;
+        _currentUserService = currentUserService;
     }
 
     public async Task<StoreDto?> GetStoreAsync()
     {
-        var store = await _context.Store.FirstOrDefaultAsync();
+        var store = await _context.Store.FindAsync(CurrentStoreId);
+        return store == null ? null : MapToDto(store);
+    }
+
+    public async Task<StoreDto?> GetStoreByIdAsync(int storeId)
+    {
+        // Only allow access to own store
+        if (storeId != CurrentStoreId)
+            return null;
+
+        var store = await _context.Store.FindAsync(storeId);
         return store == null ? null : MapToDto(store);
     }
 
     public async Task<StoreDto> InitializeStoreAsync(CreateStoreRequest request)
     {
-        // Check if store already exists
-        var existingStore = await _context.Store.FirstOrDefaultAsync();
-        if (existingStore != null)
+        // Check if current user's store already has data
+        var existingStore = await _context.Store.FindAsync(CurrentStoreId);
+        if (existingStore != null && !string.IsNullOrEmpty(existingStore.StoreName))
         {
             throw new InvalidOperationException("Store has already been initialized. Use update endpoint to modify store information.");
         }
 
+        if (existingStore != null)
+        {
+            // Update existing empty store
+            existingStore.CompanyName = request.CompanyName;
+            existingStore.UEN = request.UEN;
+            existingStore.StoreName = request.StoreName;
+            existingStore.OutletLocation = request.OutletLocation;
+            existingStore.ContactNumber = request.ContactNumber;
+            existingStore.OpeningDate = request.OpeningDate;
+            existingStore.Latitude = request.Latitude;
+            existingStore.Longitude = request.Longitude;
+            existingStore.Address = request.Address;
+            existingStore.IsActive = request.IsActive;
+            existingStore.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return MapToDto(existingStore);
+        }
+
+        // This shouldn't happen normally since store is created during registration
         var store = new Store
         {
-            Id = 1, // Fixed ID for singleton
             CompanyName = request.CompanyName,
             UEN = request.UEN,
             StoreName = request.StoreName,
@@ -54,12 +87,32 @@ public class StoreService : IStoreService
 
     public async Task<StoreDto?> UpdateStoreAsync(UpdateStoreRequest request)
     {
-        var store = await _context.Store.FirstOrDefaultAsync();
+        var store = await _context.Store.FindAsync(CurrentStoreId);
         if (store == null)
         {
             return null;
         }
 
+        return await UpdateStoreInternal(store, request);
+    }
+
+    public async Task<StoreDto?> UpdateStoreByIdAsync(int storeId, UpdateStoreRequest request)
+    {
+        // Only allow updating own store
+        if (storeId != CurrentStoreId)
+            return null;
+
+        var store = await _context.Store.FindAsync(storeId);
+        if (store == null)
+        {
+            return null;
+        }
+
+        return await UpdateStoreInternal(store, request);
+    }
+
+    private async Task<StoreDto> UpdateStoreInternal(Store store, UpdateStoreRequest request)
+    {
         // Update only provided fields
         if (request.CompanyName != null)
             store.CompanyName = request.CompanyName;
@@ -92,6 +145,15 @@ public class StoreService : IStoreService
     public async Task<bool> IsStoreInitializedAsync()
     {
         return await _context.Store.AnyAsync();
+    }
+
+    public async Task<bool> IsStoreSetupCompleteAsync(int storeId)
+    {
+        var store = await _context.Store.FindAsync(storeId);
+        if (store == null) return false;
+
+        // Store setup is complete if StoreName is not empty
+        return !string.IsNullOrEmpty(store.StoreName);
     }
 
     private static StoreDto MapToDto(Store store)

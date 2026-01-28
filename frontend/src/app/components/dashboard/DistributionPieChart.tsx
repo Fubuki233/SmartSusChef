@@ -9,26 +9,60 @@ interface DistributionPieChartProps {
   date: string;
 }
 
-const COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+// Global 10-Color Pie Chart Palette
+const PIE_COLORS = [
+  '#4F6F52', // 1. Deep Forest Sage - Primary
+  '#E67E22', // 2. Burnt Orange - Secondary
+  '#8A9A5B', // 3. Muted Olive - Tertiary
+  '#B4A373', // 4. Muted Gold - Neutral
+  '#B16A17', // 5. Dark Orange - Accent
+  '#DDAB68', // 6. Light Gold - Highlight
+  '#359290', // 7. Teal - Cool Accent
+  '#6CB4EE', // 8. Sky Blue - Light Blue
+  '#8E7AB5', // 9. Lavender - Purple
+];
+
+const OTHERS_COLOR = '#898989'; // 10. Grey - Reserved for "Others"
 
 export function DistributionPieChart({ date }: DistributionPieChartProps) {
   const { salesData, recipes } = useApp();
 
   const chartData = useMemo(() => {
-    const recipeMap = new Map(recipes.map((r) => [r.id, r.name]));
+    // Create a map of ONLY main dishes (exclude sub-recipes)
+    const recipeMap = new Map(
+      recipes
+        .filter(r => !r.isSubRecipe)
+        .map((r) => [r.id, r.name])
+    );
+    
     const distribution: { [key: string]: number } = {};
 
     salesData
       .filter((sale) => sale.date === date)
       .forEach((sale) => {
-        const recipeName = recipeMap.get(sale.recipeId) || 'Unknown';
-        distribution[recipeName] = (distribution[recipeName] || 0) + sale.quantity;
+        // If the ID isn't in our Main Dish map, it will be undefined (filtered out)
+        const recipeName = recipeMap.get(sale.recipeId);
+        
+        if (recipeName) {
+            distribution[recipeName] = (distribution[recipeName] || 0) + sale.quantity;
+        }
       });
 
-    return Object.entries(distribution).map(([name, value]) => ({
-      name,
-      value,
-    }));
+    // Convert to array and sort by value descending
+    const entries = Object.entries(distribution)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    // If more than 9 items, group the rest into "Others"
+    if (entries.length > 9) {
+      const top9 = entries.slice(0, 9);
+      const others = entries.slice(9);
+      const othersTotal = others.reduce((sum, item) => sum + item.value, 0);
+      
+      return [...top9, { name: 'Others', value: othersTotal }];
+    }
+
+    return entries;
   }, [salesData, recipes, date]);
 
   const total = chartData.reduce((sum, item) => sum + item.value, 0);
@@ -41,7 +75,7 @@ export function DistributionPieChart({ date }: DistributionPieChartProps) {
           Sales Distribution
         </CardTitle>
         <CardDescription>
-          {format(parseISO(date), 'PPP')} · Total: {total} dishes
+          {format(parseISO(date), 'd MMM yyyy')} · Total: {total} dishes
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -59,7 +93,10 @@ export function DistributionPieChart({ date }: DistributionPieChartProps) {
                 dataKey="value"
               >
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.name === 'Others' ? OTHERS_COLOR : PIE_COLORS[index % PIE_COLORS.length]} 
+                  />
                 ))}
               </Pie>
               <Tooltip />

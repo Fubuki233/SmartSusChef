@@ -82,6 +82,8 @@ builder.Services.AddCors(options =>
 });
 
 // Register services
+builder.Services.AddHttpContextAccessor(); // Required for ICurrentUserService
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IIngredientService, IngredientService>();
 builder.Services.AddScoped<IRecipeService, RecipeService>();

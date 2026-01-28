@@ -1,16 +1,19 @@
 import React, { useMemo } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, parseISO, addDays, subDays } from 'date-fns';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart, Line } from 'recharts';
+import { format, addDays, subDays } from 'date-fns';
 import { Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
 
 export function PredictionSummary() {
-  const { forecastData, salesData } = useApp();
+  const { forecastData, salesData, recipes } = useApp();
 
   const chartData = useMemo(() => {
     const data = [];
     const today = new Date();
+
+    // Filter main recipes once for efficiency
+    const mainRecipeIds = new Set(recipes.filter(r => !r.isSubRecipe).map(r => r.id));
 
     // Get last week's data for comparison
     const lastWeekTotal: { [key: string]: number } = {};
@@ -20,7 +23,7 @@ export function PredictionSummary() {
       const dayOfWeek = format(date, 'EEE');
       
       const dailySales = salesData
-        .filter((s) => s.date === dateKey)
+        .filter((s) => s.date === dateKey && mainRecipeIds.has(s.recipeId))
         .reduce((sum, s) => sum + s.quantity, 0);
       
       if (!lastWeekTotal[dayOfWeek]) {
@@ -36,20 +39,20 @@ export function PredictionSummary() {
       const dayOfWeek = format(date, 'EEE');
 
       const forecast = forecastData
-        .filter((f) => f.date === dateKey)
-        .reduce((sum, f) => sum + f.quantity, 0);
+        .filter((f) => f.date === dateKey && mainRecipeIds.has(f.recipeId))
+        .reduce((sum, f) => sum + (f.quantity || (f as any).predictedQuantity || 0), 0);
 
       data.push({
         date: dateKey,
         day: dayOfWeek,
-        displayDate: format(date, 'MMM dd'),
+        displayDate: format(date, 'd MMM'),
         forecast,
         lastWeek: lastWeekTotal[dayOfWeek] || 0,
       });
     }
 
     return data;
-  }, [forecastData, salesData]);
+  }, [forecastData, salesData, recipes]);
 
   const totalForecast = chartData.reduce((sum, item) => sum + item.forecast, 0);
   const totalLastWeek = chartData.reduce((sum, item) => sum + item.lastWeek, 0);
@@ -58,22 +61,22 @@ export function PredictionSummary() {
     : 0;
 
   return (
-    <Card>
+    <Card className="rounded-[8px]">
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
+              <Sparkles className="w-5 h-5 text-[#8E7AB5]" />
               Prediction Summary
             </CardTitle>
             <CardDescription>
-              Forecasted sales for next 7 days
+              Forecasted main dish sales for next 7 days
             </CardDescription>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold">{totalForecast}</div>
             <div className={`text-sm flex items-center gap-1 ${
-              percentChange >= 0 ? 'text-green-600' : 'text-red-600'
+              percentChange >= 0 ? 'text-[#27AE60]' : 'text-[#E67E22]'
             }`}>
               {percentChange >= 0 ? (
                 <TrendingUp className="w-4 h-4" />
@@ -97,26 +100,26 @@ export function PredictionSummary() {
               height={60}
             />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip />
+            <Tooltip formatter={(value: number) => [value, 'Dishes']} />
             <Legend />
             <Bar
               dataKey="forecast"
-              fill="#9333ea"
+              fill="#B4A373"
               name="Forecast"
               radius={[8, 8, 0, 0]}
             />
             <Bar
               dataKey="lastWeek"
-              fill="#94a3b8"
+              fill="#4F6F52"
               name="Last Week"
               radius={[8, 8, 0, 0]}
             />
             <Line
               type="monotone"
               dataKey="forecast"
-              stroke="#7c3aed"
-              strokeWidth={2}
-              dot={{ fill: '#7c3aed', r: 4 }}
+              stroke="#E74C3C"
+              strokeWidth={3}
+              dot={{ fill: '#E74C3C', r: 4 }}
               name="Forecast Trend"
             />
           </ComposedChart>

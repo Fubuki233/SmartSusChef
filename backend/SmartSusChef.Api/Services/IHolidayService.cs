@@ -4,7 +4,10 @@ namespace SmartSusChef.Api.Services;
 
 public interface IHolidayService
 {
-    Task<List<HolidayDto>> GetHolidaysAsync(int year);
+    /// <summary>
+    /// Get holidays for a specific year and country code
+    /// </summary>
+    Task<List<HolidayDto>> GetHolidaysAsync(int year, string? countryCode = null);
 
     /// <summary>
     /// Check if a specific date is a public holiday
@@ -23,4 +26,9 @@ public interface IHolidayService
     /// Get Chinese New Year date for a specific year
     /// </summary>
     DateTime? GetChineseNewYear(int year);
+
+    /// <summary>
+    /// Get country code from latitude and longitude coordinates
+    /// </summary>
+    Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude);
 }

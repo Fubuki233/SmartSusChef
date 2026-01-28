@@ -5,6 +5,18 @@ export interface User {
   username: string;
   role: 'employee' | 'manager';
   name: string;
+  email?: string;
+  status?: 'Active' | 'Inactive';
+}
+
+export interface StoreSettings {
+  storeId: string;
+  companyName: string;
+  uen: string;
+  storeName: string;
+  outletLocation?: string;
+  address: string;
+  contactNumber: string;
 }
 
 export interface Ingredient {
@@ -12,17 +24,25 @@ export interface Ingredient {
   name: string;
   unit: string;
   carbonFootprint: number; // kg CO2 per unit
+  supplierUnit?: string; // e.g., "10kg", "500ml"
+  supplierUnitCost?: number; // Cost in S$ for the supplier unit
+  totalUnitsInPackage?: number; // Total grams/ml in the package
 }
 
 export interface RecipeIngredient {
-  ingredientId: string;
-  quantity: number;
+  ingredientId?: string;
+  childRecipeId?: string;
+  quantity: number; // quantity per plate in grams/ml
 }
 
 export interface Recipe {
   id: string;
   name: string;
+  isSubRecipe?: boolean;
   ingredients: RecipeIngredient[];
+  costPerPlate?: number; // Auto-calculated based on ingredients
+  targetSellingPrice?: number; // Manager input
+  wasteMultiplier?: number; // percentage (e.g., 5 for 5%)
 }
 
 export interface SalesData {
@@ -30,6 +50,9 @@ export interface SalesData {
   date: string; // YYYY-MM-DD
   recipeId: string;
   quantity: number;
+  createdAt?: string; // ISO timestamp
+  modifiedAt?: string; // ISO timestamp
+  editHistory?: EditHistory[]; // Added for audit trail
 }
 
 export interface WastageData {
@@ -37,6 +60,9 @@ export interface WastageData {
   date: string; // YYYY-MM-DD
   ingredientId: string;
   quantity: number;
+  createdAt?: string; // ISO timestamp
+  modifiedAt?: string; // ISO timestamp
+  editHistory?: EditHistory[]; // Added for audit trail
 }
 
 export interface ForecastData {
@@ -55,4 +81,12 @@ export interface WeatherData {
   condition: string;
   humidity: number;
   description: string;
+}
+
+export interface EditHistory {
+  timestamp: string;
+  editedBy: string;
+  reason: string;
+  previousValue: number;
+  newValue: number;
 }

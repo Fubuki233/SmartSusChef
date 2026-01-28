@@ -1,58 +1,109 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
-import { Button } from '@/app/components/ui/button';
-import { Input } from '@/app/components/ui/input';
-import { format, parseISO, addDays } from 'date-fns';
-import { Calculator, Save } from 'lucide-react';
-import { toast } from 'sonner';
+import { format, addDays } from 'date-fns';
+import { formatShortDate } from '@/app/utils/dateFormat';
+import { Package } from 'lucide-react';
 
 export function PredictionDetail() {
-  const { forecastData, recipes, ingredients, updateForecastData } = useApp();
-  const [editMode, setEditMode] = useState(false);
-  const [editedData, setEditedData] = useState<{ [key: string]: string }>({});
+  const { forecastData, recipes, ingredients } = useApp();
 
   const predictionData = useMemo(() => {
     const ingredientMap = new Map(ingredients.map((i) => [i.id, i]));
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
     
-    const data: {
+    // Intermediate storage to sum up totals before processing units
+    const ingredientTotals: { [ingredientId: string]: { [date: string]: number } } = {};
+
+    forecastData.forEach((forecast) => {
+      const recipe = recipeMap.get(forecast.recipeId);
+      if (!recipe) return;
+
+      const fQty = forecast.quantity || (forecast as any).predictedQuantity || 0;
+
+      // --- SUB-RECIPE EXPLOSION LOGIC ---
+      recipe.ingredients.forEach((component) => {
+        let quantityToAdd = 0;
+        let targetId = '';
+
+        // Case 1: Raw Ingredient
+        if (component.ingredientId) {
+          targetId = component.ingredientId;
+          quantityToAdd = component.quantity * fQty;
+          
+          if (targetId) {
+            const date = forecast.date;
+            if (!ingredientTotals[targetId]) ingredientTotals[targetId] = {};
+            if (!ingredientTotals[targetId][date]) ingredientTotals[targetId][date] = 0;
+            ingredientTotals[targetId][date] += quantityToAdd;
+          }
+        } 
+        
+        // Case 2: Sub-Recipe
+        else if (component.childRecipeId) {
+           const subRecipe = recipeMap.get(component.childRecipeId);
+           if (subRecipe) {
+             const totalSubWeight = subRecipe.ingredients.reduce((sum, i) => sum + i.quantity, 0);
+             const amountUsed = component.quantity;
+
+             if (totalSubWeight > 0) {
+               subRecipe.ingredients.forEach(subComp => {
+                 if (subComp.ingredientId) {
+                   const ratio = subComp.quantity / totalSubWeight;
+                   const subQty = ratio * amountUsed * fQty;
+                   
+                   if (!ingredientTotals[subComp.ingredientId]) ingredientTotals[subComp.ingredientId] = {};
+                   if (!ingredientTotals[subComp.ingredientId][forecast.date]) ingredientTotals[subComp.ingredientId][forecast.date] = 0;
+                   ingredientTotals[subComp.ingredientId][forecast.date] += subQty;
+                 }
+               });
+             }
+           }
+        }
+      });
+    });
+
+    // --- ROW PROCESSING & UNIT CONVERSION ---
+    const processedData: {
       ingredient: string;
       unit: string;
       predictions: { [key: string]: number };
     }[] = [];
 
-    const ingredientTotals: { [ingredientId: string]: { [date: string]: number } } = {};
-
-    forecastData.forEach((forecast) => {
-      const recipe = recipeMap.get(forecast.recipeId);
-      if (recipe) {
-        recipe.ingredients.forEach((recipeIngredient) => {
-          if (!ingredientTotals[recipeIngredient.ingredientId]) {
-            ingredientTotals[recipeIngredient.ingredientId] = {};
-          }
-          if (!ingredientTotals[recipeIngredient.ingredientId][forecast.date]) {
-            ingredientTotals[recipeIngredient.ingredientId][forecast.date] = 0;
-          }
-          ingredientTotals[recipeIngredient.ingredientId][forecast.date] +=
-            recipeIngredient.quantity * forecast.quantity;
-        });
-      }
-    });
-
     Object.entries(ingredientTotals).forEach(([ingredientId, predictions]) => {
       const ingredient = ingredientMap.get(ingredientId);
       if (ingredient) {
-        data.push({
+        // 1. Calculate max value to decide if we should upgrade unit
+        const maxValue = Math.max(...Object.values(predictions));
+        
+        let displayUnit = ingredient.unit;
+        let divisor = 1;
+
+        // Upgrade Logic: If max value > 1000, upgrade unit
+        if (ingredient.unit === 'g' && maxValue >= 1000) {
+          displayUnit = 'kg';
+          divisor = 1000;
+        } else if (ingredient.unit === 'ml' && maxValue >= 1000) {
+          displayUnit = 'L';
+          divisor = 1000;
+        }
+
+        // 2. Scale all prediction values for this row
+        const scaledPredictions: { [key: string]: number } = {};
+        Object.entries(predictions).forEach(([date, val]) => {
+          scaledPredictions[date] = val / divisor;
+        });
+
+        processedData.push({
           ingredient: ingredient.name,
-          unit: ingredient.unit,
-          predictions,
+          unit: displayUnit, // e.g. "kg"
+          predictions: scaledPredictions, // e.g. 4.5
         });
       }
     });
 
-    return data.sort((a, b) => a.ingredient.localeCompare(b.ingredient));
+    return processedData.sort((a, b) => a.ingredient.localeCompare(b.ingredient));
   }, [forecastData, recipes, ingredients]);
 
   const dates = useMemo(() => {
@@ -65,65 +116,19 @@ export function PredictionDetail() {
     return dates;
   }, []);
 
-  const handleEdit = () => {
-    setEditMode(true);
-    // Initialize edited data with current values
-    const initial: { [key: string]: string } = {};
-    predictionData.forEach((item) => {
-      dates.forEach((date) => {
-        const key = `${item.ingredient}-${date}`;
-        initial[key] = (item.predictions[date] || 0).toFixed(2);
-      });
-    });
-    setEditedData(initial);
-  };
-
-  const handleSave = () => {
-    // This is a simplified save - in a real app, you'd recalculate forecast quantities
-    // based on ingredient changes
-    toast.success('Predictions updated successfully!');
-    setEditMode(false);
-  };
-
-  const handleCancel = () => {
-    setEditMode(false);
-    setEditedData({});
-  };
-
   return (
-    <Card>
+    <Card className="rounded-[8px]">
       <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="w-5 h-5" />
-              Ingredient Forecast Details
-            </CardTitle>
-            <CardDescription>
-              Predicted ingredient requirements for next 7 days
-            </CardDescription>
-          </div>
-          <div className="flex gap-2">
-            {!editMode ? (
-              <Button onClick={handleEdit} variant="outline" size="sm">
-                Edit Forecast
-              </Button>
-            ) : (
-              <>
-                <Button onClick={handleSave} size="sm" className="gap-2">
-                  <Save className="w-4 h-4" />
-                  Save
-                </Button>
-                <Button onClick={handleCancel} variant="outline" size="sm">
-                  Cancel
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          <Package className="w-5 h-5 text-[#4F6F52]" />
+          Ingredient Forecast Details
+        </CardTitle>
+        <CardDescription>
+          Raw ingredient requirements for next 7 days (including sub-recipes)
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-lg overflow-x-auto">
+        <div className="border rounded-[8px] overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -131,7 +136,7 @@ export function PredictionDetail() {
                 <TableHead className="sticky left-0 bg-white z-10">Unit</TableHead>
                 {dates.map((date) => (
                   <TableHead key={date} className="text-center min-w-[100px]">
-                    {format(parseISO(date), 'MMM dd')}
+                    {formatShortDate(date)}
                   </TableHead>
                 ))}
               </TableRow>
@@ -142,30 +147,28 @@ export function PredictionDetail() {
                   <TableCell className="font-medium sticky left-0 bg-white">
                     {item.ingredient}
                   </TableCell>
-                  <TableCell className="sticky left-0 bg-white">{item.unit}</TableCell>
+                  {/* Shows converted unit (e.g. "kg") */}
+                  <TableCell className="sticky left-0 bg-white text-gray-500 text-sm">
+                    {item.unit}
+                  </TableCell>
                   {dates.map((date) => {
                     const value = item.predictions[date] || 0;
-                    const key = `${item.ingredient}-${date}`;
                     return (
-                      <TableCell key={date} className="text-center">
-                        {editMode ? (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={editedData[key] || '0'}
-                            onChange={(e) =>
-                              setEditedData({ ...editedData, [key]: e.target.value })
-                            }
-                            className="w-20 mx-auto text-center"
-                          />
-                        ) : (
-                          value.toFixed(2)
-                        )}
+                      <TableCell key={date} className="text-center font-mono text-sm">
+                        {/* Shows pure number, scaled (e.g. "48.00") */}
+                        {value > 0 ? value.toFixed(2) : '-'}
                       </TableCell>
                     );
                   })}
                 </TableRow>
               ))}
+              {predictionData.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={dates.length + 2} className="text-center py-8 text-gray-500">
+                    No ingredient forecast data available.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>

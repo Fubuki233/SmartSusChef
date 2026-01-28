@@ -5,7 +5,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/app/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/app/components/ui/dialog';
 import { Plus, Edit, Trash2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { Ingredient } from '@/app/types';
@@ -17,7 +17,6 @@ export function IngredientManagement() {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [carbonFootprint, setCarbonFootprint] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleOpenDialog = (ingredient?: Ingredient) => {
     if (ingredient) {
@@ -42,9 +41,9 @@ export function IngredientManagement() {
     setCarbonFootprint('');
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!name.trim() || !unit.trim() || !carbonFootprint) {
-      toast.error('Please fill in all fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -54,39 +53,27 @@ export function IngredientManagement() {
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      if (editingIngredient) {
-        await updateIngredient(editingIngredient.id, {
-          name: name.trim(),
-          unit: unit.trim(),
-          carbonFootprint: carbon,
-        });
-        toast.success('Ingredient updated successfully');
-      } else {
-        await addIngredient({
-          name: name.trim(),
-          unit: unit.trim(),
-          carbonFootprint: carbon,
-        });
-        toast.success('Ingredient added successfully');
-      }
-      handleCloseDialog();
-    } catch (error) {
-      toast.error('Failed to save ingredient. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+    const ingredientData = {
+      name: name.trim(),
+      unit: unit.trim(),
+      carbonFootprint: carbon,
+    };
+
+    if (editingIngredient) {
+      updateIngredient(editingIngredient.id, ingredientData);
+      toast.success('Ingredient updated successfully');
+    } else {
+      addIngredient(ingredientData);
+      toast.success('Ingredient added successfully');
     }
+
+    handleCloseDialog();
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = (id: string, name: string) => {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
-      try {
-        await deleteIngredient(id);
-        toast.success('Ingredient deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete ingredient. Please try again.');
-      }
+      deleteIngredient(id);
+      toast.success('Ingredient deleted successfully');
     }
   };
 
@@ -95,10 +82,10 @@ export function IngredientManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Package className="w-6 h-6" />
+            <Package className="w-6 h-6 text-[#4F6F52]" />
             Ingredient Management
           </h1>
-          <p className="text-gray-600 mt-1">Manage ingredients and their carbon footprint</p>
+          <p className="text-gray-600 mt-1">Master data for <span className="font-bold text-[#4F6F52]">{useApp().storeSettings.storeName}</span></p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -112,6 +99,9 @@ export function IngredientManagement() {
               <DialogTitle>
                 {editingIngredient ? 'Edit Ingredient' : 'Add New Ingredient'}
               </DialogTitle>
+              <DialogDescription>
+                {editingIngredient ? 'Edit the details of the ingredient' : 'Add a new ingredient to the system'}
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -150,11 +140,11 @@ export function IngredientManagement() {
               </div>
 
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>
+                <Button variant="outline" onClick={handleCloseDialog}>
                   Cancel
                 </Button>
-                <Button onClick={handleSubmit} disabled={isSubmitting}>
-                  {isSubmitting ? 'Saving...' : (editingIngredient ? 'Update' : 'Add')} Ingredient
+                <Button onClick={handleSubmit}>
+                  {editingIngredient ? 'Update Ingredient' : 'Add Ingredient'}
                 </Button>
               </div>
             </div>

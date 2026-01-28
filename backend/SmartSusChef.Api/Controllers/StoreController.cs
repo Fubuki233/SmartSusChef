@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartSusChef.Api.DTOs;
 using SmartSusChef.Api.Services;
+using System.Security.Claims;
 
 namespace SmartSusChef.Api.Controllers;
 
@@ -17,33 +18,100 @@ public class StoreController : ControllerBase
     }
 
     /// <summary>
-    /// Get store information
+    /// Get store information for current user
     /// </summary>
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<StoreDto>> GetStore()
     {
-        var store = await _storeService.GetStoreAsync();
+        var storeId = GetStoreIdFromClaims();
+        if (storeId == null)
+        {
+            return BadRequest(new { message = "Store ID not found in token" });
+        }
+
+        var store = await _storeService.GetStoreByIdAsync(storeId.Value);
 
         if (store == null)
         {
-            return NotFound(new { message = "Store has not been initialized yet" });
+            return NotFound(new { message = "Store not found" });
         }
 
         return Ok(store);
     }
 
     /// <summary>
-    /// Check if store has been initialized
+    /// Check if store setup is complete
     /// </summary>
     [HttpGet("status")]
+    [Authorize]
     public async Task<ActionResult<object>> GetStoreStatus()
     {
-        var isInitialized = await _storeService.IsStoreInitializedAsync();
-        return Ok(new { isInitialized });
+        var storeId = GetStoreIdFromClaims();
+        if (storeId == null)
+        {
+            return BadRequest(new { message = "Store ID not found in token" });
+        }
+
+        var isSetupComplete = await _storeService.IsStoreSetupCompleteAsync(storeId.Value);
+        return Ok(new { isSetupComplete, storeSetupRequired = !isSetupComplete });
     }
 
     /// <summary>
-    /// Initialize store information (can only be called once)
+    /// Setup/Update store information (Manager only)
+    /// This is used for initial setup after registration
+    /// </summary>
+    [HttpPost("setup")]
+    [Authorize(Roles = "Manager")]
+    public async Task<ActionResult<StoreDto>> SetupStore([FromBody] UpdateStoreRequest request)
+    {
+        var storeId = GetStoreIdFromClaims();
+        if (storeId == null)
+        {
+            return BadRequest(new { message = "Store ID not found in token" });
+        }
+
+        // Validate required fields for initial setup
+        if (string.IsNullOrEmpty(request.StoreName))
+        {
+            return BadRequest(new { message = "Store name is required for setup" });
+        }
+
+        var store = await _storeService.UpdateStoreByIdAsync(storeId.Value, request);
+
+        if (store == null)
+        {
+            return NotFound(new { message = "Store not found" });
+        }
+
+        return Ok(store);
+    }
+
+    /// <summary>
+    /// Update store information (Manager only)
+    /// </summary>
+    [HttpPut]
+    [Authorize(Roles = "Manager")]
+    public async Task<ActionResult<StoreDto>> UpdateStore([FromBody] UpdateStoreRequest request)
+    {
+        var storeId = GetStoreIdFromClaims();
+        if (storeId == null)
+        {
+            return BadRequest(new { message = "Store ID not found in token" });
+        }
+
+        var store = await _storeService.UpdateStoreByIdAsync(storeId.Value, request);
+
+        if (store == null)
+        {
+            return NotFound(new { message = "Store not found" });
+        }
+
+        return Ok(store);
+    }
+
+    /// <summary>
+    /// Initialize store information (Legacy - can only be called once)
     /// </summary>
     [HttpPost("initialize")]
     [Authorize(Roles = "Manager")]
@@ -60,20 +128,13 @@ public class StoreController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update store information
-    /// </summary>
-    [HttpPut]
-    [Authorize(Roles = "Manager")]
-    public async Task<ActionResult<StoreDto>> UpdateStore([FromBody] UpdateStoreRequest request)
+    private int? GetStoreIdFromClaims()
     {
-        var store = await _storeService.UpdateStoreAsync(request);
-
-        if (store == null)
+        var storeIdClaim = User.FindFirst("StoreId")?.Value;
+        if (int.TryParse(storeIdClaim, out var storeId))
         {
-            return NotFound(new { message = "Store has not been initialized yet. Please initialize first." });
+            return storeId;
         }
-
-        return Ok(store);
+        return null;
     }
 }

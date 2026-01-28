@@ -20,79 +20,57 @@ export function DataInputForm({ maxDaysBack = 0 }: DataInputFormProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [salesInputs, setSalesInputs] = useState<{ [key: string]: string }>({});
   const [wastageInputs, setWastageInputs] = useState<{ [key: string]: string }>({});
-  const [isSavingSales, setIsSavingSales] = useState(false);
-  const [isSavingWastage, setIsSavingWastage] = useState(false);
 
-  const handleSalesSubmit = async () => {
+  const handleSalesSubmit = () => {
     let hasData = false;
-    const promises: Promise<void>[] = [];
-
+    
     recipes.forEach((recipe) => {
       const quantity = parseInt(salesInputs[recipe.id] || '0');
       if (quantity > 0) {
-        promises.push(addSalesData({
+        addSalesData({
           date: format(selectedDate, 'yyyy-MM-dd'),
           recipeId: recipe.id,
           quantity,
-        }));
+        });
         hasData = true;
       }
     });
 
-    if (!hasData) {
-      toast.error('Please enter at least one sales value');
-      return;
-    }
-
-    setIsSavingSales(true);
-    try {
-      await Promise.all(promises);
+    if (hasData) {
       toast.success('Sales data saved successfully!');
       setSalesInputs({});
-    } catch (error) {
-      toast.error('Failed to save sales data. Please try again.');
-    } finally {
-      setIsSavingSales(false);
+    } else {
+      toast.error('Please enter at least one sales value');
     }
   };
 
-  const handleWastageSubmit = async () => {
+  const handleWastageSubmit = () => {
     let hasData = false;
-    const promises: Promise<void>[] = [];
-
+    
     ingredients.forEach((ingredient) => {
       const quantity = parseFloat(wastageInputs[ingredient.id] || '0');
       if (quantity > 0) {
-        promises.push(addWastageData({
+        addWastageData({
           date: format(selectedDate, 'yyyy-MM-dd'),
           ingredientId: ingredient.id,
           quantity,
-        }));
+        });
         hasData = true;
       }
     });
 
-    if (!hasData) {
-      toast.error('Please enter at least one wastage value');
-      return;
-    }
-
-    setIsSavingWastage(true);
-    try {
-      await Promise.all(promises);
+    if (hasData) {
       toast.success('Wastage data saved successfully!');
       setWastageInputs({});
-    } catch (error) {
-      toast.error('Failed to save wastage data. Please try again.');
-    } finally {
-      setIsSavingWastage(false);
+    } else {
+      toast.error('Please enter at least one wastage value');
     }
   };
 
   const disabledDates = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
+    
     if (maxDaysBack === undefined) {
       // Manager: can select any date up to today
       return date > today;
@@ -127,7 +105,7 @@ export function DataInputForm({ maxDaysBack = 0 }: DataInputFormProps) {
             <PopoverTrigger asChild>
               <Button variant="outline" className="gap-2">
                 <CalendarIcon className="w-4 h-4" />
-                {format(selectedDate, 'PPP')}
+                {format(selectedDate, 'd MMM yyyy')}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -166,12 +144,8 @@ export function DataInputForm({ maxDaysBack = 0 }: DataInputFormProps) {
                 </div>
               ))}
             </div>
-            <Button
-              onClick={handleSalesSubmit}
-              className="bg-green-600 hover:bg-green-700"
-              disabled={isSavingSales}
-            >
-              {isSavingSales ? 'Saving...' : 'Save Sales Data'}
+            <Button onClick={handleSalesSubmit} className="btn-primary">
+              Save Sales Data
             </Button>
           </TabsContent>
 
@@ -196,12 +170,8 @@ export function DataInputForm({ maxDaysBack = 0 }: DataInputFormProps) {
                 </div>
               ))}
             </div>
-            <Button
-              onClick={handleWastageSubmit}
-              className="bg-orange-600 hover:bg-orange-700"
-              disabled={isSavingWastage}
-            >
-              {isSavingWastage ? 'Saving...' : 'Save Wastage Data'}
+            <Button onClick={handleWastageSubmit} variant="destructive" className="font-semibold">
+              Save Wastage Data
             </Button>
           </TabsContent>
         </Tabs>

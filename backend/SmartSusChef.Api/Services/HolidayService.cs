@@ -11,57 +11,87 @@ public class HolidayService : IHolidayService
     // Cache for holidays to avoid repeated API calls
     private static readonly Dictionary<string, List<HolidayDto>> _holidayCache = new();
 
+    // Cache for country codes based on coordinates
+    private static readonly Dictionary<string, string> _countryCodeCache = new();
+
     public HolidayService(HttpClient httpClient, IConfiguration configuration)
     {
         _httpClient = httpClient;
         _configuration = configuration;
     }
 
-    public async Task<List<HolidayDto>> GetHolidaysAsync(int year)
+    public async Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude)
     {
-        var cacheKey = $"SG_{year}";
+        // Create a cache key based on rounded coordinates (to 1 decimal place for caching)
+        var cacheKey = $"{Math.Round(latitude, 1)}_{Math.Round(longitude, 1)}";
+
+        if (_countryCodeCache.TryGetValue(cacheKey, out var cachedCode))
+        {
+            return cachedCode;
+        }
+
+        // Use OpenStreetMap Nominatim for reverse geocoding (free, no API key required)
+        var url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}&zoom=3";
+
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Add("User-Agent", "SmartSusChef/1.0");
+
+        var response = await _httpClient.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+
+        if (doc.RootElement.TryGetProperty("address", out var address) &&
+            address.TryGetProperty("country_code", out var countryCodeElement))
+        {
+            var countryCode = countryCodeElement.GetString()?.ToUpperInvariant()
+                ?? throw new InvalidOperationException("Failed to get country code from coordinates");
+            _countryCodeCache[cacheKey] = countryCode;
+            return countryCode;
+        }
+
+        throw new InvalidOperationException("Failed to get country code from coordinates");
+    }
+
+    public async Task<List<HolidayDto>> GetHolidaysAsync(int year, string? countryCode = null)
+    {
+        var code = countryCode ?? "SG";
+        var cacheKey = $"{code}_{year}";
+
         if (_holidayCache.TryGetValue(cacheKey, out var cached))
         {
             return cached;
         }
 
-        try
+        var baseUrl = _configuration["ExternalApis:HolidayApiUrl"]
+            ?? throw new InvalidOperationException("HolidayApiUrl is not configured");
+        var url = $"{baseUrl}/{year}/{code}";
+
+        var response = await _httpClient.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+
+        var holidays = new List<HolidayDto>();
+
+        foreach (var holiday in doc.RootElement.EnumerateArray())
         {
-            var baseUrl = _configuration["ExternalApis:HolidayApiUrl"];
-            var url = $"{baseUrl}/{year}/SG"; // SG for Singapore
+            var date = holiday.GetProperty("date").GetString() ?? "";
+            var name = holiday.GetProperty("localName").GetString() ?? "";
 
-            var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(content);
-
-            var holidays = new List<HolidayDto>();
-
-            foreach (var holiday in doc.RootElement.EnumerateArray())
-            {
-                var date = holiday.GetProperty("date").GetString() ?? "";
-                var name = holiday.GetProperty("localName").GetString() ?? "";
-
-                holidays.Add(new HolidayDto(date, name));
-            }
-
-            var result = holidays.OrderBy(h => h.Date).ToList();
-            _holidayCache[cacheKey] = result;
-            return result;
+            holidays.Add(new HolidayDto(date, name));
         }
-        catch (Exception)
-        {
-            // Return mock data if API fails
-            var mockHolidays = GetMockHolidays(year);
-            _holidayCache[cacheKey] = mockHolidays;
-            return mockHolidays;
-        }
+
+        var result = holidays.OrderBy(h => h.Date).ToList();
+        _holidayCache[cacheKey] = result;
+        return result;
     }
 
     public async Task<(bool IsHoliday, string? HolidayName)> IsHolidayAsync(DateTime date, string countryCode)
     {
-        var holidays = await GetHolidaysAsync(date.Year);
+        var holidays = await GetHolidaysAsync(date.Year, countryCode);
         var dateStr = date.ToString("yyyy-MM-dd");
 
         var holiday = holidays.FirstOrDefault(h => h.Date == dateStr);
@@ -152,22 +182,5 @@ public class HolidayService : IHolidayService
         }
 
         return holidays;
-    }
-
-    private static List<HolidayDto> GetMockHolidays(int year)
-    {
-        return new List<HolidayDto>
-        {
-            new HolidayDto($"{year}-01-01", "New Year's Day"),
-            new HolidayDto($"{year}-02-10", "Chinese New Year"),
-            new HolidayDto($"{year}-02-11", "Chinese New Year"),
-            new HolidayDto($"{year}-04-10", "Hari Raya Puasa"),
-            new HolidayDto($"{year}-05-01", "Labour Day"),
-            new HolidayDto($"{year}-05-22", "Vesak Day"),
-            new HolidayDto($"{year}-06-17", "Hari Raya Haji"),
-            new HolidayDto($"{year}-08-09", "National Day"),
-            new HolidayDto($"{year}-11-01", "Deepavali"),
-            new HolidayDto($"{year}-12-25", "Christmas Day")
-        };
     }
 }

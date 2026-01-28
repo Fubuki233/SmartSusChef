@@ -15,6 +15,26 @@ public class AuthController : ControllerBase
         _authService = authService;
     }
 
+    /// <summary>
+    /// Register a new manager account with a new empty store
+    /// </summary>
+    [HttpPost("register")]
+    public async Task<ActionResult<RegisterResponse>> Register([FromBody] RegisterManagerRequest request)
+    {
+        var result = await _authService.RegisterManagerAsync(request);
+
+        if (result.Response == null)
+        {
+            return result.ErrorType switch
+            {
+                RegisterErrorType.UsernameExists => Conflict(new { message = "Username already exists. Please choose a different username." }),
+                _ => BadRequest(new { message = "Registration failed" })
+            };
+        }
+
+        return CreatedAtAction(nameof(GetCurrentUser), result.Response);
+    }
+
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
@@ -26,6 +46,24 @@ public class AuthController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Check if store setup is required for current user
+    /// </summary>
+    [HttpGet("store-setup-required")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<ActionResult<object>> CheckStoreSetupRequired()
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (userId == null || !Guid.TryParse(userId, out var userGuid))
+        {
+            return Unauthorized();
+        }
+
+        var required = await _authService.IsStoreSetupRequiredAsync(userGuid);
+        return Ok(new { storeSetupRequired = required });
     }
 
     [HttpGet("me")]

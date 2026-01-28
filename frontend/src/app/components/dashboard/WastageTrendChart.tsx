@@ -11,6 +11,7 @@ interface WastageTrendChartProps {
   onDateRangeChange: (range: 'today' | '7days' | 'custom') => void;
   maxDays?: number;
   onBarClick?: (date: string) => void;
+  selectedDate?: string | null; // Added prop for selection state
 }
 
 export function WastageTrendChart({
@@ -18,8 +19,9 @@ export function WastageTrendChart({
   onDateRangeChange,
   maxDays = 30,
   onBarClick,
+  selectedDate, // Receive the selected date
 }: WastageTrendChartProps) {
-  const { wastageData, ingredients } = useApp();
+  const { wastageData, ingredients, recipes } = useApp();
 
   const { chartData, totalCarbonFootprint } = useMemo(() => {
     const today = new Date();
@@ -27,22 +29,87 @@ export function WastageTrendChart({
     const startDate = subDays(today, daysToShow - 1);
 
     const ingredientMap = new Map(ingredients.map((i) => [i.id, { ...i }]));
-    const groupedByDate: { [key: string]: { quantity: number; carbon: number } } = {};
+    const recipeMap = new Map(recipes.map((r) => [r.id, r]));
+    
+    const groupedByDate: { [key: string]: { weightKg: number; carbon: number } } = {};
+
+    // --- HELPER 1: Convert Quantity to KG/Liters ---
+    const getWeightInKg = (quantity: number, unit: string) => {
+      if (unit === 'g' || unit === 'ml') return quantity / 1000;
+      return quantity; // Assumes kg, L, or 'plate' base unit is 1
+    };
+
+    // --- HELPER 2: Recursive Carbon Calculation for Recipes ---
+    const calculateRecipeCarbon = (recipeId: string): number => {
+      const recipe = recipeMap.get(recipeId);
+      if (!recipe) return 0;
+
+      return recipe.ingredients.reduce((total, component) => {
+        let componentCarbon = 0;
+        
+        if (component.ingredientId) {
+          const ing = ingredientMap.get(component.ingredientId);
+          if (ing) {
+            const weightKg = getWeightInKg(component.quantity, ing.unit);
+            componentCarbon = weightKg * ing.carbonFootprint;
+          }
+        } else if (component.childRecipeId) {
+          const subRecipeWeightKg = component.quantity / 1000; 
+          componentCarbon = subRecipeWeightKg * 2.5; 
+        }
+        
+        return total + componentCarbon;
+      }, 0);
+    };
+
+    // --- HELPER 3: Recursive Weight Calculation for Recipes ---
+    const calculateRecipeWeight = (recipeId: string): number => {
+      const recipe = recipeMap.get(recipeId);
+      if (!recipe) return 0;
+
+      return recipe.ingredients.reduce((total, component) => {
+        let componentWeight = 0;
+        if (component.ingredientId) {
+          const ing = ingredientMap.get(component.ingredientId);
+          if (ing) {
+            componentWeight = getWeightInKg(component.quantity, ing.unit);
+          }
+        } else if (component.childRecipeId) {
+           componentWeight = component.quantity / 1000; 
+        }
+        return total + componentWeight;
+      }, 0);
+    };
 
     wastageData.forEach((waste) => {
       const wasteDate = parseISO(waste.date);
       if (wasteDate >= startDate && wasteDate <= today) {
         const dateKey = waste.date;
-        const ingredient = ingredientMap.get(waste.ingredientId);
         
         if (!groupedByDate[dateKey]) {
-          groupedByDate[dateKey] = { quantity: 0, carbon: 0 };
+          groupedByDate[dateKey] = { weightKg: 0, carbon: 0 };
         }
         
-        groupedByDate[dateKey].quantity += waste.quantity;
-        if (ingredient) {
-          groupedByDate[dateKey].carbon += waste.quantity * ingredient.carbonFootprint;
+        let weightInKg = 0;
+        let carbonEmission = 0;
+
+        if (waste.recipeId) {
+          const portionWeight = calculateRecipeWeight(waste.recipeId);
+          const portionCarbon = calculateRecipeCarbon(waste.recipeId);
+          
+          weightInKg = portionWeight * waste.quantity;
+          carbonEmission = portionCarbon * waste.quantity;
+
+        } else if (waste.ingredientId) {
+          const ingredient = ingredientMap.get(waste.ingredientId);
+          if (ingredient) {
+            weightInKg = getWeightInKg(waste.quantity, ingredient.unit);
+            carbonEmission = weightInKg * ingredient.carbonFootprint;
+          }
         }
+
+        groupedByDate[dateKey].weightKg += weightInKg;
+        groupedByDate[dateKey].carbon += carbonEmission;
       }
     });
 
@@ -52,24 +119,61 @@ export function WastageTrendChart({
     for (let i = daysToShow - 1; i >= 0; i--) {
       const date = subDays(today, i);
       const dateKey = format(date, 'yyyy-MM-dd');
-      const dayData = groupedByDate[dateKey] || { quantity: 0, carbon: 0 };
+      const dayData = groupedByDate[dateKey] || { weightKg: 0, carbon: 0 };
       totalCarbon += dayData.carbon;
       
       data.push({
         date: dateKey,
-        displayDate: format(date, 'MMM dd'),
-        wastage: parseFloat(dayData.quantity.toFixed(2)),
+        displayDate: format(date, 'd MMM'),
+        wastage: parseFloat(dayData.weightKg.toFixed(2)),
         carbon: parseFloat(dayData.carbon.toFixed(2)),
       });
     }
 
     return { chartData: data, totalCarbonFootprint: totalCarbon };
-  }, [wastageData, ingredients, dateRange, maxDays]);
+  }, [wastageData, ingredients, recipes, dateRange, maxDays]);
 
   const handleBarClick = (data: any) => {
     if (onBarClick && data && data.date) {
       onBarClick(data.date);
     }
+  };
+
+  // --- NEW: Custom Bar with Selection State & Hover Effects ---
+  const CustomBar = (props: any) => {
+    const { x, y, width, height, fill } = props;
+    const isSelected = selectedDate === props.payload?.date;
+
+    return (
+      <g>
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          // Darker orange when selected, standard orange otherwise
+          fill={isSelected ? '#D35400' : fill}
+          rx={8}
+          ry={8}
+          // Adds the hand cursor and opacity fade on hover
+          className="cursor-pointer transition-all hover:opacity-80"
+        />
+        {isSelected && (
+          <rect
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            fill="none"
+            stroke="#E74C3C" // Red stroke to match the line chart
+            strokeWidth={3}
+            rx={8}
+            ry={8}
+            pointerEvents="none"
+          />
+        )}
+      </g>
+    );
   };
 
   return (
@@ -78,12 +182,20 @@ export function WastageTrendChart({
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Trash2 className="w-5 h-5 text-orange-600" />
+              <Trash2 className="w-5 h-5 text-[#E67E22]" />
               Wastage Trend
             </CardTitle>
-            <CardDescription className="flex items-center gap-2 mt-2">
-              <Leaf className="w-4 h-4 text-green-600" />
-              Total Carbon Footprint: {totalCarbonFootprint.toFixed(2)} kg CO₂
+            <CardDescription className="mt-2">
+              {/* First line: Icon and Carbon Footprint */}
+              <span className="flex items-center gap-2">
+                <Leaf className="w-4 h-4 text-[#8A9A5B]" />
+                Total Carbon Footprint: {totalCarbonFootprint.toFixed(2)} kg CO₂
+              </span>
+              
+              {/* Second line: Action instruction */}
+              <span className="block mt-1 text-[#E67E22] font-medium">
+                Click on any bar to view details
+              </span>
             </CardDescription>
           </div>
           <Select value={dateRange} onValueChange={(value: any) => onDateRangeChange(value)}>
@@ -100,7 +212,7 @@ export function WastageTrendChart({
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={chartData} onClick={handleBarClick}>
+          <ComposedChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="displayDate"
@@ -109,25 +221,26 @@ export function WastageTrendChart({
               textAnchor="end"
               height={60}
             />
-            <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+            <YAxis yAxisId="left" tick={{ fontSize: 12 }} label={{ value: 'Wastage (kg)', angle: -90, position: 'insideLeft' }}/>
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} label={{ value: 'Carbon (kg CO₂)', angle: 90, position: 'insideRight' }}/>
             <Tooltip />
             <Legend />
             <Bar
               yAxisId="left"
               dataKey="wastage"
-              fill="#f59e0b"
+              fill="#F39C12" // Standard Wastage Orange
               name="Wastage (kg)"
-              radius={[8, 8, 0, 0]}
-              cursor="pointer"
+              // Use the new CustomBar shape
+              shape={<CustomBar />}
+              onClick={handleBarClick}
             />
             <Line
               yAxisId="right"
               type="monotone"
               dataKey="carbon"
-              stroke="#ef4444"
-              strokeWidth={2}
-              dot={{ fill: '#ef4444', r: 4 }}
+              stroke="#E74C3C"
+              strokeWidth={3}
+              dot={{ fill: '#E74C3C', r: 4 }}
               name="Carbon (kg CO₂)"
             />
           </ComposedChart>

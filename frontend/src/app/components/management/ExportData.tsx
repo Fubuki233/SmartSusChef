@@ -2,25 +2,36 @@ import React, { useState } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
-import { Download, FileJson, FileText, CheckCircle2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { Download, FileSpreadsheet, FileText, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ExportData() {
   const { exportData, salesData, wastageData, forecastData } = useApp();
   const [lastExport, setLastExport] = useState<string | null>(null);
 
-  const handleExport = (type: 'sales' | 'wastage' | 'forecast') => {
+  const handleExportCSV = (type: 'sales' | 'wastage' | 'forecast') => {
     exportData(type);
-    setLastExport(type);
-    toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} data exported successfully`);
+    setLastExport(`csv-${type}`);
+    toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} data exported as CSV successfully`);
   };
 
-  const exportOptions = [
+  const handleExportReport = (reportType: 'sales-trend' | 'predictions' | 'wastage-trend') => {
+    // Generate PDF report (placeholder implementation)
+    setLastExport(`pdf-${reportType}`);
+    const reportNames = {
+      'sales-trend': 'Sales Trend Report',
+      'predictions': 'Predictions Report',
+      'wastage-trend': 'Wastage Trend Report',
+    };
+    toast.success(`${reportNames[reportType]} exported as PDF successfully`);
+  };
+
+  const csvExportOptions = [
     {
       type: 'sales' as const,
       title: 'Sales Data',
       description: 'Export all sales records with dates and quantities',
-      icon: FileJson,
       count: salesData.length,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
@@ -30,7 +41,6 @@ export function ExportData() {
       type: 'wastage' as const,
       title: 'Wastage Data',
       description: 'Export wastage records with ingredient details',
-      icon: FileText,
       count: wastageData.length,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
@@ -40,11 +50,37 @@ export function ExportData() {
       type: 'forecast' as const,
       title: 'Forecast Data',
       description: 'Export predicted sales for upcoming days',
-      icon: FileJson,
       count: forecastData.length,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200',
+    },
+  ];
+
+  const pdfReportOptions = [
+    {
+      type: 'sales-trend' as const,
+      title: 'Sales Trend Report',
+      description: 'Comprehensive sales analysis with charts and insights',
+      color: 'text-[#4F6F52]',
+      bgColor: 'bg-[#E6EFE0]',
+      borderColor: 'border-[#4F6F52]',
+    },
+    {
+      type: 'predictions' as const,
+      title: 'Predictions Report',
+      description: 'AI forecast analysis for dishes and ingredients',
+      color: 'text-[#8E7AB5]',
+      bgColor: 'bg-purple-50',
+      borderColor: 'border-[#8E7AB5]',
+    },
+    {
+      type: 'wastage-trend' as const,
+      title: 'Wastage Trend Report',
+      description: 'Wastage patterns and carbon footprint analysis',
+      color: 'text-[#E67E22]',
+      bgColor: 'bg-orange-50',
+      borderColor: 'border-[#E67E22]',
     },
   ];
 
@@ -55,109 +91,159 @@ export function ExportData() {
           <Download className="w-6 h-6" />
           Export Data
         </h1>
-        <p className="text-gray-600 mt-1">Download data in JSON format for backup or analysis</p>
+        <p className="text-gray-600 mt-1">Export raw data as CSV or generate comprehensive PDF reports</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {exportOptions.map((option) => {
-          const Icon = option.icon;
-          return (
-            <Card
-              key={option.type}
-              className={`${lastExport === option.type ? option.borderColor : ''}`}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className={`${option.bgColor} p-3 rounded-lg`}>
-                    <Icon className={`w-6 h-6 ${option.color}`} />
+      <Tabs defaultValue="csv" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="csv">CSV Export</TabsTrigger>
+          <TabsTrigger value="pdf">PDF Reports</TabsTrigger>
+        </TabsList>
+
+        {/* CSV Export Tab */}
+        <TabsContent value="csv" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {csvExportOptions.map((option) => (
+              <Card
+                key={option.type}
+                className={`${lastExport === `csv-${option.type}` ? `border-2 ${option.borderColor}` : ''}`}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className={`${option.bgColor} p-3 rounded-lg`}>
+                      <FileSpreadsheet className={`w-6 h-6 ${option.color}`} />
+                    </div>
+                    {lastExport === `csv-${option.type}` && (
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    )}
                   </div>
-                  {lastExport === option.type && (
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  )}
-                </div>
-                <CardTitle className="text-lg mt-4">{option.title}</CardTitle>
-                <CardDescription>{option.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold">{option.count}</span>
-                  <span className="text-gray-600">records</span>
-                </div>
-                <Button
-                  onClick={() => handleExport(option.type)}
-                  className="w-full gap-2"
-                  variant="outline"
-                >
-                  <Download className="w-4 h-4" />
-                  Export as JSON
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Information Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Export Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-medium mb-2">File Format</h4>
-              <p className="text-sm text-gray-600">
-                All data is exported in JSON format, which can be easily imported into other
-                systems or analyzed using spreadsheet software.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-medium mb-2">Data Contents</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• Sales: Date, Recipe ID, Quantity</li>
-                <li>• Wastage: Date, Ingredient ID, Quantity</li>
-                <li>• Forecast: Date, Recipe ID, Predicted Quantity</li>
-              </ul>
-            </div>
+                  <CardTitle className="text-lg mt-4">{option.title}</CardTitle>
+                  <CardDescription>{option.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold">{option.count}</span>
+                    <span className="text-gray-600">records</span>
+                  </div>
+                  <Button
+                    onClick={() => handleExportCSV(option.type)}
+                    className="w-full gap-2 bg-[#4F6F52] hover:bg-[#3D563F] text-white"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export as CSV
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
-          <div className="border-t pt-4">
-            <h4 className="font-medium mb-2">Usage Tips</h4>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>• Regular exports help maintain data backups</li>
-              <li>• JSON files can be imported back using the Import feature</li>
-              <li>• Use exported data for external reporting and analysis</li>
-              <li>• Share forecast data with suppliers for better inventory planning</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">CSV Export Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium mb-2">File Format</h4>
+                  <p className="text-sm text-gray-600">
+                    All data is exported in CSV (Comma-Separated Values) format, compatible with Excel,
+                    Google Sheets, and other spreadsheet applications.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Data Contents</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Sales: Date, Recipe Name, Quantity Sold</li>
+                    <li>• Wastage: Date, Ingredient Name, Quantity Wasted, Unit</li>
+                    <li>• Forecast: Date, Recipe Name, Predicted Quantity</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Example Output */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Example Export Format</CardTitle>
-          <CardDescription>Sample JSON structure for sales data</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-xs overflow-x-auto">
-{`[
-  {
-    "id": "sales-2026-01-15-1",
-    "date": "2026-01-15",
-    "recipeId": "1",
-    "quantity": 45
-  },
-  {
-    "id": "sales-2026-01-15-2",
-    "date": "2026-01-15",
-    "recipeId": "2",
-    "quantity": 30
-  }
-]`}
-          </pre>
-        </CardContent>
-      </Card>
+        {/* PDF Reports Tab */}
+        <TabsContent value="pdf" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {pdfReportOptions.map((option) => (
+              <Card
+                key={option.type}
+                className={`${lastExport === `pdf-${option.type}` ? `border-2 ${option.borderColor}` : ''}`}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className={`${option.bgColor} p-3 rounded-lg`}>
+                      <FileText className={`w-6 h-6 ${option.color}`} />
+                    </div>
+                    {lastExport === `pdf-${option.type}` && (
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    )}
+                  </div>
+                  <CardTitle className="text-lg mt-4">{option.title}</CardTitle>
+                  <CardDescription>{option.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={() => handleExportReport(option.type)}
+                    className="w-full gap-2 bg-[#4F6F52] hover:bg-[#3D563F] text-white"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export PDF Report
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">PDF Report Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <h4 className="font-medium mb-2">Sales Trend Report</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Daily/Weekly/Monthly trends</li>
+                    <li>• Top-performing dishes</li>
+                    <li>• Revenue analysis</li>
+                    <li>• Visual charts and graphs</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Predictions Report</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• 7-day forecast breakdown</li>
+                    <li>• Dish-level predictions</li>
+                    <li>• Ingredient requirements</li>
+                    <li>• Confidence intervals</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Wastage Trend Report</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Wastage patterns over time</li>
+                    <li>• Ingredient-level breakdown</li>
+                    <li>• Carbon footprint analysis</li>
+                    <li>• Cost impact assessment</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-2">Report Features</h4>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Professional PDF format ready for printing or sharing</li>
+                  <li>• Includes SmartSus Chef branding and report metadata</li>
+                  <li>• Data visualizations with charts and tables</li>
+                  <li>• Executive summary with key insights and recommendations</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -28,11 +28,15 @@ export function SalesTrendChart({
     const daysToShow = dateRange === 'today' ? 1 : Math.min(maxDays, dateRange === '7days' ? 7 : 30);
     const startDate = subDays(today, daysToShow - 1);
 
+    // Filter to ensure we only count Main Dishes (exclude sub-recipes)
+    const mainRecipeIds = new Set(recipes.filter(r => !r.isSubRecipe).map(r => r.id));
+
     const groupedByDate: { [key: string]: number } = {};
 
     salesData.forEach((sale) => {
       const saleDate = parseISO(sale.date);
-      if (saleDate >= startDate && saleDate <= today) {
+      // Only count if it is a Main Dish
+      if (saleDate >= startDate && saleDate <= today && mainRecipeIds.has(sale.recipeId)) {
         const dateKey = sale.date;
         if (!groupedByDate[dateKey]) {
           groupedByDate[dateKey] = 0;
@@ -47,17 +51,17 @@ export function SalesTrendChart({
       const dateKey = format(date, 'yyyy-MM-dd');
       data.push({
         date: dateKey,
-        displayDate: format(date, 'MMM dd'),
+        displayDate: format(date, 'd MMM'),
         sales: groupedByDate[dateKey] || 0,
       });
     }
 
     return data;
-  }, [salesData, dateRange, maxDays]);
+  }, [salesData, recipes, dateRange, maxDays]);
 
   const averageSales = useMemo(() => {
     const total = chartData.reduce((sum, item) => sum + item.sales, 0);
-    return Math.round(total / chartData.length);
+    return chartData.length > 0 ? Math.round(total / chartData.length) : 0;
   }, [chartData]);
 
   const handleBarClick = (data: any) => {
@@ -68,9 +72,9 @@ export function SalesTrendChart({
 
   // Custom bar shape to show selected state
   const CustomBar = (props: any) => {
-    const { fill, x, y, width, height, payload } = props;
-    const isSelected = selectedDate === payload.date;
-    
+    const { x, y, width, height, fill } = props;
+    const isSelected = selectedDate === props.payload?.date;
+
     return (
       <g>
         <rect
@@ -78,11 +82,10 @@ export function SalesTrendChart({
           y={y}
           width={width}
           height={height}
-          fill={isSelected ? '#15803d' : fill}
+          fill={isSelected ? '#3A4D39' : fill}
           rx={8}
           ry={8}
-          opacity={isSelected ? 1 : 0.8}
-          style={{ cursor: 'pointer' }}
+          className="cursor-pointer transition-all hover:opacity-80"
         />
         {isSelected && (
           <rect
@@ -91,10 +94,11 @@ export function SalesTrendChart({
             width={width}
             height={height}
             fill="none"
-            stroke="#15803d"
+            stroke="#E74C3C"
             strokeWidth={3}
             rx={8}
             ry={8}
+            pointerEvents="none"
           />
         )}
       </g>
@@ -112,7 +116,7 @@ export function SalesTrendChart({
             </CardTitle>
             <CardDescription>
               Total dishes sold · Average: {averageSales} per day
-              <span className="block mt-1 text-green-600 font-medium">
+              <span className="block mt-1 text-[#27AE60] font-medium">
                 Click on any bar to view details
               </span>
             </CardDescription>
@@ -141,11 +145,11 @@ export function SalesTrendChart({
               height={60}
             />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip />
+            <Tooltip formatter={(value: number) => [value, 'Dishes Sold']} />
             <Legend />
             <Bar
               dataKey="sales"
-              fill="#16a34a"
+              fill="#4F6F52"
               name="Total Sales"
               shape={<CustomBar />}
               onClick={handleBarClick}
@@ -153,9 +157,9 @@ export function SalesTrendChart({
             <Line
               type="monotone"
               dataKey="sales"
-              stroke="#0ea5e9"
-              strokeWidth={2}
-              dot={{ fill: '#0ea5e9', r: 4 }}
+              stroke="#E74C3C"
+              strokeWidth={3}
+              dot={{ fill: '#E74C3C', r: 4 }}
               name="Trend"
             />
           </ComposedChart>

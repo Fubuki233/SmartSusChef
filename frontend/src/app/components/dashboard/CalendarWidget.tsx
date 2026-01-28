@@ -28,33 +28,30 @@ export function CalendarWidget() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {upcomingHolidays.length > 0 ? (
-          <div className="space-y-3">
-            {upcomingHolidays.map((holiday, index) => (
-              <div
-                key={index}
-                className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg"
-              >
-                <div className="bg-blue-600 text-white rounded-lg p-2 text-center min-w-[50px]">
-                  <div className="text-xs font-medium">
-                    {format(parseISO(holiday.date), 'MMM')}
+        <div className="space-y-2">
+          {upcomingHolidays.length > 0 ? (
+            upcomingHolidays.map((event) => {
+              const eventDate = parseISO(event.date);
+              return (
+                <div
+                  key={event.date}
+                  className="flex items-center gap-3 p-3 bg-[#E6EFE0] rounded-lg hover:bg-[#ECE3CE] transition-colors"
+                >
+                  <div className="bg-[#4F6F52] text-white rounded-lg p-2 min-w-[56px] text-center shadow-sm">
+                    <div className="text-xs font-medium">{format(eventDate, 'MMM')}</div>
+                    <div className="text-xl font-bold">{format(eventDate, 'd')}</div>
                   </div>
-                  <div className="text-lg font-bold">
-                    {format(parseISO(holiday.date), 'd')}
+                  <div className="flex-1">
+                    <p className="font-medium text-[#1A1C18]">{event.name}</p>
+                    <p className="text-sm text-gray-600">{format(eventDate, 'EEEE')}</p>
                   </div>
                 </div>
-                <div className="flex-1 pt-1">
-                  <p className="font-medium text-sm">{holiday.name}</p>
-                  <p className="text-xs text-gray-600">
-                    {format(parseISO(holiday.date), 'EEEE')}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">No upcoming holidays in the next 60 days</p>
-        )}
+              );
+            })
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">No upcoming events</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

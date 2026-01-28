@@ -14,7 +14,7 @@ export function WeatherWidget() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Cloud className="w-4 h-4" />
+          <Cloud className="w-4 h-4 text-[#4A90E2]" />
           Current Weather
         </CardTitle>
       </CardHeader>
@@ -22,32 +22,30 @@ export function WeatherWidget() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-4xl font-bold">{weather.temperature}°C</div>
+              <div className="text-4xl font-bold text-[#1A1C18]">{weather.temperature}°C</div>
               <div className="text-sm text-gray-600 mt-1">{weather.condition}</div>
             </div>
-            <div className="text-right">
-              <Cloud className="w-16 h-16 text-blue-400" />
-            </div>
+            <Cloud className="w-16 h-16 text-[#4A90E2]" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t">
             <div className="flex items-center gap-2">
-              <Droplets className="w-4 h-4 text-blue-600" />
+              <Droplets className="w-4 h-4 text-[#4A90E2]" />
               <div>
-                <div className="text-xs text-gray-600">Humidity</div>
-                <div className="font-semibold">{weather.humidity}%</div>
+                <p className="text-xs text-gray-600">Humidity</p>
+                <p className="font-semibold text-[#1A1C18]">{weather.humidity}%</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Thermometer className="w-4 h-4 text-red-600" />
+              <Thermometer className="w-4 h-4 text-[#4A90E2]" />
               <div>
-                <div className="text-xs text-gray-600">Feels like</div>
-                <div className="font-semibold">{weather.temperature + 2}°C</div>
+                <p className="text-xs text-gray-600">Feels like</p>
+                <p className="font-semibold text-[#1A1C18]">{(weather.temperature + 2).toFixed(1)}°C</p>
               </div>
             </div>
           </div>
 
-          <p className="text-xs text-gray-600 pt-2 border-t">{weather.description}</p>
+          <p className="text-sm text-gray-600 pt-2 border-t">{weather.description}</p>
         </div>
       </CardContent>
     </Card>
