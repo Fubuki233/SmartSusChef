@@ -1,4 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using SmartSusChef.Api.Data;
 using SmartSusChef.Api.DTOs;
+using SmartSusChef.Api.Models;
 using System.Text.Json;
 
 namespace SmartSusChef.Api.Services;
@@ -7,45 +10,30 @@ public class WeatherService : IWeatherService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly IStoreService _storeService;
+    private readonly ApplicationDbContext _context;
 
-    public WeatherService(HttpClient httpClient, IConfiguration configuration)
+    public WeatherService(HttpClient httpClient, IConfiguration configuration, IStoreService storeService, ApplicationDbContext context)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _storeService = storeService;
+        _context = context;
     }
 
     public async Task<WeatherDto> GetCurrentWeatherAsync()
     {
         try
         {
-            // Singapore coordinates
-            const double latitude = 1.3521;
-            const double longitude = 103.8198;
+            // Get store coordinates
+            var store = await _storeService.GetStoreAsync();
+            if (store == null)
+            {
+                // Fallback to Singapore coordinates if store not initialized
+                return await GetWeatherForCoordinates(1.3521, 103.8198);
+            }
 
-            var baseUrl = _configuration["ExternalApis:WeatherApiUrl"];
-            var url = $"{baseUrl}?latitude={latitude}&longitude={longitude}&current_weather=true";
-
-            var response = await _httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-
-            var content = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(content);
-
-            var currentWeather = doc.RootElement.GetProperty("current_weather");
-            var temperature = currentWeather.GetProperty("temperature").GetDouble();
-            var weatherCode = currentWeather.GetProperty("weathercode").GetInt32();
-
-            var (condition, description) = MapWeatherCode(weatherCode);
-
-            // Get humidity if available from hourly data
-            var humidity = 70; // Default value
-
-            return new WeatherDto(
-                (decimal)temperature,
-                condition,
-                humidity,
-                description
-            );
+            return await GetWeatherForCoordinates((double)store.Latitude, (double)store.Longitude);
         }
         catch (Exception)
         {
@@ -57,6 +45,34 @@ public class WeatherService : IWeatherService
                 "Warm and humid with partial cloud cover"
             );
         }
+    }
+
+    private async Task<WeatherDto> GetWeatherForCoordinates(double latitude, double longitude)
+    {
+        var baseUrl = _configuration["ExternalApis:WeatherApiUrl"];
+        var url = $"{baseUrl}?latitude={latitude}&longitude={longitude}&current_weather=true";
+
+        var response = await _httpClient.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(content);
+
+        var currentWeather = doc.RootElement.GetProperty("current_weather");
+        var temperature = currentWeather.GetProperty("temperature").GetDouble();
+        var weatherCode = currentWeather.GetProperty("weathercode").GetInt32();
+
+        var (condition, description) = MapWeatherCode(weatherCode);
+
+        // Get humidity if available from hourly data
+        var humidity = 70; // Default value
+
+        return new WeatherDto(
+            (decimal)temperature,
+            condition,
+            humidity,
+            description
+        );
     }
 
     public async Task<WeatherForecastDto?> GetWeatherForecastAsync(DateTime date, decimal latitude, decimal longitude)
@@ -146,6 +162,41 @@ public class WeatherService : IWeatherService
         {
             return null;
         }
+    }
+
+    public async Task SyncWeatherForDateAsync(DateTime date)
+    {
+        var store = await _storeService.GetStoreAsync();
+        if (store == null)
+        {
+            // Cannot sync without store location
+            return;
+        }
+
+        var forecast = await GetWeatherForecastAsync(date, store.Latitude, store.Longitude);
+        if (forecast == null)
+        {
+            return;
+        }
+
+        var signal = await _context.GlobalCalendarSignals.FindAsync(date.Date);
+        if (signal == null)
+        {
+            signal = new GlobalCalendarSignals
+            {
+                Date = date.Date,
+                RainMm = forecast.RainMm,
+                WeatherDesc = forecast.WeatherDescription
+            };
+            _context.GlobalCalendarSignals.Add(signal);
+        }
+        else
+        {
+            signal.RainMm = forecast.RainMm;
+            signal.WeatherDesc = forecast.WeatherDescription;
+        }
+
+        await _context.SaveChangesAsync();
     }
 
     private static (string Condition, string Description) MapWeatherCode(int code)

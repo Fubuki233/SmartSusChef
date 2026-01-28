@@ -8,7 +8,8 @@ namespace SmartSusChef.Api.Services;
 public class SalesService : ISalesService
 {
     private readonly ApplicationDbContext _context;
-
+    
+    private readonly int _currentStoreId = 1;
     public SalesService(ApplicationDbContext context)
     {
         _context = context;
@@ -18,6 +19,7 @@ public class SalesService : ISalesService
     {
         var query = _context.SalesData
             .Include(s => s.Recipe)
+            .Where(s => s.StoreId == _currentStoreId) // Filter by Store
             .AsQueryable();
 
         if (startDate.HasValue)
@@ -47,6 +49,7 @@ public class SalesService : ISalesService
         var salesData = new SalesData
         {
             Id = Guid.NewGuid(),
+            StoreId = _currentStoreId, // Assign current store
             Date = DateTime.Parse(request.Date).Date,
             RecipeId = Guid.Parse(request.RecipeId),
             Quantity = request.Quantity,
@@ -89,30 +92,47 @@ public class SalesService : ISalesService
         return true;
     }
 
-    public async Task<List<SalesTrendDto>> GetTrendAsync(DateTime startDate, DateTime endDate)
+    public async Task<List<SalesWithSignalsDto>> GetTrendAsync(DateTime startDate, DateTime endDate)
     {
+        // 1. Fetch data from DB filtered by Store
         var salesData = await _context.SalesData
             .Include(s => s.Recipe)
-            .Where(s => s.Date >= startDate.Date && s.Date <= endDate.Date)
+            .Where(s => s.StoreId == _currentStoreId && s.Date >= startDate.Date && s.Date <= endDate.Date)
             .ToListAsync();
+        // 2. Fetch external signals (weather/holidays) for the same period
+        var signals = await _context.GlobalCalendarSignals
+            .Where(sig => sig.Date.Date >= startDate.Date && sig.Date.Date <= endDate.Date)
+            .ToDictionaryAsync(sig => sig.Date.Date);
+        
+        // 3. Generate the full range of dates to ensure exactly N data points for your unit test
+        var allDates = Enumerable.Range(0, (endDate.Date - startDate.Date).Days + 1)
+            .Select(d => startDate.AddDays(d).Date);
+        
+        // 4. Map everything to the new SalesWithSignalsDto
+        var trend = allDates.Select(date => 
+        {
+            var daySales = salesData.Where(s => s.Date.Date == date).ToList();
+        
+            // Check if we have signals for this day, otherwise use defaults
+            signals.TryGetValue(date, out var signal);
 
-        var grouped = salesData
-            .GroupBy(s => s.Date.Date)
-            .OrderBy(g => g.Key)
-            .Select(g => new SalesTrendDto(
-                g.Key.ToString("yyyy-MM-dd"),
-                g.Sum(s => s.Quantity),
-                g.GroupBy(s => s.RecipeId)
+            return new SalesWithSignalsDto(
+                date.ToString("yyyy-MM-dd"),
+                daySales.Sum(s => s.Quantity),
+                signal?.IsHoliday ?? false,
+                signal?.HolidayName ?? "None",
+                signal?.RainMm ?? 0m,
+                signal?.WeatherDesc ?? "No Data",
+                daySales.GroupBy(s => s.RecipeId)
                     .Select(rg => new RecipeSalesDto(
                         rg.Key.ToString(),
                         rg.First().Recipe.Name,
                         rg.Sum(s => s.Quantity)
-                    ))
-                    .ToList()
-            ))
-            .ToList();
+                    )).ToList()
+            );
+        }).ToList();
 
-        return grouped;
+        return trend;
     }
 
     public async Task<List<IngredientUsageDto>> GetIngredientUsageByDateAsync(DateTime date)
@@ -176,12 +196,20 @@ public class SalesService : ISalesService
             ))
             .ToList();
     }
-
+    
+    // Link the interface method to implementation
+    public async Task<List<SalesWithSignalsDto>> GetSalesTrendsWithSignalsAsync(DateTime startDate, DateTime endDate)
+    {
+        return await GetTrendAsync(startDate, endDate);
+    }
+    
+    
     public async Task ImportAsync(List<CreateSalesDataRequest> salesData)
     {
         var entities = salesData.Select(s => new SalesData
         {
             Id = Guid.NewGuid(),
+            StoreId = _currentStoreId, // Assign StoreId for data isolation
             Date = DateTime.Parse(s.Date).Date,
             RecipeId = Guid.Parse(s.RecipeId),
             Quantity = s.Quantity,
@@ -192,7 +220,7 @@ public class SalesService : ISalesService
         _context.SalesData.AddRange(entities);
         await _context.SaveChangesAsync();
     }
-
+    
     private static SalesDataDto MapToDto(SalesData salesData)
     {
         return new SalesDataDto(

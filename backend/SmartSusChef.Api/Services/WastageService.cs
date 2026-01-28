@@ -8,16 +8,21 @@ namespace SmartSusChef.Api.Services;
 public class WastageService : IWastageService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IRecipeService _recipeService;
+    private readonly int _currentStoreId = 1; // Simulating authenticated store context
 
-    public WastageService(ApplicationDbContext context)
+    public WastageService(ApplicationDbContext context, IRecipeService recipeService)
     {
         _context = context;
+        _recipeService = recipeService;
     }
 
     public async Task<List<WastageDataDto>> GetAllAsync(DateTime? startDate = null, DateTime? endDate = null)
     {
         var query = _context.WastageData
             .Include(w => w.Ingredient)
+            .Include(w => w.Recipe)
+            .Where(w => w.StoreId == _currentStoreId)
             .AsQueryable();
 
         if (startDate.HasValue)
@@ -30,16 +35,22 @@ public class WastageService : IWastageService
             .OrderByDescending(w => w.Date)
             .ToListAsync();
 
-        return wastageData.Select(MapToDto).ToList();
+        var dtos = new List<WastageDataDto>();
+        foreach (var w in wastageData)
+        {
+            dtos.Add(await MapToDtoAsync(w));
+        }
+        return dtos;
     }
 
     public async Task<WastageDataDto?> GetByIdAsync(Guid id)
     {
         var wastageData = await _context.WastageData
             .Include(w => w.Ingredient)
-            .FirstOrDefaultAsync(w => w.Id == id);
+            .Include(w => w.Recipe)
+            .FirstOrDefaultAsync(w => w.Id == id && w.StoreId == _currentStoreId);
 
-        return wastageData == null ? null : MapToDto(wastageData);
+        return wastageData == null ? null : await MapToDtoAsync(wastageData);
     }
 
     public async Task<WastageDataDto> CreateAsync(CreateWastageDataRequest request)
@@ -47,8 +58,10 @@ public class WastageService : IWastageService
         var wastageData = new WastageData
         {
             Id = Guid.NewGuid(),
+            StoreId = _currentStoreId,
             Date = DateTime.Parse(request.Date).Date,
-            IngredientId = Guid.Parse(request.IngredientId),
+            IngredientId = string.IsNullOrEmpty(request.IngredientId) ? null : Guid.Parse(request.IngredientId),
+            RecipeId = string.IsNullOrEmpty(request.RecipeId) ? null : Guid.Parse(request.RecipeId),
             Quantity = request.Quantity,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -64,23 +77,27 @@ public class WastageService : IWastageService
     {
         var wastageData = await _context.WastageData
             .Include(w => w.Ingredient)
-            .FirstOrDefaultAsync(w => w.Id == id);
+            .Include(w => w.Recipe)
+            .FirstOrDefaultAsync(w => w.Id == id && w.StoreId == _currentStoreId);
 
         if (wastageData == null) return null;
 
         wastageData.Date = DateTime.Parse(request.Date).Date;
-        wastageData.IngredientId = Guid.Parse(request.IngredientId);
+        wastageData.IngredientId = string.IsNullOrEmpty(request.IngredientId) ? null : Guid.Parse(request.IngredientId);
+        wastageData.RecipeId = string.IsNullOrEmpty(request.RecipeId) ? null : Guid.Parse(request.RecipeId);
         wastageData.Quantity = request.Quantity;
         wastageData.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return MapToDto(wastageData);
+        return await MapToDtoAsync(wastageData);
     }
 
     public async Task<bool> DeleteAsync(Guid id)
     {
-        var wastageData = await _context.WastageData.FindAsync(id);
+        var wastageData = await _context.WastageData
+            .FirstOrDefaultAsync(w => w.Id == id && w.StoreId == _currentStoreId);
+            
         if (wastageData == null) return false;
 
         _context.WastageData.Remove(wastageData);
@@ -93,24 +110,36 @@ public class WastageService : IWastageService
     {
         var wastageData = await _context.WastageData
             .Include(w => w.Ingredient)
-            .Where(w => w.Date >= startDate.Date && w.Date <= endDate.Date)
+            .Include(w => w.Recipe)
+            .Where(w => w.StoreId == _currentStoreId && w.Date >= startDate.Date && w.Date <= endDate.Date)
             .ToListAsync();
 
-        var grouped = wastageData
-            .GroupBy(w => w.Date.Date)
+        // We need to calculate impact for each item first because it's async
+        var wastageWithImpact = new List<(WastageData Data, decimal Impact)>();
+        foreach (var w in wastageData)
+        {
+            wastageWithImpact.Add((w, await GetTotalImpactAsync(w)));
+        }
+
+        var grouped = wastageWithImpact
+            .GroupBy(x => x.Data.Date.Date)
             .OrderBy(g => g.Key)
             .Select(g => new WastageTrendDto(
                 g.Key.ToString("yyyy-MM-dd"),
-                g.Sum(w => w.Quantity),
-                g.Sum(w => w.Quantity * w.Ingredient.CarbonFootprint),
-                g.GroupBy(w => w.IngredientId)
-                    .Select(ig => new IngredientWastageDto(
-                        ig.Key.ToString(),
-                        ig.First().Ingredient.Name,
-                        ig.First().Ingredient.Unit,
-                        ig.Sum(w => w.Quantity),
-                        ig.Sum(w => w.Quantity * w.Ingredient.CarbonFootprint)
-                    ))
+                g.Sum(x => x.Data.Quantity),
+                g.Sum(x => x.Impact),
+                g.GroupBy(x => new { x.Data.IngredientId, x.Data.RecipeId })
+                    .Select(ig => {
+                        var first = ig.First().Data;
+                        return new ItemWastageDto(
+                            first.IngredientId?.ToString(),
+                            first.RecipeId?.ToString(),
+                            first.Ingredient?.Name ?? first.Recipe?.Name ?? "Unknown",
+                            first.Ingredient?.Unit ?? "unit",
+                            ig.Sum(x => x.Data.Quantity),
+                            ig.Sum(x => x.Impact)
+                        );
+                    })
                     .ToList()
             ))
             .ToList();
@@ -118,16 +147,48 @@ public class WastageService : IWastageService
         return grouped;
     }
 
-    private static WastageDataDto MapToDto(WastageData wastageData)
+    public async Task<decimal> GetTotalWastageImpactAsync(DateTime startDate, DateTime endDate)
+    {
+        var wastageData = await _context.WastageData
+            .Include(w => w.Ingredient)
+            .Include(w => w.Recipe)
+            .Where(w => w.StoreId == _currentStoreId && w.Date >= startDate.Date && w.Date <= endDate.Date)
+            .ToListAsync();
+
+        decimal totalImpact = 0;
+        foreach (var w in wastageData)
+        {
+            totalImpact += await GetTotalImpactAsync(w);
+        }
+        return totalImpact;
+    }
+
+    private async Task<decimal> GetTotalImpactAsync(WastageData w)
+    {
+        if (w.Ingredient != null)
+        {
+            return w.Quantity * w.Ingredient.CarbonFootprint;
+        }
+        if (w.RecipeId.HasValue)
+        {
+            // Use the recursive service you just built!
+            var footprintPerUnit = await _recipeService.CalculateTotalCarbonFootprintAsync(w.RecipeId.Value);
+            return w.Quantity * footprintPerUnit;
+        }
+        return 0;
+    }
+
+    private async Task<WastageDataDto> MapToDtoAsync(WastageData wastageData)
     {
         return new WastageDataDto(
             wastageData.Id.ToString(),
             wastageData.Date.ToString("yyyy-MM-dd"),
-            wastageData.IngredientId.ToString(),
-            wastageData.Ingredient.Name,
-            wastageData.Ingredient.Unit,
+            wastageData.IngredientId?.ToString(),
+            wastageData.RecipeId?.ToString(),
+            wastageData.Ingredient?.Name ?? wastageData.Recipe?.Name ?? "Unknown",
+            wastageData.Ingredient?.Unit ?? "unit",
             wastageData.Quantity,
-            wastageData.Quantity * wastageData.Ingredient.CarbonFootprint
+            await GetTotalImpactAsync(wastageData)
         );
     }
 }

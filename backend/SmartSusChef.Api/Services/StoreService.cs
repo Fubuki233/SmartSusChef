@@ -32,7 +32,11 @@ public class StoreService : IStoreService
         var store = new Store
         {
             Id = 1, // Fixed ID for singleton
+            CompanyName = request.CompanyName,
+            UEN = request.UEN,
             StoreName = request.StoreName,
+            OutletLocation = request.OutletLocation,
+            ContactNumber = request.ContactNumber,
             OpeningDate = request.OpeningDate,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
@@ -57,8 +61,16 @@ public class StoreService : IStoreService
         }
 
         // Update only provided fields
+        if (request.CompanyName != null)
+            store.CompanyName = request.CompanyName;
+        if (request.UEN != null)
+            store.UEN = request.UEN;
         if (request.StoreName != null)
             store.StoreName = request.StoreName;
+        if (request.OutletLocation != null)
+            store.OutletLocation = request.OutletLocation;
+        if (request.ContactNumber != null)
+            store.ContactNumber = request.ContactNumber;
         if (request.OpeningDate.HasValue)
             store.OpeningDate = request.OpeningDate.Value;
         if (request.Latitude.HasValue)
@@ -86,7 +98,11 @@ public class StoreService : IStoreService
     {
         return new StoreDto(
             store.Id,
+            store.CompanyName,
+            store.UEN,
             store.StoreName,
+            store.OutletLocation,
+            store.ContactNumber,
             store.OpeningDate,
             store.Latitude,
             store.Longitude,
