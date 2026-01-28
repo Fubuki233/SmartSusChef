@@ -10,7 +10,7 @@ public class SalesService : ISalesService
     private readonly ApplicationDbContext _context;
     
     private readonly int _currentStoreId = 1;
-    public SalesService(ApplicationDbContext context)
+    public SalesService(ApplicationDbContext applicationDbContext, ApplicationDbContext context)
     {
         _context = context;
     }
@@ -97,7 +97,7 @@ public class SalesService : ISalesService
         // 1. Fetch data from DB filtered by Store
         var salesData = await _context.SalesData
             .Include(s => s.Recipe)
-            .Where(s => s.StoreId == _currentStoreId && s.Date >= startDate.Date && s.Date <= endDate.Date)
+            .Where(s => s.StoreId == _currentStoreId && s.Date.Date >= startDate.Date && s.Date.Date <= endDate.Date)
             .ToListAsync();
         // 2. Fetch external signals (weather/holidays) for the same period
         var signals = await _context.GlobalCalendarSignals
