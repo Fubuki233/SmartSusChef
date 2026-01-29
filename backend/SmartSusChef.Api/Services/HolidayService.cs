@@ -14,8 +14,6 @@ public class HolidayService : IHolidayService
 
     // Cache for holidays to avoid repeated API calls
     private static readonly Dictionary<string, List<HolidayDto>> _holidayCache = new();
-
-    // Cache for country codes based on coordinates
     private static readonly Dictionary<string, string> _countryCodeCache = new();
 
     public HolidayService(HttpClient httpClient, IConfiguration configuration, ApplicationDbContext context)
@@ -27,9 +25,7 @@ public class HolidayService : IHolidayService
 
     public async Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude)
     {
-        // Create a cache key based on rounded coordinates (to 1 decimal place for caching)
         var cacheKey = $"{Math.Round(latitude, 1)}_{Math.Round(longitude, 1)}";
-
         if (_countryCodeCache.TryGetValue(cacheKey, out var cachedCode))
         {
             return cachedCode;
@@ -231,22 +227,23 @@ public class HolidayService : IHolidayService
     public bool IsSchoolHoliday(DateTime date)
     {
         var schoolHolidays = GetSchoolHolidays(date.Year);
+        return IsDateInRanges(date, schoolHolidays);
+    }
 
-        foreach (var (start, end) in schoolHolidays)
+    private bool IsDateInRanges(DateTime date, List<(DateTime Start, DateTime End)> ranges)
+    {
+        foreach (var (start, end) in ranges)
         {
             if (date.Date >= start.Date && date.Date <= end.Date)
             {
                 return true;
             }
         }
-
         return false;
     }
 
-    public DateTime? GetChineseNewYear(int year)
+    private DateTime? GetChineseNewYear(int year)
     {
-        // Chinese New Year dates (approximate, based on lunar calendar)
-        // These are pre-calculated for accuracy
         var cnyDates = new Dictionary<int, DateTime>
         {
             { 2020, new DateTime(2020, 1, 25) },
@@ -265,50 +262,18 @@ public class HolidayService : IHolidayService
         return cnyDates.TryGetValue(year, out var cny) ? cny : null;
     }
 
-    /// <summary>
-    /// Get school holiday periods for a given year
-    /// Rules:
-    /// 1. July and August are summer holidays
-    /// 2. Two weeks before and after Chinese New Year are winter holidays
-    /// </summary>
     private List<(DateTime Start, DateTime End)> GetSchoolHolidays(int year)
     {
         var holidays = new List<(DateTime, DateTime)>();
 
-        // 1. Summer holidays: July 1 - August 31
         holidays.Add((new DateTime(year, 7, 1), new DateTime(year, 8, 31)));
 
-        // 2. Winter holidays: 2 weeks before and after Chinese New Year
         var cny = GetChineseNewYear(year);
         if (cny.HasValue)
         {
             var startWinter = cny.Value.AddDays(-14);
             var endWinter = cny.Value.AddDays(14);
             holidays.Add((startWinter, endWinter));
-        }
-
-        // Check if CNY from previous year extends into this year
-        var prevCny = GetChineseNewYear(year - 1);
-        if (prevCny.HasValue)
-        {
-            var endWinter = prevCny.Value.AddDays(14);
-            if (endWinter.Year == year)
-            {
-                var startWinter = prevCny.Value.AddDays(-14);
-                holidays.Add((startWinter, endWinter));
-            }
-        }
-
-        // Check if CNY from next year's winter holiday starts in this year
-        var nextCny = GetChineseNewYear(year + 1);
-        if (nextCny.HasValue)
-        {
-            var startWinter = nextCny.Value.AddDays(-14);
-            if (startWinter.Year == year)
-            {
-                var endWinter = nextCny.Value.AddDays(14);
-                holidays.Add((startWinter, endWinter));
-            }
         }
 
         return holidays;

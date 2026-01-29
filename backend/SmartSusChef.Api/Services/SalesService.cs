@@ -104,7 +104,7 @@ public class SalesService : ISalesService
         var salesData = await _context.SalesData
             .AsNoTracking()
             .Include(s => s.Recipe)
-            .Where(s => s.StoreId == CurrentStoreId && s.Date >= startDate.Date && s.Date <= endDate.Date)
+            .Where(s => s.StoreId == CurrentStoreId && s.Date.Date >= startDate.Date && s.Date.Date <= endDate.Date)
             .ToListAsync();
         // 2. Fetch external signals (weather/holidays) for the same period
         var signals = await _context.GlobalCalendarSignals

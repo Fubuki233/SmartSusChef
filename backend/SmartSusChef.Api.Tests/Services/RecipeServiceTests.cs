@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartSusChef.Api.Data;
 using SmartSusChef.Api.Services;
 using SmartSusChef.Api.Models;
+using Moq;
 
 public class RecipeServiceTests
 {
@@ -43,7 +44,11 @@ public class RecipeServiceTests
         context.RecipeIngredients.Add(new RecipeIngredient { Id = Guid.NewGuid(), RecipeId = pizzaRecipe.Id, ChildRecipeId = doughRecipe.Id, Quantity = 1.0m });
 
         await context.SaveChangesAsync();
-        var service = new RecipeService(context);
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+
+        var service = new RecipeService(context, mockCurrentUserService.Object);
 
         // 2. Act
         var totalFootprint = await service.CalculateTotalCarbonFootprintAsync(pizzaRecipe.Id);

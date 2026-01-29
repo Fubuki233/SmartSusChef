@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    id("kotlin-kapt")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -46,4 +48,18 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    // Networking (For .NET Backend & Python ML)
+    implementation(libs.retrofit.core)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp.logging)
+    // Navigation (For fragments)
+    implementation(libs.navigation.fragment)
+    implementation(libs.navigation.ui)
+    // Hilt (Dependency Injection)
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+    // Storage (For TokenManager)
+    implementation(libs.datastore.preferences)
+    // UI Components (For charts)
+    implementation(libs.mp.android.chart)
 }

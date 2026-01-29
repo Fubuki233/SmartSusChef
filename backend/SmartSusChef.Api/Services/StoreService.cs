@@ -115,6 +115,14 @@ public class StoreService : IStoreService
         return await UpdateStoreInternal(store, request);
     }
 
+    // Added method to satisfy test requirement
+    public async Task<bool> UpdateStoreSettingsAsync(int storeId, string storeName)
+    {
+        var request = new UpdateStoreRequest(null, null, storeName, null, null, null, null, null, null, null);
+        var result = await UpdateStoreByIdAsync(storeId, request);
+        return result != null;
+    }
+
     private async Task<StoreDto> UpdateStoreInternal(Store store, UpdateStoreRequest request)
     {
         // Update only provided fields

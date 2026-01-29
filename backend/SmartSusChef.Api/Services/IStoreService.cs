@@ -9,6 +9,7 @@ public interface IStoreService
     Task<StoreDto> InitializeStoreAsync(CreateStoreRequest request);
     Task<StoreDto?> UpdateStoreAsync(UpdateStoreRequest request);
     Task<StoreDto?> UpdateStoreByIdAsync(int storeId, UpdateStoreRequest request);
+    Task<bool> UpdateStoreSettingsAsync(int storeId, string storeName);
     Task<bool> IsStoreInitializedAsync();
     Task<bool> IsStoreSetupCompleteAsync(int storeId);
 }
