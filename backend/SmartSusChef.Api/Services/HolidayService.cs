@@ -1,4 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using SmartSusChef.Api.Data;
 using SmartSusChef.Api.DTOs;
+using SmartSusChef.Api.Models;
 using System.Text.Json;
 
 namespace SmartSusChef.Api.Services;
@@ -7,32 +10,72 @@ public class HolidayService : IHolidayService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly ApplicationDbContext _context;
 
     // Cache for holidays to avoid repeated API calls
     private static readonly Dictionary<string, List<HolidayDto>> _holidayCache = new();
-
-    // Cache for country codes based on coordinates
     private static readonly Dictionary<string, string> _countryCodeCache = new();
 
-    public HolidayService(HttpClient httpClient, IConfiguration configuration)
+    public HolidayService(HttpClient httpClient, IConfiguration configuration, ApplicationDbContext context)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _context = context;
+    }
+
+    public async Task SyncHolidaysAsync(int year, string countryCode)
+    {
+        var holidays = await GetHolidaysAsync(year, countryCode);
+        var schoolHolidays = GetSchoolHolidays(year);
+
+        // Get all dates for the year
+        var startDate = new DateTime(year, 1, 1);
+        var endDate = new DateTime(year, 12, 31);
+        
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            var dateStr = date.ToString("yyyy-MM-dd");
+            var holiday = holidays.FirstOrDefault(h => h.Date == dateStr);
+            var isSchoolHoliday = IsDateInRanges(date, schoolHolidays);
+
+            var signal = await _context.GlobalCalendarSignals.FindAsync(date);
+            if (signal == null)
+            {
+                signal = new GlobalCalendarSignals
+                {
+                    Date = date,
+                    IsHoliday = holiday != null,
+                    HolidayName = holiday?.Name ?? string.Empty,
+                    IsSchoolHoliday = isSchoolHoliday
+                };
+                _context.GlobalCalendarSignals.Add(signal);
+            }
+            else
+            {
+                signal.IsHoliday = holiday != null;
+                signal.HolidayName = holiday?.Name ?? string.Empty;
+                signal.IsSchoolHoliday = isSchoolHoliday;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<bool> IsHolidayAsync(DateTime date)
+    {
+        var signal = await _context.GlobalCalendarSignals.FindAsync(date.Date);
+        return signal?.IsHoliday ?? false;
     }
 
     public async Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude)
     {
-        // Create a cache key based on rounded coordinates (to 1 decimal place for caching)
         var cacheKey = $"{Math.Round(latitude, 1)}_{Math.Round(longitude, 1)}";
-
         if (_countryCodeCache.TryGetValue(cacheKey, out var cachedCode))
         {
             return cachedCode;
         }
 
-        // Use OpenStreetMap Nominatim for reverse geocoding (free, no API key required)
         var url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}&zoom=3";
-
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("User-Agent", "SmartSusChef/1.0");
 
@@ -68,25 +111,30 @@ public class HolidayService : IHolidayService
             ?? throw new InvalidOperationException("HolidayApiUrl is not configured");
         var url = $"{baseUrl}/{year}/{code}";
 
-        var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
-
-        var content = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(content);
-
-        var holidays = new List<HolidayDto>();
-
-        foreach (var holiday in doc.RootElement.EnumerateArray())
+        try
         {
-            var date = holiday.GetProperty("date").GetString() ?? "";
-            var name = holiday.GetProperty("localName").GetString() ?? "";
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
 
-            holidays.Add(new HolidayDto(date, name));
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            var holidays = new List<HolidayDto>();
+            foreach (var holiday in doc.RootElement.EnumerateArray())
+            {
+                var date = holiday.GetProperty("date").GetString() ?? "";
+                var name = holiday.GetProperty("localName").GetString() ?? "";
+                holidays.Add(new HolidayDto(date, name));
+            }
+
+            var result = holidays.OrderBy(h => h.Date).ToList();
+            _holidayCache[cacheKey] = result;
+            return result;
         }
-
-        var result = holidays.OrderBy(h => h.Date).ToList();
-        _holidayCache[cacheKey] = result;
-        return result;
+        catch
+        {
+            return new List<HolidayDto>();
+        }
     }
 
     public async Task<(bool IsHoliday, string? HolidayName)> IsHolidayAsync(DateTime date, string countryCode)
@@ -101,22 +149,23 @@ public class HolidayService : IHolidayService
     public bool IsSchoolHoliday(DateTime date)
     {
         var schoolHolidays = GetSchoolHolidays(date.Year);
+        return IsDateInRanges(date, schoolHolidays);
+    }
 
-        foreach (var (start, end) in schoolHolidays)
+    private bool IsDateInRanges(DateTime date, List<(DateTime Start, DateTime End)> ranges)
+    {
+        foreach (var (start, end) in ranges)
         {
             if (date.Date >= start.Date && date.Date <= end.Date)
             {
                 return true;
             }
         }
-
         return false;
     }
 
-    public DateTime? GetChineseNewYear(int year)
+    private DateTime? GetChineseNewYear(int year)
     {
-        // Chinese New Year dates (approximate, based on lunar calendar)
-        // These are pre-calculated for accuracy
         var cnyDates = new Dictionary<int, DateTime>
         {
             { 2020, new DateTime(2020, 1, 25) },
@@ -135,50 +184,18 @@ public class HolidayService : IHolidayService
         return cnyDates.TryGetValue(year, out var cny) ? cny : null;
     }
 
-    /// <summary>
-    /// Get school holiday periods for a given year
-    /// Rules:
-    /// 1. July and August are summer holidays
-    /// 2. Two weeks before and after Chinese New Year are winter holidays
-    /// </summary>
     private List<(DateTime Start, DateTime End)> GetSchoolHolidays(int year)
     {
         var holidays = new List<(DateTime, DateTime)>();
 
-        // 1. Summer holidays: July 1 - August 31
         holidays.Add((new DateTime(year, 7, 1), new DateTime(year, 8, 31)));
 
-        // 2. Winter holidays: 2 weeks before and after Chinese New Year
         var cny = GetChineseNewYear(year);
         if (cny.HasValue)
         {
             var startWinter = cny.Value.AddDays(-14);
             var endWinter = cny.Value.AddDays(14);
             holidays.Add((startWinter, endWinter));
-        }
-
-        // Check if CNY from previous year extends into this year
-        var prevCny = GetChineseNewYear(year - 1);
-        if (prevCny.HasValue)
-        {
-            var endWinter = prevCny.Value.AddDays(14);
-            if (endWinter.Year == year)
-            {
-                var startWinter = prevCny.Value.AddDays(-14);
-                holidays.Add((startWinter, endWinter));
-            }
-        }
-
-        // Check if CNY from next year's winter holiday starts in this year
-        var nextCny = GetChineseNewYear(year + 1);
-        if (nextCny.HasValue)
-        {
-            var startWinter = nextCny.Value.AddDays(-14);
-            if (startWinter.Year == year)
-            {
-                var endWinter = nextCny.Value.AddDays(14);
-                holidays.Add((startWinter, endWinter));
-            }
         }
 
         return holidays;
