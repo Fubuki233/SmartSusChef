@@ -12,7 +12,7 @@ public interface IHolidayService
     /// <summary>
     /// Check if a specific date is a public holiday
     /// </summary>
-    Task<(bool IsHoliday, string? HolidayName)> IsHolidayAsync(DateTime date, string countryCode);
+    Task<(bool IsHoliday, string? HolidayName)> IsHolidayAsync(DateTime date, string? countryCode);
 
     /// <summary>
     /// Check if a specific date is a school holiday

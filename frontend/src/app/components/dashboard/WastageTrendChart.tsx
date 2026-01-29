@@ -5,13 +5,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format, subDays, parseISO } from 'date-fns';
 import { Trash2, Leaf } from 'lucide-react';
+import { getStandardizedQuantity } from '@/app/utils/unitConversion';
+import { calculateRecipeCarbon, calculateRecipeWeight } from '@/app/utils/recipeCalculations';
 
 interface WastageTrendChartProps {
   dateRange: 'today' | '7days' | 'custom';
   onDateRangeChange: (range: 'today' | '7days' | 'custom') => void;
   maxDays?: number;
   onBarClick?: (date: string) => void;
-  selectedDate?: string | null; // Added prop for selection state
+  selectedDate?: string | null;
 }
 
 export function WastageTrendChart({
@@ -19,7 +21,7 @@ export function WastageTrendChart({
   onDateRangeChange,
   maxDays = 30,
   onBarClick,
-  selectedDate, // Receive the selected date
+  selectedDate,
 }: WastageTrendChartProps) {
   const { wastageData, ingredients, recipes } = useApp();
 
@@ -32,54 +34,6 @@ export function WastageTrendChart({
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
     
     const groupedByDate: { [key: string]: { weightKg: number; carbon: number } } = {};
-
-    // --- HELPER 1: Convert Quantity to KG/Liters ---
-    const getWeightInKg = (quantity: number, unit: string) => {
-      if (unit === 'g' || unit === 'ml') return quantity / 1000;
-      return quantity; // Assumes kg, L, or 'plate' base unit is 1
-    };
-
-    // --- HELPER 2: Recursive Carbon Calculation for Recipes ---
-    const calculateRecipeCarbon = (recipeId: string): number => {
-      const recipe = recipeMap.get(recipeId);
-      if (!recipe) return 0;
-
-      return recipe.ingredients.reduce((total, component) => {
-        let componentCarbon = 0;
-        
-        if (component.ingredientId) {
-          const ing = ingredientMap.get(component.ingredientId);
-          if (ing) {
-            const weightKg = getWeightInKg(component.quantity, ing.unit);
-            componentCarbon = weightKg * ing.carbonFootprint;
-          }
-        } else if (component.childRecipeId) {
-          const subRecipeWeightKg = component.quantity / 1000; 
-          componentCarbon = subRecipeWeightKg * 2.5; 
-        }
-        
-        return total + componentCarbon;
-      }, 0);
-    };
-
-    // --- HELPER 3: Recursive Weight Calculation for Recipes ---
-    const calculateRecipeWeight = (recipeId: string): number => {
-      const recipe = recipeMap.get(recipeId);
-      if (!recipe) return 0;
-
-      return recipe.ingredients.reduce((total, component) => {
-        let componentWeight = 0;
-        if (component.ingredientId) {
-          const ing = ingredientMap.get(component.ingredientId);
-          if (ing) {
-            componentWeight = getWeightInKg(component.quantity, ing.unit);
-          }
-        } else if (component.childRecipeId) {
-           componentWeight = component.quantity / 1000; 
-        }
-        return total + componentWeight;
-      }, 0);
-    };
 
     wastageData.forEach((waste) => {
       const wasteDate = parseISO(waste.date);
@@ -94,8 +48,8 @@ export function WastageTrendChart({
         let carbonEmission = 0;
 
         if (waste.recipeId) {
-          const portionWeight = calculateRecipeWeight(waste.recipeId);
-          const portionCarbon = calculateRecipeCarbon(waste.recipeId);
+          const portionWeight = calculateRecipeWeight(waste.recipeId, recipeMap, ingredientMap);
+          const portionCarbon = calculateRecipeCarbon(waste.recipeId, recipeMap, ingredientMap);
           
           weightInKg = portionWeight * waste.quantity;
           carbonEmission = portionCarbon * waste.quantity;
@@ -103,7 +57,7 @@ export function WastageTrendChart({
         } else if (waste.ingredientId) {
           const ingredient = ingredientMap.get(waste.ingredientId);
           if (ingredient) {
-            weightInKg = getWeightInKg(waste.quantity, ingredient.unit);
+            weightInKg = getStandardizedQuantity(waste.quantity, ingredient.unit);
             carbonEmission = weightInKg * ingredient.carbonFootprint;
           }
         }
@@ -139,7 +93,7 @@ export function WastageTrendChart({
     }
   };
 
-  // --- NEW: Custom Bar with Selection State & Hover Effects ---
+  // Custom Bar with Selection State & Hover Effects
   const CustomBar = (props: any) => {
     const { x, y, width, height, fill } = props;
     const isSelected = selectedDate === props.payload?.date;
@@ -151,11 +105,9 @@ export function WastageTrendChart({
           y={y}
           width={width}
           height={height}
-          // Darker orange when selected, standard orange otherwise
           fill={isSelected ? '#D35400' : fill}
           rx={8}
           ry={8}
-          // Adds the hand cursor and opacity fade on hover
           className="cursor-pointer transition-all hover:opacity-80"
         />
         {isSelected && (
@@ -165,7 +117,7 @@ export function WastageTrendChart({
             width={width}
             height={height}
             fill="none"
-            stroke="#E74C3C" // Red stroke to match the line chart
+            stroke="#E74C3C"
             strokeWidth={3}
             rx={8}
             ry={8}
@@ -186,13 +138,10 @@ export function WastageTrendChart({
               Wastage Trend
             </CardTitle>
             <CardDescription className="mt-2">
-              {/* First line: Icon and Carbon Footprint */}
               <span className="flex items-center gap-2">
                 <Leaf className="w-4 h-4 text-[#8A9A5B]" />
                 Total Carbon Footprint: {totalCarbonFootprint.toFixed(2)} kg CO₂
               </span>
-              
-              {/* Second line: Action instruction */}
               <span className="block mt-1 text-[#E67E22] font-medium">
                 Click on any bar to view details
               </span>
@@ -228,9 +177,8 @@ export function WastageTrendChart({
             <Bar
               yAxisId="left"
               dataKey="wastage"
-              fill="#F39C12" // Standard Wastage Orange
+              fill="#F39C12"
               name="Wastage (kg)"
-              // Use the new CustomBar shape
               shape={<CustomBar />}
               onClick={handleBarClick}
             />

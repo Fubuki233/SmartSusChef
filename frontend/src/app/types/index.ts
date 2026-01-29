@@ -1,5 +1,4 @@
 // Core types for SmartSus Chef system
-
 export interface User {
   id: string;
   username: string;
@@ -17,6 +16,9 @@ export interface StoreSettings {
   outletLocation?: string;
   address: string;
   contactNumber: string;
+  latitude?: number;
+  longitude?: number;
+  countryCode?: string;
 }
 
 export interface Ingredient {
@@ -39,6 +41,8 @@ export interface Recipe {
   id: string;
   name: string;
   isSubRecipe?: boolean;
+  isSellable?: boolean; // Whether the recipe can be sold
+  unit?: string; // NEW: Unit of measurement for the recipe (e.g., 'L', 'kg', 'plate')
   ingredients: RecipeIngredient[];
   costPerPlate?: number; // Auto-calculated based on ingredients
   targetSellingPrice?: number; // Manager input
@@ -58,7 +62,8 @@ export interface SalesData {
 export interface WastageData {
   id: string;
   date: string; // YYYY-MM-DD
-  ingredientId: string;
+  recipeId?: string; // NEW: Support for recipe wastage
+  ingredientId?: string; // Made optional since we now support recipes
   quantity: number;
   createdAt?: string; // ISO timestamp
   modifiedAt?: string; // ISO timestamp

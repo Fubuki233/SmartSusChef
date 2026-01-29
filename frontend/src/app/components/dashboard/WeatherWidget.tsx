@@ -6,7 +6,7 @@ import { Cloud, Droplets, Thermometer } from 'lucide-react';
 export function WeatherWidget() {
   const { weather } = useApp();
 
-  if (!weather) {
+  if (!weather || weather.temperature === undefined) {
     return null;
   }
 
@@ -22,7 +22,7 @@ export function WeatherWidget() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-4xl font-bold text-[#1A1C18]">{weather.temperature}°C</div>
+              <div className="text-4xl font-bold text-[#1A1C18]">{weather.temperature.toFixed(1)}°C</div>
               <div className="text-sm text-gray-600 mt-1">{weather.condition}</div>
             </div>
             <Cloud className="w-16 h-16 text-[#4A90E2]" />

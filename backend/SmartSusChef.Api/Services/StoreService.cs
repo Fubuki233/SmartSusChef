@@ -9,13 +9,15 @@ public class StoreService : IStoreService
 {
     private readonly ApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IHolidayService _holidayService;
 
     private int CurrentStoreId => _currentUserService.StoreId;
 
-    public StoreService(ApplicationDbContext context, ICurrentUserService currentUserService)
+    public StoreService(ApplicationDbContext context, ICurrentUserService currentUserService, IHolidayService holidayService)
     {
         _context = context;
         _currentUserService = currentUserService;
+        _holidayService = holidayService;
     }
 
     public async Task<StoreDto?> GetStoreAsync()
@@ -54,6 +56,7 @@ public class StoreService : IStoreService
             existingStore.OpeningDate = request.OpeningDate;
             existingStore.Latitude = request.Latitude;
             existingStore.Longitude = request.Longitude;
+            existingStore.CountryCode = request.CountryCode;
             existingStore.Address = request.Address;
             existingStore.IsActive = request.IsActive;
             existingStore.UpdatedAt = DateTime.UtcNow;
@@ -73,6 +76,7 @@ public class StoreService : IStoreService
             OpeningDate = request.OpeningDate,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
+            CountryCode = request.CountryCode,
             Address = request.Address,
             IsActive = request.IsActive,
             CreatedAt = DateTime.UtcNow,
@@ -135,6 +139,23 @@ public class StoreService : IStoreService
         if (request.IsActive.HasValue)
             store.IsActive = request.IsActive.Value;
 
+        // Auto-fetch country code from coordinates if latitude/longitude changed and no country code provided
+        if ((request.Latitude.HasValue || request.Longitude.HasValue) && string.IsNullOrWhiteSpace(request.CountryCode))
+        {
+            if (store.Latitude != 0 && store.Longitude != 0)
+            {
+                var countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+                if (!string.IsNullOrWhiteSpace(countryCode))
+                {
+                    store.CountryCode = countryCode;
+                }
+            }
+        }
+        else if (request.CountryCode != null)
+        {
+            store.CountryCode = request.CountryCode;
+        }
+
         store.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -168,6 +189,7 @@ public class StoreService : IStoreService
             store.OpeningDate,
             store.Latitude,
             store.Longitude,
+            store.CountryCode,
             store.Address,
             store.IsActive,
             store.CreatedAt,

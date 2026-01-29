@@ -1,4 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using SmartSusChef.Api.Data;
 using SmartSusChef.Api.DTOs;
+using SmartSusChef.Api.Models;
 using System.Text.Json;
 
 namespace SmartSusChef.Api.Services;
@@ -7,6 +10,7 @@ public class HolidayService : IHolidayService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly ApplicationDbContext _context;
 
     // Cache for holidays to avoid repeated API calls
     private static readonly Dictionary<string, List<HolidayDto>> _holidayCache = new();
@@ -14,10 +18,11 @@ public class HolidayService : IHolidayService
     // Cache for country codes based on coordinates
     private static readonly Dictionary<string, string> _countryCodeCache = new();
 
-    public HolidayService(HttpClient httpClient, IConfiguration configuration)
+    public HolidayService(HttpClient httpClient, IConfiguration configuration, ApplicationDbContext context)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _context = context;
     }
 
     public async Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude)
@@ -30,33 +35,53 @@ public class HolidayService : IHolidayService
             return cachedCode;
         }
 
-        // Use OpenStreetMap Nominatim for reverse geocoding (free, no API key required)
-        var url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}&zoom=3";
-
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("User-Agent", "SmartSusChef/1.0");
-
-        var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-
-        var content = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(content);
-
-        if (doc.RootElement.TryGetProperty("address", out var address) &&
-            address.TryGetProperty("country_code", out var countryCodeElement))
+        try
         {
-            var countryCode = countryCodeElement.GetString()?.ToUpperInvariant()
-                ?? throw new InvalidOperationException("Failed to get country code from coordinates");
-            _countryCodeCache[cacheKey] = countryCode;
-            return countryCode;
+            // Use OpenStreetMap Nominatim for reverse geocoding (free, no API key required)
+            var url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}&zoom=3";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("User-Agent", "SmartSusChef/1.0");
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            if (doc.RootElement.TryGetProperty("address", out var address) &&
+                address.TryGetProperty("country_code", out var countryCodeElement))
+            {
+                var countryCode = countryCodeElement.GetString()?.ToUpperInvariant()
+                    ?? throw new InvalidOperationException("Failed to get country code from coordinates");
+                _countryCodeCache[cacheKey] = countryCode;
+                return countryCode;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Fall back to default if external service is unavailable
+        }
+        catch (TaskCanceledException)
+        {
+            // Timeout or cancellation: fall back to default
+        }
+        catch (JsonException)
+        {
+            // Malformed response: fall back to default
         }
 
-        throw new InvalidOperationException("Failed to get country code from coordinates");
+        _countryCodeCache[cacheKey] = string.Empty;
+        return string.Empty;
     }
 
     public async Task<List<HolidayDto>> GetHolidaysAsync(int year, string? countryCode = null)
     {
-        var code = countryCode ?? "SG";
+        var code = countryCode;
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return new List<HolidayDto>();
+        }
         var cacheKey = $"{code}_{year}";
 
         if (_holidayCache.TryGetValue(cacheKey, out var cached))
@@ -64,33 +89,138 @@ public class HolidayService : IHolidayService
             return cached;
         }
 
-        var baseUrl = _configuration["ExternalApis:HolidayApiUrl"]
-            ?? throw new InvalidOperationException("HolidayApiUrl is not configured");
-        var url = $"{baseUrl}/{year}/{code}";
+        var stored = await _context.HolidayCalendars
+            .AsNoTracking()
+            .FirstOrDefaultAsync(h => h.CountryCode == code && h.Year == year);
 
-        var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
-
-        var content = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(content);
-
-        var holidays = new List<HolidayDto>();
-
-        foreach (var holiday in doc.RootElement.EnumerateArray())
+        if (stored != null && !string.IsNullOrWhiteSpace(stored.HolidaysJson))
         {
-            var date = holiday.GetProperty("date").GetString() ?? "";
-            var name = holiday.GetProperty("localName").GetString() ?? "";
-
-            holidays.Add(new HolidayDto(date, name));
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<List<HolidayDto>>(stored.HolidaysJson) ?? new List<HolidayDto>();
+                var ordered = parsed.OrderBy(h => h.Date).ToList();
+                _holidayCache[cacheKey] = ordered;
+                return ordered;
+            }
+            catch (JsonException)
+            {
+                // Fall back to fetching from API if stored JSON is invalid
+            }
         }
 
-        var result = holidays.OrderBy(h => h.Date).ToList();
-        _holidayCache[cacheKey] = result;
-        return result;
+        try
+        {
+            var baseUrl = _configuration["ExternalApis:HolidayApiUrl"]
+                ?? throw new InvalidOperationException("HolidayApiUrl is not configured");
+            var url = $"{baseUrl}/{year}/{code}";
+
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            var holidays = new List<HolidayDto>();
+
+            foreach (var holiday in doc.RootElement.EnumerateArray())
+            {
+                var date = holiday.GetProperty("date").GetString() ?? "";
+                var name = holiday.GetProperty("localName").GetString() ?? "";
+
+                holidays.Add(new HolidayDto(date, name));
+            }
+
+            var result = holidays.OrderBy(h => h.Date).ToList();
+            _holidayCache[cacheKey] = result;
+
+            var existing = await _context.HolidayCalendars
+                .FirstOrDefaultAsync(h => h.CountryCode == code && h.Year == year);
+
+            if (existing == null)
+            {
+                existing = new HolidayCalendar
+                {
+                    CountryCode = code,
+                    Year = year,
+                    HolidaysJson = JsonSerializer.Serialize(result),
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.HolidayCalendars.Add(existing);
+            }
+            else
+            {
+                existing.HolidaysJson = JsonSerializer.Serialize(result);
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            if (result.Count > 0)
+            {
+                var parsedDates = result
+                    .Select(h => DateTime.TryParse(h.Date, out var d) ? d.Date : (DateTime?)null)
+                    .Where(d => d.HasValue)
+                    .Select(d => d!.Value)
+                    .ToList();
+
+                if (parsedDates.Count > 0)
+                {
+                    var existingSignals = await _context.GlobalCalendarSignals
+                        .Where(s => parsedDates.Contains(s.Date))
+                        .ToListAsync();
+
+                    var signalMap = existingSignals.ToDictionary(s => s.Date, s => s);
+
+                    foreach (var holiday in result)
+                    {
+                        if (!DateTime.TryParse(holiday.Date, out var holidayDate))
+                        {
+                            continue;
+                        }
+
+                        var dateOnly = holidayDate.Date;
+                        if (!signalMap.TryGetValue(dateOnly, out var signal))
+                        {
+                            signal = new GlobalCalendarSignals
+                            {
+                                Date = dateOnly
+                            };
+                            _context.GlobalCalendarSignals.Add(signal);
+                        }
+
+                        signal.IsHoliday = true;
+                        signal.HolidayName = holiday.Name;
+                        signal.IsSchoolHoliday = IsSchoolHoliday(dateOnly);
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
+            }
+            return result;
+        }
+        catch (HttpRequestException)
+        {
+            // External service unavailable; return empty list to avoid crashing
+        }
+        catch (TaskCanceledException)
+        {
+            // Timeout; return empty list
+        }
+        catch (JsonException)
+        {
+            // Invalid JSON; return empty list
+        }
+
+        return new List<HolidayDto>();
     }
 
-    public async Task<(bool IsHoliday, string? HolidayName)> IsHolidayAsync(DateTime date, string countryCode)
+    public async Task<(bool IsHoliday, string? HolidayName)> IsHolidayAsync(DateTime date, string? countryCode)
     {
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            return (false, null);
+        }
+
         var holidays = await GetHolidaysAsync(date.Year, countryCode);
         var dateStr = date.ToString("yyyy-MM-dd");
 

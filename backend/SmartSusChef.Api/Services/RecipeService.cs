@@ -21,6 +21,7 @@ public class RecipeService : IRecipeService
     public async Task<List<RecipeDto>> GetAllAsync()
     {
         var recipes = await _context.Recipes
+            .AsNoTracking()
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.ChildRecipe)
             .Where(r => r.StoreId == CurrentStoreId)
@@ -33,6 +34,7 @@ public class RecipeService : IRecipeService
     public async Task<RecipeDto?> GetByIdAsync(Guid id)
     {
         var recipe = await _context.Recipes
+            .AsNoTracking()
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.ChildRecipe)
             .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == CurrentStoreId);
@@ -123,6 +125,7 @@ public class RecipeService : IRecipeService
     public async Task<decimal> CalculateTotalCarbonFootprintAsync(Guid recipeId)
     {
         var recipe = await _context.Recipes
+            .AsNoTracking()
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .FirstOrDefaultAsync(r => r.Id == recipeId && r.StoreId == CurrentStoreId);
 

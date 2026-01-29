@@ -4,7 +4,7 @@ namespace SmartSusChef.Api.Services;
 
 public interface IWeatherService
 {
-    Task<WeatherDto> GetCurrentWeatherAsync();
+    Task<WeatherDto?> GetCurrentWeatherAsync();
 
     /// <summary>
     /// Get weather forecast for a specific date using Open-Meteo API

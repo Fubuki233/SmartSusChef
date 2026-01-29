@@ -68,7 +68,7 @@ export function SalesInputForm() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedRecipe) {
       toast.error('Please select a dish');
       return;
@@ -80,27 +80,30 @@ export function SalesInputForm() {
       return;
     }
 
-    if (editingId) {
-      // Update existing entry
-      updateSalesData(editingId, {
-        date: todayStr,
-        recipeId: selectedRecipe,
-        quantity: qty,
-      });
-      toast.success('Sales data updated successfully!');
-      setEditingId(null);
-    } else {
-      // Add new entry
-      addSalesData({
-        date: todayStr,
-        recipeId: selectedRecipe,
-        quantity: qty,
-      });
-      toast.success('Sales data saved successfully!');
-    }
+    try {
+      if (editingId) {
+        // Update existing entry
+        await updateSalesData(editingId, {
+          recipeId: selectedRecipe,
+          quantity: qty,
+        });
+        toast.success('Sales data updated successfully!');
+        setEditingId(null);
+      } else {
+        // Add new entry
+        await addSalesData({
+          date: todayStr,
+          recipeId: selectedRecipe,
+          quantity: qty,
+        });
+        toast.success('Sales data saved successfully!');
+      }
 
-    setSelectedRecipe('');
-    setQuantity('');
+      setSelectedRecipe('');
+      setQuantity('');
+    } catch (error) {
+      toast.error('Failed to save sales data');
+    }
   };
 
   const handleOverwrite = () => {
@@ -121,10 +124,14 @@ export function SalesInputForm() {
     setQuantity(entry.quantity.toString());
   };
 
-  const handleDelete = (id: string, dishName: string) => {
+  const handleDelete = async (id: string, dishName: string) => {
     if (confirm(`Are you sure you want to delete the entry for "${dishName}"?`)) {
-      deleteSalesData(id);
-      toast.success('Entry deleted successfully');
+      try {
+        await deleteSalesData(id);
+        toast.success('Entry deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete entry');
+      }
     }
   };
 
@@ -155,7 +162,6 @@ export function SalesInputForm() {
               <Select value={selectedRecipe} onValueChange={handleRecipeSelect}>
                 <SelectTrigger 
                   id="dish-select"
-                  // --- FIX APPLIED: Replaced 'outline' classes with standard 'border' classes ---
                   className="rounded-[8px] border border-gray-300 focus:ring-[#4F6F52] focus:border-[#4F6F52]"
                 >
                   <SelectValue placeholder="Choose a dish..." />

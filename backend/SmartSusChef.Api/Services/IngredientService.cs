@@ -22,6 +22,7 @@ public partial class IngredientService : IIngredientService
     {
         // Filter by current user's StoreId for data isolation
         var ingredients = await _context.Ingredients
+            .AsNoTracking()
             .Where(i => i.StoreId == CurrentStoreId)
             .OrderBy(i => i.Name)
             .ToListAsync();
@@ -34,6 +35,7 @@ public partial class IngredientService : IIngredientService
     {
         // Use FirstOrDefaultAsync with StoreId filter instead of FindAsync
         var ingredient = await _context.Ingredients
+            .AsNoTracking()
             .FirstOrDefaultAsync(i => i.Id == id && i.StoreId == CurrentStoreId);
 
         return ingredient == null ? null : MapToDto(ingredient);
@@ -102,6 +104,7 @@ public partial class IngredientService : IIngredientService
     public async Task<decimal> GetTotalCarbonImpactAsync()
     {
         return await _context.Ingredients
+            .AsNoTracking()
             .Where(i => i.StoreId == CurrentStoreId)
             .SumAsync(i => i.CarbonFootprint);
     }
@@ -114,6 +117,7 @@ public partial class IngredientService : IIngredientService
 
         var ingredientIds = items.Select(x => x.Id).ToList();
         var ingredients = await _context.Ingredients
+            .AsNoTracking()
             .Where(i => i.StoreId == CurrentStoreId && ingredientIds.Contains(i.Id))
             .ToListAsync();
 

@@ -6,6 +6,8 @@ import { Badge } from '@/app/components/ui/badge';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { format, parseISO } from 'date-fns';
 import { PieChartIcon, List, Leaf } from 'lucide-react';
+import { convertUnit, getStandardizedQuantity } from '@/app/utils/unitConversion';
+import { calculateRecipeCarbon, getRecipeUnit } from '@/app/utils/recipeCalculations';
 
 interface WastageDistributionProps {
   date: string;
@@ -35,17 +37,10 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
       type: 'Dish' | 'Sub-Recipe' | 'Raw'; 
       unit: string; 
       quantity: number; 
+      displayQuantity: number;
       carbon: number;
       badgeColor: string;
     }> = [];
-
-    // --- HELPER: Convert Quantity to Standard Unit (kg/L) ---
-    const getStandardizedQuantity = (qty: number, unit: string) => {
-      if (unit === 'g' || unit === 'ml') {
-        return qty / 1000;
-      }
-      return qty; // Assumes kg, L, or 'plate' is already standard
-    };
 
     wastageData
       .filter((waste) => waste.date === date)
@@ -59,12 +54,12 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
           if (recipe) {
             const type = recipe.isSubRecipe ? 'Sub-Recipe' : 'Dish';
             const category = recipe.isSubRecipe ? 'Sub-Recipes' : 'Main Dishes';
-            const unit = recipe.isSubRecipe ? 'L' : 'plate';
+            const unit = getRecipeUnit(recipe); // Use utility function
             const badgeColor = recipe.isSubRecipe ? 'bg-[#E67E22]' : 'bg-[#3498DB]';
             
-            // Mock carbon calculation for dishes (0.5 multiplier per plate/unit)
-            // For sub-recipes (L), we should also ideally check ingredients, but using 0.5 as proxy for now
-            calculatedCarbon = waste.quantity * 0.5;
+            // Calculate carbon using utility function
+            const carbonPerUnit = calculateRecipeCarbon(waste.recipeId, recipeMap, ingredientMap);
+            calculatedCarbon = carbonPerUnit * waste.quantity;
             
             categoryTotals[category] += calculatedCarbon;
             
@@ -73,6 +68,7 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
               type: type,
               unit: unit,
               quantity: waste.quantity,
+              displayQuantity: waste.quantity,
               carbon: calculatedCarbon,
               badgeColor
             });
@@ -84,7 +80,10 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
         if (!itemProcessed && waste.ingredientId) {
           const ingredient = ingredientMap.get(waste.ingredientId);
           if (ingredient) {
-            // FIX: Convert grams to kg before multiplying by Carbon Factor
+            // Use conversion utility for display
+            const converted = convertUnit(waste.quantity, ingredient.unit);
+            
+            // Use standardized quantity for carbon calculation
             const standardQty = getStandardizedQuantity(waste.quantity, ingredient.unit);
             calculatedCarbon = standardQty * ingredient.carbonFootprint;
             
@@ -93,8 +92,9 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
             itemDetails.push({
               name: ingredient.name,
               type: 'Raw',
-              unit: ingredient.unit,
-              quantity: waste.quantity,
+              unit: converted.unit, // Display the converted unit
+              quantity: waste.quantity, // Original quantity
+              displayQuantity: converted.quantity, // Converted quantity for display
               carbon: calculatedCarbon,
               badgeColor: 'bg-[#95A5A6]'
             });
@@ -192,7 +192,7 @@ export function WastageDistribution({ date }: WastageDistributionProps) {
                           {item.type}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">{item.quantity.toFixed(2)} {item.unit}</TableCell>
+                      <TableCell className="text-right">{item.displayQuantity.toFixed(2)} {item.unit}</TableCell>
                       <TableCell className="text-right font-medium text-[#E74C3C]">{item.carbon.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}

@@ -71,10 +71,19 @@ public class AuthService : IAuthService
             return new RegisterResult(null, RegisterErrorType.UsernameExists);
         }
 
+        // Generate unique store ID using hash
+        var storeId = GenerateUniqueStoreId();
+
+        // Ensure unique store ID
+        while (await _context.Store.AnyAsync(s => s.Id == storeId))
+        {
+            storeId = GenerateUniqueStoreId();
+        }
+
         // Create new empty store for this manager (multi-store system)
         var store = new Store
         {
-            // Id is auto-generated
+            Id = storeId,
             CompanyName = "",
             UEN = "",
             StoreName = "", // Empty - indicates setup required
@@ -174,6 +183,7 @@ public class AuthService : IAuthService
     public async Task<List<UserListDto>> GetAllUsersAsync(int storeId)
     {
         var users = await _context.Users
+            .AsNoTracking()
             .Where(u => u.StoreId == storeId)
             .OrderBy(u => u.CreatedAt)
             .ToListAsync();
@@ -275,5 +285,20 @@ public class AuthService : IAuthService
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    /// <summary>
+    /// Generate a unique store ID using timestamp and random hash
+    /// </summary>
+    private static int GenerateUniqueStoreId()
+    {
+        // Combine timestamp with random bytes to create unique hash
+        var timestamp = DateTime.UtcNow.Ticks;
+        var random = Random.Shared.Next();
+        var combined = $"{timestamp}-{random}-{Guid.NewGuid()}";
+
+        // Get hash code and ensure positive
+        var hash = combined.GetHashCode();
+        return hash < 0 ? -hash : hash;
     }
 }

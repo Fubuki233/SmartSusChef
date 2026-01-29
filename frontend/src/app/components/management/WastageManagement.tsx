@@ -14,6 +14,8 @@ import { Trash2, Edit, History, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays, subDays } from 'date-fns';
 import { WastageData, EditHistory } from '@/app/types/index';
+import { getRecipeUnit, calculateRecipeCarbon } from '@/app/utils/recipeCalculations';
+import { getStandardizedQuantity } from '@/app/utils/unitConversion';
 
 export function WastageManagement() {
   const { user, wastageData, ingredients, recipes, updateWastageData } = useApp();
@@ -25,7 +27,7 @@ export function WastageManagement() {
   const [editReason, setEditReason] = useState('');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<WastageData | null>(null);
 
-  // --- LOGIC FIX: Check both recipeId and ingredientId ---
+  // --- LOGIC: Check both recipeId and ingredientId ---
   const getItemInfo = (recipeId?: string | null, ingredientId?: string | null) => {
     // 1. Try to find a Recipe/Sub-Recipe first
     if (recipeId) {
@@ -34,7 +36,7 @@ export function WastageManagement() {
         return {
           name: recipe.name,
           type: recipe.isSubRecipe ? 'Sub-Recipe' : 'Dish',
-          unit: recipe.isSubRecipe ? 'L' : 'plate',
+          unit: getRecipeUnit(recipe), // Use utility function
           badgeColor: recipe.isSubRecipe ? 'bg-[#E67E22]' : 'bg-[#3498DB]'
         };
       }
@@ -82,23 +84,30 @@ export function WastageManagement() {
 
   const stats = useMemo(() => {
     const ingredientMap = new Map(ingredients.map((i) => [i.id, i]));
+    const recipeMap = new Map(recipes.map((r) => [r.id, r]));
+    
     const totals = filteredData.reduce((acc, waste) => {
       acc.quantity += waste.quantity;
       
       // Carbon footprint calculation
-      if (waste.ingredientId) {
+      if (waste.recipeId) {
+        // Use accurate recipe carbon calculation
+        const carbonPerUnit = calculateRecipeCarbon(waste.recipeId, recipeMap, ingredientMap);
+        acc.carbon += carbonPerUnit * waste.quantity;
+      } else if (waste.ingredientId) {
+        // Ingredient carbon calculation
         const ingredient = ingredientMap.get(waste.ingredientId);
         if (ingredient) {
-          acc.carbon += waste.quantity * ingredient.carbonFootprint;
+          const standardQty = getStandardizedQuantity(waste.quantity, ingredient.unit);
+          acc.carbon += standardQty * ingredient.carbonFootprint;
         }
-      } else {
-        // For dishes/sub-recipes, using a mock value (can be expanded to aggregate recipe ingredients)
-        acc.carbon += waste.quantity * 0.5; 
       }
+      
       return acc;
     }, { quantity: 0, carbon: 0 });
+    
     return totals;
-  }, [filteredData, ingredients]);
+  }, [filteredData, ingredients, recipes]);
 
   const canEdit = (dateStr: string): boolean => {
     const today = new Date();
@@ -127,7 +136,7 @@ export function WastageManagement() {
     setEditReason('');
   };
 
-  const handleSubmitEdit = () => {
+  const handleSubmitEdit = async () => {
     if (!editingData) return;
 
     const quantity = parseFloat(newQuantity);
@@ -141,23 +150,16 @@ export function WastageManagement() {
       return;
     }
 
-    const historyEntry: EditHistory = {
-      timestamp: new Date().toISOString(),
-      editedBy: user?.name || 'Unknown User',
-      reason: editReason.trim(),
-      previousValue: editingData.quantity,
-      newValue: quantity,
-    };
+    try {
+      await updateWastageData(editingData.id, {
+        quantity,
+      });
 
-    const updatedHistory = [...(editingData.editHistory || []), historyEntry];
-    
-    updateWastageData(editingData.id, {
-      quantity,
-      editHistory: updatedHistory,
-    });
-
-    toast.success('Wastage data updated successfully');
-    handleCloseEditDialog();
+      toast.success('Wastage data updated successfully');
+      handleCloseEditDialog();
+    } catch (error) {
+      toast.error('Failed to update wastage data');
+    }
   };
 
   const handleViewHistory = (data: WastageData) => {
@@ -176,7 +178,7 @@ export function WastageManagement() {
           <Trash2 className="w-6 h-6 text-[#E74C3C]" />
           Wastage Data Management
         </h1>
-        <p className="text-gray-600 mt-1">Audit log and data controls for <span className="font-bold text-[#4F6F52]">{useApp().storeSettings.storeName}</span></p>
+        <p className="text-gray-600 mt-1">Audit log and data controls for store management</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -27,17 +27,12 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
     setError('');
     setIsLoading(true);
     try {
-      const result = await login(username, password);
-      if (!result.success) {
+      const success = await login(username, password);
+      if (!success) {
         setError('Invalid credentials. Please key in the correct username and password.');
-        toast.error('Login failed');
-      } else {
-        toast.success('Login successful!');
       }
     } catch (err) {
-      setError('An error occurred during login. Please try again.');
-      toast.error('Login error');
-      console.error(err);
+      setError('Failed to connect to the server. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +104,7 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
                 <div className="flex justify-between items-center">
                   <Label htmlFor="password">Password</Label>
                   {/* Password Reset Trigger */}
-                  <button
+                  <button 
                     type="button"
                     onClick={() => setView('forgot-password')}
                     className="text-xs text-[#4F6F52] hover:underline font-medium"
@@ -135,28 +130,24 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
                 </div>
               )}
 
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="bg-[#4F6F52] hover:bg-[#3d563f] text-white w-full rounded-[32px]"
-              >
+              <Button type="submit" disabled={isLoading} className="bg-[#4F6F52] hover:bg-[#3d563f] text-white w-full rounded-[32px]">
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
 
-              {onNavigateToRegister && (
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-gray-600 text-center mb-3">New to SmartSus Chef?</p>
-                  <Button
+              <div className="pt-4 border-t">
+                <p className="text-sm text-gray-600 text-center mb-3">Don't have an account?</p>
+                {onNavigateToRegister && (
+                  <Button 
                     type="button"
                     variant="outline"
                     onClick={onNavigateToRegister}
-                    className="w-full rounded-[32px] border-[#4F6F52] text-[#4F6F52] hover:bg-[#4F6F52] hover:text-white"
+                    className="w-full rounded-[32px] border-[#4F6F52] text-[#4F6F52] hover:bg-[#4F6F52]/5 gap-2"
                   >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Create Manager Account
+                    <UserPlus className="w-4 h-4" />
+                    Register as Manager
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </form>
           ) : (
             /* --- View 3: Forgot Password Form --- */
@@ -176,8 +167,8 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
               <Button type="submit" className="bg-[#4F6F52] hover:bg-[#3d563f] text-white w-full rounded-[32px]">
                 Send Reset Link
               </Button>
-              <button
-                type="button"
+              <button 
+                type="button" 
                 onClick={() => setView('login')}
                 className="flex items-center justify-center gap-2 w-full text-sm text-gray-500 hover:text-gray-800 transition-colors"
               >
