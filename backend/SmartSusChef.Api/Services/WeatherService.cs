@@ -188,7 +188,7 @@ public class WeatherService : IWeatherService
                     decimal? tempMax = null;
                     decimal? tempMin = null;
                     decimal rainMm = 0;
-                    int weatherCode = 0;
+                    int weatherCode = -1; // Default to -1 (Unknown)
 
                     if (daily.TryGetProperty("temperature_2m_max", out var maxTemps) &&
                         maxTemps[0].ValueKind != JsonValueKind.Null)
