@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmartSusChef.Api.Models;
 
 public class Recipe
@@ -34,7 +36,9 @@ public class RecipeIngredient
     public decimal Quantity { get; set; }
 
     // Navigation properties
-    public Recipe Recipe { get; set; } = null!;
+    [JsonIgnore]
+    public Recipe Recipe { get; set; } = null!; // YC: advised to add in to avoid circular ref
+
     public Ingredient? Ingredient { get; set; }
     public Recipe? ChildRecipe { get; set; } // The Sub-Recipe
 }
