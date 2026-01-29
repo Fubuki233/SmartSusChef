@@ -2,7 +2,6 @@ using Xunit;
 using Microsoft.EntityFrameworkCore;
 using SmartSusChef.Api.Data;
 using SmartSusChef.Api.Services;
-using SmartSusChef.Api.Models;
 using SmartSusChef.Api.DTOs;
 using Moq;
 using Microsoft.Extensions.Configuration;
@@ -57,9 +56,11 @@ public class WeatherServiceTests
         var httpClient = new HttpClient(mockHttpMessageHandler.Object);
 
         var mockStoreService = new Mock<IStoreService>();
-        mockStoreService.Setup(s => s.GetStoreAsync()).ReturnsAsync(new StoreDto(1, "Company", "UEN", "Test Store", "Location", "123", DateTime.UtcNow, 1.35m, 103.81m, "Address", true, DateTime.UtcNow, DateTime.UtcNow));
+        mockStoreService.Setup(s => s.GetStoreAsync()).ReturnsAsync(new StoreDto(1, "Company", "UEN", "Test Store", "Location", "123", DateTime.UtcNow, 1.35m, 103.81m, "SG", "Address", true, DateTime.UtcNow, DateTime.UtcNow));
 
         var mockConfiguration = new Mock<IConfiguration>();
+        // Setup configuration to return a dummy URL to prevent ArgumentNullException
+        mockConfiguration.Setup(c => c["ExternalApis:WeatherApiUrl"]).Returns("https://api.open-meteo.com/v1/forecast");
 
         var service = new WeatherService(httpClient, mockConfiguration.Object, mockStoreService.Object, context);
 
@@ -92,9 +93,10 @@ public class WeatherServiceTests
         var httpClient = new HttpClient(mockHttpMessageHandler.Object);
 
         var mockStoreService = new Mock<IStoreService>();
-        mockStoreService.Setup(s => s.GetStoreAsync()).ReturnsAsync(new StoreDto(1, "Company", "UEN", "Test Store", "Location", "123", DateTime.UtcNow, 1.35m, 103.81m, "Address", true, DateTime.UtcNow, DateTime.UtcNow));
+        mockStoreService.Setup(s => s.GetStoreAsync()).ReturnsAsync(new StoreDto(1, "Company", "UEN", "Test Store", "Location", "123", DateTime.UtcNow, 1.35m, 103.81m, "SG", "Address", true, DateTime.UtcNow, DateTime.UtcNow));
 
         var mockConfiguration = new Mock<IConfiguration>();
+        mockConfiguration.Setup(c => c["ExternalApis:WeatherApiUrl"]).Returns("https://api.open-meteo.com/v1/forecast");
 
         var service = new WeatherService(httpClient, mockConfiguration.Object, mockStoreService.Object, context);
 

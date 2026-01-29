@@ -34,14 +34,15 @@ public class HolidayServiceTests
         { 
             Date = holidayDate, 
             IsHoliday = true, 
-            HolidayName = "New Year's Day"
+            HolidayName = "New Year's Day",
+            WeatherDesc = "Sunny" 
         });
         await context.SaveChangesAsync();
 
         var service = new HolidayService(mockHttpClient, mockConfiguration.Object, context);
 
         // 2. Act
-        var result = await service.IsHolidayAsync(holidayDate);
+        bool result = await service.IsHolidayAsync(holidayDate);
 
         // 3. Assert
         Assert.True(result);
@@ -59,7 +60,7 @@ public class HolidayServiceTests
         var service = new HolidayService(mockHttpClient, mockConfiguration.Object, context);
 
         // 2. Act
-        var result = await service.IsHolidayAsync(regularDate);
+        bool result = await service.IsHolidayAsync(regularDate);
 
         // 3. Assert
         Assert.False(result);
