@@ -27,13 +27,16 @@ data class StoreDto(
     val contactNumber: String,
 
     @SerializedName("openingDate")
-    val openingDate: String, // DateTime as ISO string
+    val openingDate: String,
 
     @SerializedName("latitude")
-    val latitude: Double, // decimal in C#
+    val latitude: Double,
 
     @SerializedName("longitude")
-    val longitude: Double, // decimal in C#
+    val longitude: Double,
+
+    @SerializedName("countryCode")
+    val countryCode: String? = null,
 
     @SerializedName("address")
     val address: String? = null,

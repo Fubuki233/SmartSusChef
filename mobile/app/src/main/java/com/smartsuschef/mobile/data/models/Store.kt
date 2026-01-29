@@ -9,9 +9,11 @@ data class Store(
     val outletLocation: String,
 
     // Store Details
-    val openingDate: String,        // DateTime -> String (ISO format)
+    val openingDate: String,
     val latitude: Double,
     val longitude: Double,
+
+    val countryCode: String?,
     val address: String?,
     val contactNumber: String,
 
