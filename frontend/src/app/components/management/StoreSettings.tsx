@@ -8,11 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
   DialogFooter,
   DialogDescription,
   DialogClose
@@ -24,11 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
-import {
-  Store,
-  Users,
-  ShieldCheck,
-  Save,
+import { 
+  Store, 
+  Users, 
+  ShieldCheck, 
+  Save, 
   ArrowLeft,
   Building2,
   Lock,
@@ -37,8 +37,7 @@ import {
   Pencil,
   Trash2,
   MapPin,
-  Phone,
-  Loader2
+  Phone
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@/app/types';
@@ -48,23 +47,20 @@ interface StoreSettingsProps {
 }
 
 export function StoreSettings({ onBack }: StoreSettingsProps) {
-  const {
-    storeSettings,
-    updateStoreSettings,
-    storeUsers,
+  const { 
+    storeSettings, 
+    updateStoreSettings, 
+    storeUsers, 
     user,
     addUser,
     updateUser,
-    deleteUser,
-    loadStoreUsers
+    deleteUser
   } = useApp();
-
+  
   const isManager = user?.role === 'manager';
-
+  
   const [formData, setFormData] = useState({ ...storeSettings });
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
 
   // User Dialog State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -73,18 +69,9 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
     name: '',
     email: '',
     username: '',
-    password: '',
     role: 'employee' as 'manager' | 'employee',
     status: 'Active' as 'Active' | 'Inactive'
   });
-
-  // Load users on mount for managers
-  useEffect(() => {
-    if (isManager) {
-      setIsLoadingUsers(true);
-      loadStoreUsers().finally(() => setIsLoadingUsers(false));
-    }
-  }, [isManager, loadStoreUsers]);
 
   // Sync form when editing starts or dialog opens
   useEffect(() => {
@@ -93,7 +80,6 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
         name: editingUser.name,
         email: editingUser.email || '',
         username: editingUser.username,
-        password: '', // Don't pre-fill password for editing
         role: editingUser.role,
         status: editingUser.status || 'Active'
       });
@@ -102,7 +88,6 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
         name: '',
         email: '',
         username: '',
-        password: '',
         role: 'employee',
         status: 'Active'
       });
@@ -129,39 +114,19 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
       return;
     }
 
-    // Password required for new users
-    if (!editingUser && !userForm.password) {
-      toast.error('Password is required for new users');
-      return;
-    }
-
-    setIsSubmittingUser(true);
     try {
       if (editingUser) {
-        await updateUser(editingUser.id, {
-          name: userForm.name,
-          email: userForm.email,
-          role: userForm.role,
-          status: userForm.status
-        });
+        await updateUser(editingUser.id, userForm);
         toast.success('User updated successfully');
       } else {
-        await addUser({
-          name: userForm.name,
-          email: userForm.email,
-          username: userForm.username,
-          password: userForm.password,
-          role: userForm.role
-        });
+        await addUser(userForm);
         toast.success('New user added successfully');
       }
-
+      
       setIsUserDialogOpen(false);
       setEditingUser(null);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save user');
-    } finally {
-      setIsSubmittingUser(false);
+    } catch (error) {
+      toast.error('Failed to save user');
     }
   };
 
@@ -179,8 +144,8 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
       try {
         await deleteUser(id);
         toast.success("User deleted successfully");
-      } catch (error: any) {
-        toast.error(error.message || "Failed to delete user");
+      } catch (error) {
+        toast.error("Failed to delete user");
       }
     }
   };
@@ -198,16 +163,16 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
           <div>
             <h1 className="text-3xl font-bold text-[#1A1C18]">Settings</h1>
             <p className="text-gray-500">
-              {isManager
-                ? 'Manage store profile, team access, and security'
+              {isManager 
+                ? 'Manage store profile, team access, and security' 
                 : 'Manage your profile and account security'}
             </p>
           </div>
         </div>
 
         {isManager && (
-          <Button
-            onClick={handleSaveStore}
+          <Button 
+            onClick={handleSaveStore} 
             disabled={isSaving}
             className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-8 gap-2 h-11 shadow-sm"
           >
@@ -253,36 +218,80 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-gray-700">Company Name</Label>
-                      <Input value={formData.companyName} onChange={(e) => setFormData({ ...formData, companyName: e.target.value })} className="rounded-[8px] border-gray-200" />
+                      <Input value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="rounded-[8px] border-gray-200" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-gray-700">UEN (Unique Entity Number)</Label>
-                      <Input value={formData.uen} onChange={(e) => setFormData({ ...formData, uen: e.target.value })} className="rounded-[8px] border-gray-200" />
+                      <Input value={formData.uen} onChange={(e) => setFormData({...formData, uen: e.target.value})} className="rounded-[8px] border-gray-200" />
                     </div>
                   </div>
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-gray-700">Store Name</Label>
-                      <Input value={formData.storeName} onChange={(e) => setFormData({ ...formData, storeName: e.target.value })} className="rounded-[8px] border-gray-200" />
+                      <Input value={formData.storeName} onChange={(e) => setFormData({...formData, storeName: e.target.value})} className="rounded-[8px] border-gray-200" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-gray-700">Outlet Location (Optional)</Label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                        <Input value={formData.outletLocation} onChange={(e) => setFormData({ ...formData, outletLocation: e.target.value })} className="pl-10 rounded-[8px] border-gray-200" />
+                        <Input value={formData.outletLocation} onChange={(e) => setFormData({...formData, outletLocation: e.target.value})} className="pl-10 rounded-[8px] border-gray-200" />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-bold text-gray-700">Contact Number</Label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                        <Input value={formData.contactNumber} onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })} className="pl-10 rounded-[8px] border-gray-200" />
+                        <Input value={formData.contactNumber} onChange={(e) => setFormData({...formData, contactNumber: e.target.value})} className="pl-10 rounded-[8px] border-gray-200" />
                       </div>
                     </div>
                   </div>
                   <div className="md:col-span-2 space-y-2">
                     <Label className="text-sm font-bold text-gray-700">Store Address</Label>
-                    <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="rounded-[8px] border-gray-200" />
+                    <Input value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="rounded-[8px] border-gray-200" />
+                  </div>
+                  
+                  {/* Location Coordinates Section */}
+                  <div className="md:col-span-2 pt-4 border-t">
+                    <div className="flex items-center gap-2 mb-4">
+                      <MapPin className="w-5 h-5 text-[#4F6F52]" />
+                      <span className="text-sm font-bold text-gray-700">Location Coordinates (for Weather & Holidays)</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm text-gray-600">Latitude</Label>
+                        <Input 
+                          type="number"
+                          step="any"
+                          placeholder="e.g., 1.3521" 
+                          value={formData.latitude ?? ''} 
+                          onChange={(e) => setFormData({...formData, latitude: e.target.value ? parseFloat(e.target.value) : undefined})} 
+                          className="rounded-[8px] border-gray-200" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm text-gray-600">Longitude</Label>
+                        <Input 
+                          type="number"
+                          step="any"
+                          placeholder="e.g., 103.8198" 
+                          value={formData.longitude ?? ''} 
+                          onChange={(e) => setFormData({...formData, longitude: e.target.value ? parseFloat(e.target.value) : undefined})} 
+                          className="rounded-[8px] border-gray-200" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm text-gray-600">Country Code (Auto-detected)</Label>
+                        <Input 
+                          placeholder="Auto-detected from coordinates" 
+                          value={formData.countryCode ?? ''} 
+                          onChange={(e) => setFormData({...formData, countryCode: e.target.value})} 
+                          className="rounded-[8px] border-gray-200 bg-gray-50" 
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Country code will be automatically detected when you save if coordinates are provided and country code is empty.
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -302,7 +311,7 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
                   </CardTitle>
                   <CardDescription>Manage user permissions for your team members</CardDescription>
                 </div>
-                <Button
+                <Button 
                   onClick={() => {
                     setEditingUser(null);
                     setIsUserDialogOpen(true);
@@ -313,69 +322,56 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
                 </Button>
               </CardHeader>
               <CardContent className="p-0">
-                {isLoadingUsers ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#4F6F52]" />
-                    <span className="ml-2 text-gray-500">Loading team members...</span>
-                  </div>
-                ) : storeUsers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-                    <Users className="w-12 h-12 text-gray-300 mb-2" />
-                    <p>No team members yet</p>
-                    <p className="text-sm">Click "Add New User" to invite your first team member</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50/50">
-                        <TableHead className="font-bold py-4 pl-6">User Info</TableHead>
-                        <TableHead className="font-bold py-4">Role</TableHead>
-                        <TableHead className="font-bold py-4">Status</TableHead>
-                        <TableHead className="font-bold py-4 text-right pr-6">Actions</TableHead>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50/50">
+                      <TableHead className="font-bold py-4 pl-6">User Info</TableHead>
+                      <TableHead className="font-bold py-4">Role</TableHead>
+                      <TableHead className="font-bold py-4">Status</TableHead>
+                      <TableHead className="font-bold py-4 text-right pr-6">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {storeUsers.map((u) => (
+                      <TableRow key={u.id} className="hover:bg-gray-50/30">
+                        <TableCell className="py-4 pl-6">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                              <AvatarFallback className="bg-[#4F6F52]/10 text-[#4F6F52] text-xs font-bold">
+                                {u.name.split(' ').map(n => n[0]).join('')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium text-sm">{u.name}</p>
+                              <p className="text-[11px] text-[#4F6F52] font-mono">@{u.username}</p>
+                              <p className="text-[11px] text-gray-400">{u.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`uppercase text-[10px] ${u.role === 'manager' ? 'border-[#4F6F52] text-[#4F6F52]' : ''}`}>
+                            {u.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={`text-[10px] ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {u.status || 'Active'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditUser(u)} className="h-8 w-8 rounded-full hover:bg-[#4F6F52]/10">
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(u.id)} className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {storeUsers.map((u) => (
-                        <TableRow key={u.id} className="hover:bg-gray-50/30">
-                          <TableCell className="py-4 pl-6">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-9 w-9">
-                                <AvatarFallback className="bg-[#4F6F52]/10 text-[#4F6F52] text-xs font-bold">
-                                  {u.name.split(' ').map(n => n[0]).join('')}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium text-sm">{u.name}</p>
-                                <p className="text-[11px] text-[#4F6F52] font-mono">@{u.username}</p>
-                                <p className="text-[11px] text-gray-400">{u.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`uppercase text-[10px] ${u.role === 'manager' ? 'border-[#4F6F52] text-[#4F6F52]' : ''}`}>
-                              {u.role}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className={`text-[10px] ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                              {u.status || 'Active'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right pr-6">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => handleEditUser(u)} className="h-8 w-8 rounded-full hover:bg-[#4F6F52]/10">
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(u.id)} className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600" disabled={u.id === user?.id}>
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
@@ -443,76 +439,56 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
               {editingUser ? 'Edit User Details' : 'Add New Team Member'}
             </DialogTitle>
             <DialogDescription>
-              {editingUser
-                ? "Update this member's profile and outlet permissions."
+              {editingUser 
+                ? "Update this member's profile and outlet permissions." 
                 : "Enter details below to invite a new user to this store."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUserSubmit} className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-bold flex justify-between">
-                Username
-                <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">
-                  {editingUser ? "Permanent ID" : "Unique Identifier"}
-                </span>
-              </Label>
-              <Input
-                id="username"
-                placeholder="e.g. jason_tan88"
-                value={userForm.username}
-                onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                className={`rounded-[8px] ${editingUser ? 'bg-gray-50 cursor-not-allowed opacity-80 italic' : ''}`}
-                required
-                disabled={!!editingUser}
-              />
-              {/* This paragraph now shows in both Add and Edit modes */}
-              <p className="text-[10px] text-gray-400 italic px-1">
-                {editingUser
-                  ? "Usernames are permanent and cannot be modified."
-                  : "Note: This username is permanent and cannot be changed once created."}
-              </p>
-            </div>
-
-            {/* Password field - only for new users */}
-            {!editingUser && (
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-bold">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Create a secure password"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                  className="rounded-[8px]"
-                  required
-                  minLength={6}
-                />
-                <p className="text-[10px] text-gray-400 italic px-1">
-                  Minimum 6 characters. User can change password after first login.
-                </p>
-              </div>
-            )}
+            <Label htmlFor="username" className="text-sm font-bold flex justify-between">
+              Username
+              <span className="text-[10px] font-normal text-gray-400 uppercase tracking-widest">
+                {editingUser ? "Permanent ID" : "Unique Identifier"}
+              </span>
+            </Label>
+            <Input 
+              id="username" 
+              placeholder="e.g. jason_tan88" 
+              value={userForm.username}
+              onChange={(e) => setUserForm({...userForm, username: e.target.value})}
+              className={`rounded-[8px] ${editingUser ? 'bg-gray-50 cursor-not-allowed opacity-80 italic' : ''}`}
+              required
+              disabled={!!editingUser}
+            />
+            {/* This paragraph now shows in both Add and Edit modes */}
+            <p className="text-[10px] text-gray-400 italic px-1">
+              {editingUser 
+                ? "Usernames are permanent and cannot be modified." 
+                : "Note: This username is permanent and cannot be changed once created."}
+            </p>
+          </div>
 
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-bold">Full Name</Label>
-              <Input
-                id="name"
-                placeholder="e.g. Tan Ah Kow"
+              <Input 
+                id="name" 
+                placeholder="e.g. Tan Ah Kow" 
                 value={userForm.name}
-                onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                onChange={(e) => setUserForm({...userForm, name: e.target.value})}
                 className="rounded-[8px]"
                 required
               />
             </div>
-
+            
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-bold">Email Address</Label>
-              <Input
-                id="email"
+              <Input 
+                id="email" 
                 type="email"
-                placeholder="name@example.com"
+                placeholder="name@example.com" 
                 value={userForm.email}
-                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                onChange={(e) => setUserForm({...userForm, email: e.target.value})}
                 className="rounded-[8px]"
                 required
               />
@@ -521,9 +497,9 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm font-bold">Role</Label>
-                <Select
-                  value={userForm.role}
-                  onValueChange={(value: any) => setUserForm({ ...userForm, role: value })}
+                <Select 
+                  value={userForm.role} 
+                  onValueChange={(value: any) => setUserForm({...userForm, role: value})}
                 >
                   <SelectTrigger className="rounded-[8px]">
                     <SelectValue placeholder="Select role" />
@@ -536,9 +512,9 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-bold">Status</Label>
-                <Select
-                  value={userForm.status}
-                  onValueChange={(value: any) => setUserForm({ ...userForm, status: value })}
+                <Select 
+                  value={userForm.status} 
+                  onValueChange={(value: any) => setUserForm({...userForm, status: value})}
                 >
                   <SelectTrigger className="rounded-[8px]">
                     <SelectValue placeholder="Select status" />
@@ -553,23 +529,12 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
 
             <DialogFooter className="pt-6 gap-2">
               <DialogClose asChild>
-                <Button type="button" variant="outline" className="rounded-[32px] flex-1" disabled={isSubmittingUser}>
+                <Button type="button" variant="outline" className="rounded-[32px] flex-1">
                   Cancel
                 </Button>
               </DialogClose>
-              <Button
-                type="submit"
-                className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] flex-1"
-                disabled={isSubmittingUser}
-              >
-                {isSubmittingUser ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {editingUser ? 'Saving...' : 'Creating...'}
-                  </>
-                ) : (
-                  editingUser ? 'Save Changes' : 'Create Account'
-                )}
+              <Button type="submit" className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] flex-1">
+                {editingUser ? 'Save Changes' : 'Create Account'}
               </Button>
             </DialogFooter>
           </form>

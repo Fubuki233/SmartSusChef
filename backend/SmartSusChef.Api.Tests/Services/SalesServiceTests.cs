@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartSusChef.Api.Data;
 using SmartSusChef.Api.Services;
 using SmartSusChef.Api.Models;
+using Moq;
 
 namespace SmartSusChef.Api.Tests.Services;
 
@@ -17,12 +18,39 @@ public class SalesServiceTests
         return new ApplicationDbContext(options);
     }
 
+    private async Task SeedSalesDataAsync(ApplicationDbContext context, int daysToSeed = 30)
+    {
+        var recipeId = Guid.NewGuid();
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = 1 });
+
+        var startDate = DateTime.UtcNow.Date.AddDays(-29);
+        for (int i = 0; i < daysToSeed; i++)
+        {
+            var date = startDate.AddDays(i);
+            context.SalesData.Add(new SalesData
+            {
+                Id = Guid.NewGuid(),
+                StoreId = 1,
+                Date = date,
+                Quantity = 10 + i, // Varying quantity
+                RecipeId = recipeId
+            });
+        }
+        await context.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task GetTrendAsync_ShouldReturnExactly30DataPoints()
     {
         // 1. Arrange
         var context = GetDbContext();
-        var service = new SalesService(context, context); // Pass context twice as per constructor
+        // Seed only 15 days of data to test date-filling logic
+        await SeedSalesDataAsync(context, daysToSeed: 15); 
+        
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(1);
+
+        var service = new SalesService(context, mockCurrentUserService.Object); 
         var endDate = DateTime.UtcNow.Date;
         var startDate = endDate.AddDays(-29);
 
@@ -31,6 +59,15 @@ public class SalesServiceTests
 
         // 3. Assert
         Assert.Equal(30, result.Count);
+        
+        // Verify data integrity
+        // First 15 days should have data (10 to 24)
+        Assert.Equal(10, result.First().TotalQuantity);
+        Assert.Equal(24, result[14].TotalQuantity);
+        
+        // Remaining 15 days should have 0 quantity (date filling)
+        Assert.Equal(0, result[15].TotalQuantity);
+        Assert.Equal(0, result.Last().TotalQuantity);
     }
 
     [Fact]
@@ -47,7 +84,10 @@ public class SalesServiceTests
         context.SalesData.Add(new SalesData { Id = Guid.NewGuid(), StoreId = 2, Date = DateTime.UtcNow, Quantity = 50, RecipeId = recipeId }); // Should be ignored
         await context.SaveChangesAsync();
 
-        var service = new SalesService(context, context);
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(1);
+
+        var service = new SalesService(context, mockCurrentUserService.Object);
 
         // 2. Act
         var result = await service.GetTrendAsync(DateTime.UtcNow.AddDays(-7), DateTime.UtcNow);

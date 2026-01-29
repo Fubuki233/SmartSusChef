@@ -93,6 +93,16 @@ builder.Services.AddScoped<IForecastService, MockForecastService>();
 builder.Services.AddScoped<IWeatherService, WeatherService>();
 builder.Services.AddScoped<IHolidayService, HolidayService>();
 builder.Services.AddScoped<IStoreService, StoreService>();
+
+// Configure HttpClient with timeout for external API calls
+builder.Services.AddHttpClient<IWeatherService, WeatherService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHttpClient<IHolidayService, HolidayService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddHttpClient();
 
 var app = builder.Build();

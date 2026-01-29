@@ -21,18 +21,25 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<RegisterResponse>> Register([FromBody] RegisterManagerRequest request)
     {
-        var result = await _authService.RegisterManagerAsync(request);
-
-        if (result.Response == null)
+        try
         {
-            return result.ErrorType switch
-            {
-                RegisterErrorType.UsernameExists => Conflict(new { message = "Username already exists. Please choose a different username." }),
-                _ => BadRequest(new { message = "Registration failed" })
-            };
-        }
+            var result = await _authService.RegisterManagerAsync(request);
 
-        return CreatedAtAction(nameof(GetCurrentUser), result.Response);
+            if (result.Response == null)
+            {
+                return result.ErrorType switch
+                {
+                    RegisterErrorType.UsernameExists => Conflict(new { message = "Username already exists. Please choose a different username." }),
+                    _ => BadRequest(new { message = "Registration failed" })
+                };
+            }
+
+            return CreatedAtAction(nameof(GetCurrentUser), result.Response);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = $"Registration failed: {ex.Message}" });
+        }
     }
 
     [HttpPost("login")]

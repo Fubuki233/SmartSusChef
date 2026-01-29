@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format, addDays } from 'date-fns';
 import { formatShortDate } from '@/app/utils/dateFormat';
 import { Package } from 'lucide-react';
+import { convertUnit } from '@/app/utils/unitConversion';
 
 export function PredictionDetail() {
   const { forecastData, recipes, ingredients } = useApp();
@@ -77,28 +78,28 @@ export function PredictionDetail() {
         // 1. Calculate max value to decide if we should upgrade unit
         const maxValue = Math.max(...Object.values(predictions));
         
-        let displayUnit = ingredient.unit;
-        let divisor = 1;
-
-        // Upgrade Logic: If max value > 1000, upgrade unit
-        if (ingredient.unit === 'g' && maxValue >= 1000) {
-          displayUnit = 'kg';
-          divisor = 1000;
-        } else if (ingredient.unit === 'ml' && maxValue >= 1000) {
-          displayUnit = 'L';
-          divisor = 1000;
-        }
-
-        // 2. Scale all prediction values for this row
+        // Use the conversion utility to determine the best unit
+        const sampleConversion = convertUnit(maxValue, ingredient.unit);
+        const displayUnit = sampleConversion.unit;
+        
+        // 2. Convert all prediction values to the display unit
         const scaledPredictions: { [key: string]: number } = {};
         Object.entries(predictions).forEach(([date, val]) => {
-          scaledPredictions[date] = val / divisor;
+          const converted = convertUnit(val, ingredient.unit);
+          // Ensure we use the same unit across the entire row
+          if (ingredient.unit === 'g' && displayUnit === 'kg') {
+            scaledPredictions[date] = val / 1000;
+          } else if (ingredient.unit === 'ml' && displayUnit === 'L') {
+            scaledPredictions[date] = val / 1000;
+          } else {
+            scaledPredictions[date] = val;
+          }
         });
 
         processedData.push({
           ingredient: ingredient.name,
-          unit: displayUnit, // e.g. "kg"
-          predictions: scaledPredictions, // e.g. 4.5
+          unit: displayUnit,
+          predictions: scaledPredictions,
         });
       }
     });
@@ -147,7 +148,6 @@ export function PredictionDetail() {
                   <TableCell className="font-medium sticky left-0 bg-white">
                     {item.ingredient}
                   </TableCell>
-                  {/* Shows converted unit (e.g. "kg") */}
                   <TableCell className="sticky left-0 bg-white text-gray-500 text-sm">
                     {item.unit}
                   </TableCell>
@@ -155,7 +155,6 @@ export function PredictionDetail() {
                     const value = item.predictions[date] || 0;
                     return (
                       <TableCell key={date} className="text-center font-mono text-sm">
-                        {/* Shows pure number, scaled (e.g. "48.00") */}
                         {value > 0 ? value.toFixed(2) : '-'}
                       </TableCell>
                     );

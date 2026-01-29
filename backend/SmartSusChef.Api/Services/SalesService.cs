@@ -21,6 +21,7 @@ public class SalesService : ISalesService
     public async Task<List<SalesDataDto>> GetAllAsync(DateTime? startDate = null, DateTime? endDate = null)
     {
         var query = _context.SalesData
+            .AsNoTracking()
             .Include(s => s.Recipe)
             .Where(s => s.StoreId == CurrentStoreId) // Filter by Store
             .AsQueryable();
@@ -41,6 +42,7 @@ public class SalesService : ISalesService
     public async Task<SalesDataDto?> GetByIdAsync(Guid id)
     {
         var salesData = await _context.SalesData
+            .AsNoTracking()
             .Include(s => s.Recipe)
             .FirstOrDefaultAsync(s => s.Id == id && s.StoreId == CurrentStoreId);
 
@@ -100,11 +102,13 @@ public class SalesService : ISalesService
     {
         // 1. Fetch data from DB filtered by Store
         var salesData = await _context.SalesData
+            .AsNoTracking()
             .Include(s => s.Recipe)
-            .Where(s => s.StoreId == CurrentStoreId && s.Date >= startDate.Date && s.Date <= endDate.Date)
+            .Where(s => s.StoreId == CurrentStoreId && s.Date.Date >= startDate.Date && s.Date.Date <= endDate.Date)
             .ToListAsync();
         // 2. Fetch external signals (weather/holidays) for the same period
         var signals = await _context.GlobalCalendarSignals
+            .AsNoTracking()
             .Where(sig => sig.Date.Date >= startDate.Date && sig.Date.Date <= endDate.Date)
             .ToDictionaryAsync(sig => sig.Date.Date);
 

@@ -63,7 +63,11 @@ public class WastageServiceTests
             .Setup(s => s.CalculateTotalCarbonFootprintAsync(burgerRecipe.Id))
             .ReturnsAsync(3.5m); // Assume each burger is 3.5 kg CO2e
 
-        var service = new WastageService(context, mockRecipeService.Object);
+        // Mock CurrentUserService
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+
+        var service = new WastageService(context, mockRecipeService.Object, mockCurrentUserService.Object);
 
         // 2. Act
         var totalImpact = await service.GetTotalWastageImpactAsync(DateTime.UtcNow.AddDays(-1), DateTime.UtcNow.AddDays(1));

@@ -23,6 +23,7 @@ public class WastageService : IWastageService
     public async Task<List<WastageDataDto>> GetAllAsync(DateTime? startDate = null, DateTime? endDate = null)
     {
         var query = _context.WastageData
+            .AsNoTracking()
             .Include(w => w.Ingredient)
             .Include(w => w.Recipe)
             .Where(w => w.StoreId == CurrentStoreId)
@@ -49,6 +50,7 @@ public class WastageService : IWastageService
     public async Task<WastageDataDto?> GetByIdAsync(Guid id)
     {
         var wastageData = await _context.WastageData
+            .AsNoTracking()
             .Include(w => w.Ingredient)
             .Include(w => w.Recipe)
             .FirstOrDefaultAsync(w => w.Id == id && w.StoreId == CurrentStoreId);
@@ -112,6 +114,7 @@ public class WastageService : IWastageService
     public async Task<List<WastageTrendDto>> GetTrendAsync(DateTime startDate, DateTime endDate)
     {
         var wastageData = await _context.WastageData
+            .AsNoTracking()
             .Include(w => w.Ingredient)
             .Include(w => w.Recipe)
             .Where(w => w.StoreId == CurrentStoreId && w.Date >= startDate.Date && w.Date <= endDate.Date)
@@ -154,6 +157,7 @@ public class WastageService : IWastageService
     public async Task<decimal> GetTotalWastageImpactAsync(DateTime startDate, DateTime endDate)
     {
         var wastageData = await _context.WastageData
+            .AsNoTracking()
             .Include(w => w.Ingredient)
             .Include(w => w.Recipe)
             .Where(w => w.StoreId == CurrentStoreId && w.Date >= startDate.Date && w.Date <= endDate.Date)

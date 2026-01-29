@@ -41,7 +41,7 @@ export function IngredientManagement() {
     setCarbonFootprint('');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim() || !unit.trim() || !carbonFootprint) {
       toast.error('Please fill in all required fields');
       return;
@@ -59,21 +59,28 @@ export function IngredientManagement() {
       carbonFootprint: carbon,
     };
 
-    if (editingIngredient) {
-      updateIngredient(editingIngredient.id, ingredientData);
-      toast.success('Ingredient updated successfully');
-    } else {
-      addIngredient(ingredientData);
-      toast.success('Ingredient added successfully');
+    try {
+      if (editingIngredient) {
+        await updateIngredient(editingIngredient.id, ingredientData);
+        toast.success('Ingredient updated successfully');
+      } else {
+        await addIngredient(ingredientData);
+        toast.success('Ingredient added successfully');
+      }
+      handleCloseDialog();
+    } catch (error) {
+      toast.error('Failed to save ingredient');
     }
-
-    handleCloseDialog();
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
-      deleteIngredient(id);
-      toast.success('Ingredient deleted successfully');
+      try {
+        await deleteIngredient(id);
+        toast.success('Ingredient deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete ingredient');
+      }
     }
   };
 
@@ -81,11 +88,11 @@ export function IngredientManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <h1 className="text-2xl font-semibold flex items-center gap-2 text-[#1A1C18] md:text-3xl lg:text-3xl">
             <Package className="w-6 h-6 text-[#4F6F52]" />
             Ingredient Management
           </h1>
-          <p className="text-gray-600 mt-1">Master data for <span className="font-bold text-[#4F6F52]">{useApp().storeSettings.storeName}</span></p>
+          <p className="text-gray-600 mt-1">Master ingredients list</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -163,7 +170,7 @@ export function IngredientManagement() {
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-gray-50/50">
                   <TableHead>Name</TableHead>
                   <TableHead>Unit</TableHead>
                   <TableHead>Carbon Footprint (kg CO₂)</TableHead>

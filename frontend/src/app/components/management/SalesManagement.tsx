@@ -71,7 +71,7 @@ export function SalesManagement() {
     setEditReason('');
   };
 
-  const handleSubmitEdit = () => {
+  const handleSubmitEdit = async () => {
     if (!editingData) return;
 
     const quantity = parseFloat(newQuantity);
@@ -90,25 +90,17 @@ export function SalesManagement() {
       return;
     }
 
-    // Create edit history entry
-    const historyEntry: EditHistory = {
-      timestamp: new Date().toISOString(),
-      editedBy: user?.name || 'Unknown User',
-      reason: editReason.trim(),
-      previousValue: editingData.quantity,
-      newValue: quantity,
-    };
+    try {
+      // Update sales data with new quantity
+      await updateSalesData(editingData.id, {
+        quantity,
+      });
 
-    // Update sales data with new quantity and history
-    const updatedHistory = [...(editingData.editHistory || []), historyEntry];
-    
-    updateSalesData(editingData.id, {
-      quantity,
-      editHistory: updatedHistory,
-    });
-
-    toast.success('Sales data updated successfully');
-    handleCloseEditDialog();
+      toast.success('Sales data updated successfully');
+      handleCloseEditDialog();
+    } catch (error) {
+      toast.error('Failed to update sales data');
+    }
   };
 
   const handleViewHistory = (data: SalesData) => {

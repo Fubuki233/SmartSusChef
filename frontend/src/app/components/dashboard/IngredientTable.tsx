@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { format, parseISO } from 'date-fns';
 import { List } from 'lucide-react';
+import { convertUnit } from '@/app/utils/unitConversion';
 
 interface IngredientTableProps {
   date: string;
@@ -58,27 +59,19 @@ export function IngredientTable({ date }: IngredientTableProps) {
     return Object.entries(totals)
       .map(([ingredientId, quantity]) => {
         const ingredient = ingredientMap.get(ingredientId);
+        if (!ingredient) return null;
         
-        // --- NEW: Unit Conversion Logic (g->kg, ml->L) ---
-        let displayUnit = ingredient?.unit || '';
-        let displayQuantity = quantity;
-
-        // Convert if >= 1000
-        if (displayUnit === 'g' && quantity >= 1000) {
-            displayUnit = 'kg';
-            displayQuantity = quantity / 1000;
-        } else if (displayUnit === 'ml' && quantity >= 1000) {
-            displayUnit = 'L';
-            displayQuantity = quantity / 1000;
-        }
+        // Use the conversion utility
+        const converted = convertUnit(quantity, ingredient.unit);
 
         return {
-          name: ingredient?.name || 'Unknown',
-          quantity: displayQuantity.toFixed(2), // Pure number, scaled
-          unit: displayUnit, // Updated unit (e.g. "kg")
+          name: ingredient.name,
+          quantity: converted.quantity,
+          unit: converted.unit,
+          displayText: converted.displayText,
         };
       })
-      .filter(item => parseFloat(item.quantity) > 0)
+      .filter((item): item is NonNullable<typeof item> => item !== null && item.quantity > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [salesData, recipes, ingredients, date]);
 
@@ -109,7 +102,7 @@ export function IngredientTable({ date }: IngredientTableProps) {
                   <TableRow key={index}>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.unit}</TableCell>
-                    <TableCell className="text-right font-mono">{item.quantity}</TableCell>
+                    <TableCell className="text-right font-mono">{item.quantity.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -89,7 +89,7 @@ export function WastageInputForm() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedItemId) {
       toast.error('Please select an item');
       return;
@@ -106,22 +106,26 @@ export function WastageInputForm() {
     const payload = {
       date: todayStr,
       quantity: qty,
-      recipeId: isRecipe ? selectedItemId : null,
-      ingredientId: !isRecipe ? selectedItemId : null,
+      recipeId: isRecipe ? selectedItemId : undefined,
+      ingredientId: !isRecipe ? selectedItemId : undefined,
     };
 
-    if (editingId) {
-      updateWastageData(editingId, payload);
-      toast.success('Wastage data updated successfully!');
-      setEditingId(null);
-    } else {
-      addWastageData(payload);
-      toast.success('Wastage data saved successfully!');
-    }
+    try {
+      if (editingId) {
+        await updateWastageData(editingId, payload);
+        toast.success('Wastage data updated successfully!');
+        setEditingId(null);
+      } else {
+        await addWastageData(payload);
+        toast.success('Wastage data saved successfully!');
+      }
 
-    setSelectedCategory('');
-    setSelectedItemId('');
-    setQuantity('');
+      setSelectedCategory('');
+      setSelectedItemId('');
+      setQuantity('');
+    } catch (error) {
+      toast.error('Failed to save wastage data');
+    }
   };
 
   const handleOverwrite = () => {
@@ -154,10 +158,14 @@ export function WastageInputForm() {
     setQuantity(entry.quantity.toString());
   };
 
-  const handleDelete = (id: string, itemName: string) => {
+  const handleDelete = async (id: string, itemName: string) => {
     if (confirm(`Are you sure you want to delete the entry for "${itemName}"?`)) {
-      deleteWastageData(id);
-      toast.success('Entry deleted successfully');
+      try {
+        await deleteWastageData(id);
+        toast.success('Entry deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete entry');
+      }
     }
   };
 
