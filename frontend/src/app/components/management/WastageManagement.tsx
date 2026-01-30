@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
-import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/app/components/ui/dialog';
@@ -24,7 +23,6 @@ export function WastageManagement() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingData, setEditingData] = useState<WastageData | null>(null);
   const [newQuantity, setNewQuantity] = useState<string>('');
-  const [editReason, setEditReason] = useState('');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<WastageData | null>(null);
 
   // --- LOGIC: Check both recipeId and ingredientId ---
@@ -41,7 +39,7 @@ export function WastageManagement() {
         };
       }
     }
-    
+
     // 2. Fallback to Ingredient if no recipe found
     if (ingredientId) {
       const ingredient = ingredients.find(i => i.id === ingredientId);
@@ -54,7 +52,7 @@ export function WastageManagement() {
         };
       }
     }
-    
+
     // Fallback for corrupted or legacy "ghost" data
     return { name: 'Unknown Item', type: 'Unknown', unit: '-', badgeColor: 'bg-gray-400' };
   };
@@ -72,10 +70,10 @@ export function WastageManagement() {
       data = data.filter((waste) => {
         // Pass both IDs to get accurate type for filtering
         const info = getItemInfo(waste.recipeId, waste.ingredientId);
-        return info.type.toLowerCase() === selectedType.toLowerCase() || 
-               (selectedType === 'Dish' && info.type === 'Dish') ||
-               (selectedType === 'Sub-Recipe' && info.type === 'Sub-Recipe') ||
-               (selectedType === 'Raw' && info.type === 'Raw');
+        return info.type.toLowerCase() === selectedType.toLowerCase() ||
+          (selectedType === 'Dish' && info.type === 'Dish') ||
+          (selectedType === 'Sub-Recipe' && info.type === 'Sub-Recipe') ||
+          (selectedType === 'Raw' && info.type === 'Raw');
       });
     }
 
@@ -85,10 +83,10 @@ export function WastageManagement() {
   const stats = useMemo(() => {
     const ingredientMap = new Map(ingredients.map((i) => [i.id, i]));
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
-    
+
     const totals = filteredData.reduce((acc, waste) => {
       acc.quantity += waste.quantity;
-      
+
       // Carbon footprint calculation
       if (waste.recipeId) {
         // Use accurate recipe carbon calculation
@@ -102,10 +100,10 @@ export function WastageManagement() {
           acc.carbon += standardQty * ingredient.carbonFootprint;
         }
       }
-      
+
       return acc;
     }, { quantity: 0, carbon: 0 });
-    
+
     return totals;
   }, [filteredData, ingredients, recipes]);
 
@@ -125,7 +123,6 @@ export function WastageManagement() {
     }
     setEditingData(data);
     setNewQuantity(data.quantity.toString());
-    setEditReason('');
     setIsEditDialogOpen(true);
   };
 
@@ -133,7 +130,6 @@ export function WastageManagement() {
     setIsEditDialogOpen(false);
     setEditingData(null);
     setNewQuantity('');
-    setEditReason('');
   };
 
   const handleSubmitEdit = async () => {
@@ -142,11 +138,6 @@ export function WastageManagement() {
     const quantity = parseFloat(newQuantity);
     if (isNaN(quantity) || quantity < 0) {
       toast.error('Please enter a valid quantity');
-      return;
-    }
-
-    if (!editReason.trim()) {
-      toast.error('Please provide a reason for editing this historical data');
       return;
     }
 
@@ -313,10 +304,6 @@ export function WastageManagement() {
           </DialogHeader>
           {editingData && (
             <div className="space-y-4 pt-2">
-              <div className="bg-amber-50 border border-amber-200 rounded-[8px] p-3 text-sm">
-                <p className="text-amber-800 font-semibold flex items-center gap-1">⚠️ Audit Notice</p>
-                <p className="text-amber-700 mt-1">This change will be logged for audit purposes. Please provide a detailed reason.</p>
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-500 uppercase tracking-wider">Date</Label>
@@ -336,10 +323,6 @@ export function WastageManagement() {
               <div className="space-y-2">
                 <Label htmlFor="new-quantity" className="text-sm font-semibold">New Quantity *</Label>
                 <Input id="new-quantity" type="number" step="0.1" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} className="rounded-[8px]" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reason" className="text-sm font-semibold">Reason for Edit *</Label>
-                <Textarea id="reason" placeholder="e.g., Wrong quantity entered by staff..." value={editReason} onChange={(e) => setEditReason(e.target.value)} rows={3} className="rounded-[8px] resize-none" />
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={handleCloseEditDialog} className="rounded-[32px] px-6">Cancel</Button>

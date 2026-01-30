@@ -48,6 +48,11 @@ public partial class IngredientService : IIngredientService
         if (!allowedUnits.Contains(request.Unit))
             throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
 
+        var duplicate = await _context.Ingredients
+            .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name == request.Name);
+        if (duplicate)
+            throw new InvalidOperationException("Ingredient name already exists");
+
         var ingredient = new Ingredient
         {
             Id = Guid.NewGuid(),
@@ -77,7 +82,14 @@ public partial class IngredientService : IIngredientService
         if (!allowedUnits.Contains(request.Unit))
             throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
 
-        ingredient.Name = request.Name;
+        if (!string.IsNullOrWhiteSpace(request.Name) && request.Name != ingredient.Name)
+        {
+            var duplicate = await _context.Ingredients
+                .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name == request.Name && i.Id != id);
+            if (duplicate)
+                throw new InvalidOperationException("Ingredient name already exists");
+            ingredient.Name = request.Name;
+        }
         ingredient.Unit = request.Unit;
         ingredient.CarbonFootprint = request.CarbonFootprint;
         ingredient.UpdatedAt = DateTime.UtcNow;
@@ -94,6 +106,14 @@ public partial class IngredientService : IIngredientService
             .FirstOrDefaultAsync(i => i.Id == id && i.StoreId == CurrentStoreId);
 
         if (ingredient == null) return false;
+
+        var isUsed = await _context.RecipeIngredients
+            .AnyAsync(ri => ri.IngredientId == id);
+
+        if (isUsed)
+        {
+            throw new InvalidOperationException("Ingredient is used in recipes and cannot be deleted");
+        }
 
         _context.Ingredients.Remove(ingredient);
         await _context.SaveChangesAsync();

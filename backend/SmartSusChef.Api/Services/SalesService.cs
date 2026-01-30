@@ -214,18 +214,36 @@ public class SalesService : ISalesService
 
     public async Task ImportAsync(List<CreateSalesDataRequest> salesData)
     {
-        var entities = salesData.Select(s => new SalesData
-        {
-            Id = Guid.NewGuid(),
-            StoreId = CurrentStoreId, // Assign StoreId for data isolation
-            Date = DateTime.Parse(s.Date).Date,
-            RecipeId = Guid.Parse(s.RecipeId),
-            Quantity = s.Quantity,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        }).ToList();
+        var grouped = salesData
+            .GroupBy(s => new { Date = DateTime.Parse(s.Date).Date, RecipeId = Guid.Parse(s.RecipeId) })
+            .Select(g => new { g.Key.Date, g.Key.RecipeId, Quantity = g.Last().Quantity })
+            .ToList();
 
-        _context.SalesData.AddRange(entities);
+        foreach (var item in grouped)
+        {
+            var existing = await _context.SalesData
+                .FirstOrDefaultAsync(s => s.StoreId == CurrentStoreId && s.Date == item.Date && s.RecipeId == item.RecipeId);
+
+            if (existing != null)
+            {
+                existing.Quantity = item.Quantity;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _context.SalesData.Add(new SalesData
+                {
+                    Id = Guid.NewGuid(),
+                    StoreId = CurrentStoreId,
+                    Date = item.Date,
+                    RecipeId = item.RecipeId,
+                    Quantity = item.Quantity,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         await _context.SaveChangesAsync();
     }
 

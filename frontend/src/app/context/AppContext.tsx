@@ -49,6 +49,8 @@ interface AppContextType {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   register: (username: string, password: string, name: string, email: string) => Promise<{ success: boolean; storeSetupRequired: boolean; error?: string }>;
+  updateProfile: (data: { name?: string; email?: string }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   setupStore: (settings: Partial<StoreSettings>) => Promise<void>;
   storeSettings: StoreSettings;
   updateStoreSettings: (settings: Partial<StoreSettings>) => Promise<void>;
@@ -230,7 +232,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setForecastData(forecastDataResult.map(mapForecastDto));
       setWeather(mapWeatherDto(weatherData));
       setHolidays(holidaysData.map(mapHolidayDto));
-      
+
       if (storeData) {
         setStoreSettings(mapStoreDto(storeData));
       }
@@ -242,6 +244,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Failed to load data:', error);
+    } finally {
+      setDataLoading(false);
     }
   }, [user?.role]);
 
@@ -318,6 +322,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateProfile = async (data: { name?: string; email?: string }) => {
+    try {
+      const updated = await authApi.updateProfile(data);
+      setUser(mapUserDto(updated));
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      throw error;
+    }
+  };
+
   // ==========================================
   // STORE SETTINGS FUNCTIONS
   // ==========================================
@@ -367,9 +390,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ==========================================
   const addUser = async (userData: Omit<User, "id"> & { password?: string }) => {
     try {
+      if (!userData.password) {
+        throw new Error('Password is required');
+      }
       const newUser = await usersApi.create({
         username: userData.username,
-        password: userData.password || 'password',
+        password: userData.password,
         name: userData.name,
         email: userData.email || '',
         role: userData.role,
@@ -429,7 +455,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const current = ingredients.find(i => i.id === id);
       if (!current) throw new Error('Ingredient not found');
-      
+
       const updated = await ingredientsApi.update(id, {
         name: ingredientData.name || current.name,
         unit: ingredientData.unit || current.unit,
@@ -478,7 +504,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const current = recipes.find(r => r.id === id);
       if (!current) throw new Error('Recipe not found');
-      
+
       const updated = await recipesApi.update(id, {
         name: recipeData.name || current.name,
         isSellable: recipeData.isSellable ?? current.isSellable ?? !current.isSubRecipe,
@@ -527,7 +553,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const current = salesData.find(s => s.id === id);
       if (!current) throw new Error('Sales data not found');
-      
+
       const updated = await salesApi.update(id, {
         date: data.date || current.date,
         recipeId: data.recipeId || current.recipeId,
@@ -590,7 +616,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const current = wastageData.find(w => w.id === id);
       if (!current) throw new Error('Wastage data not found');
-      
+
       const updated = await wastageApi.update(id, {
         date: data.date || current.date,
         ingredientId: data.ingredientId || current.ingredientId,
@@ -625,25 +651,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // EXPORT FUNCTION
   // ==========================================
   const exportData = (type: "sales" | "wastage" | "forecast") => {
-    let dataToExport: any[] = [];
+    const escapeCsv = (value: string | number | undefined | null) => {
+      const safe = value === undefined || value === null ? '' : String(value);
+      const escaped = safe.replace(/"/g, '""');
+      return /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
+    };
+
+    let rows: Array<Array<string | number>> = [];
+    let headers: string[] = [];
     let filename = '';
-    
-    switch (type) {
-      case 'sales':
-        dataToExport = salesData;
-        filename = 'sales_data.json';
-        break;
-      case 'wastage':
-        dataToExport = wastageData;
-        filename = 'wastage_data.json';
-        break;
-      case 'forecast':
-        dataToExport = forecastData;
-        filename = 'forecast_data.json';
-        break;
+
+    if (type === 'sales') {
+      headers = ['Date', 'Recipe', 'Quantity'];
+      rows = salesData.map((s) => [
+        s.date,
+        recipes.find((r) => r.id === s.recipeId)?.name || 'Unknown Recipe',
+        s.quantity,
+      ]);
+      filename = 'sales_data.csv';
+    } else if (type === 'wastage') {
+      headers = ['Date', 'Item', 'Type', 'Quantity', 'Unit'];
+      rows = wastageData.map((w) => {
+        const recipe = w.recipeId ? recipes.find((r) => r.id === w.recipeId) : undefined;
+        const ingredient = w.ingredientId ? ingredients.find((i) => i.id === w.ingredientId) : undefined;
+        const itemName = recipe?.name || ingredient?.name || 'Unknown Item';
+        const itemType = recipe ? (recipe.isSubRecipe ? 'Sub-Recipe' : 'Dish') : ingredient ? 'Raw' : 'Unknown';
+        const unit = recipe?.unit || ingredient?.unit || '-';
+        return [w.date, itemName, itemType, w.quantity, unit];
+      });
+      filename = 'wastage_data.csv';
+    } else if (type === 'forecast') {
+      headers = ['Date', 'Recipe', 'Quantity'];
+      rows = forecastData.map((f) => [
+        f.date,
+        recipes.find((r) => r.id === f.recipeId)?.name || 'Unknown Recipe',
+        f.quantity,
+      ]);
+      filename = 'forecast_data.csv';
     }
-    
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+
+    const csvLines = [
+      headers.map(escapeCsv).join(','),
+      ...rows.map((row) => row.map(escapeCsv).join(',')),
+    ];
+    const csvContent = csvLines.join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -662,10 +715,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextType = {
     user,
     loading,
+    dataLoading,
     storeSetupRequired,
     login,
     logout,
     register,
+    updateProfile,
+    changePassword,
     setupStore,
     storeSettings,
     updateStoreSettings,

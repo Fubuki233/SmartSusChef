@@ -44,6 +44,13 @@ public class RecipeService : IRecipeService
 
     public async Task<RecipeDto> CreateAsync(CreateRecipeRequest request)
     {
+        var nameExists = await _context.Recipes
+            .AnyAsync(r => r.StoreId == CurrentStoreId && r.Name == request.Name);
+        if (nameExists)
+            throw new InvalidOperationException("Recipe name already exists");
+
+        ValidateIngredients(request.Ingredients);
+
         var recipe = new Recipe
         {
             Id = Guid.NewGuid(),
@@ -81,6 +88,24 @@ public class RecipeService : IRecipeService
             .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == CurrentStoreId);
 
         if (recipe == null) return null;
+
+        if (!string.Equals(recipe.Name, request.Name, StringComparison.Ordinal))
+        {
+            var nameExists = await _context.Recipes
+                .AnyAsync(r => r.StoreId == CurrentStoreId && r.Name == request.Name && r.Id != id);
+            if (nameExists)
+                throw new InvalidOperationException("Recipe name already exists");
+        }
+
+        ValidateIngredients(request.Ingredients);
+
+        if (recipe.IsSubRecipe && !request.IsSubRecipe)
+        {
+            var isChild = await _context.RecipeIngredients
+                .AnyAsync(ri => ri.ChildRecipeId == id);
+            if (isChild)
+                throw new InvalidOperationException("Sub-recipe is used by other recipes and cannot be converted to main recipe");
+        }
 
         recipe.Name = request.Name;
         recipe.IsSellable = request.IsSellable;
@@ -161,9 +186,46 @@ public class RecipeService : IRecipeService
 
         if (recipe == null) return false;
 
+        var isChild = await _context.RecipeIngredients
+            .AnyAsync(ri => ri.ChildRecipeId == id);
+
+        if (isChild)
+        {
+            throw new InvalidOperationException("Recipe is used as a sub-recipe and cannot be deleted");
+        }
+
         _context.Recipes.Remove(recipe);
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    private static void ValidateIngredients(List<CreateRecipeIngredientRequest> ingredients)
+    {
+        var ingredientIds = new HashSet<string>();
+        var childRecipeIds = new HashSet<string>();
+
+        foreach (var item in ingredients)
+        {
+            var hasIngredient = !string.IsNullOrWhiteSpace(item.IngredientId);
+            var hasChildRecipe = !string.IsNullOrWhiteSpace(item.ChildRecipeId);
+
+            if (hasIngredient == hasChildRecipe)
+            {
+                throw new InvalidOperationException("Each recipe item must specify either an ingredient or a sub-recipe");
+            }
+
+            if (hasIngredient)
+            {
+                if (!ingredientIds.Add(item.IngredientId!))
+                    throw new InvalidOperationException("Duplicate ingredient in recipe is not allowed");
+            }
+
+            if (hasChildRecipe)
+            {
+                if (!childRecipeIds.Add(item.ChildRecipeId!))
+                    throw new InvalidOperationException("Duplicate sub-recipe in recipe is not allowed");
+            }
+        }
     }
 
     private static RecipeDto MapToDto(Recipe recipe)

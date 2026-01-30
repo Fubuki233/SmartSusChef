@@ -41,35 +41,56 @@ public class IngredientsController : ControllerBase
     [Authorize(Roles = "Manager")]
     public async Task<ActionResult<IngredientDto>> Create([FromBody] CreateIngredientRequest request)
     {
-        var ingredient = await _ingredientService.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = ingredient.Id }, ingredient);
+        try
+        {
+            var ingredient = await _ingredientService.CreateAsync(request);
+            return CreatedAtAction(nameof(GetById), new { id = ingredient.Id }, ingredient);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Manager")]
     public async Task<ActionResult<IngredientDto>> Update(Guid id, [FromBody] UpdateIngredientRequest request)
     {
-        var ingredient = await _ingredientService.UpdateAsync(id, request);
-
-        if (ingredient == null)
+        try
         {
-            return NotFound();
-        }
+            var ingredient = await _ingredientService.UpdateAsync(id, request);
 
-        return Ok(ingredient);
+            if (ingredient == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(ingredient);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "Manager")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var result = await _ingredientService.DeleteAsync(id);
-
-        if (!result)
+        try
         {
-            return NotFound();
-        }
+            var result = await _ingredientService.DeleteAsync(id);
 
-        return NoContent();
+            if (!result)
+            {
+                return NotFound();
+            }
+
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 }

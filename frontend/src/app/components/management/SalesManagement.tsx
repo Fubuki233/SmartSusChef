@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
-import { Textarea } from '@/app/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/app/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/app/components/ui/sheet';
@@ -20,7 +19,6 @@ export function SalesManagement() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingData, setEditingData] = useState<SalesData | null>(null);
   const [newQuantity, setNewQuantity] = useState<string>('');
-  const [editReason, setEditReason] = useState('');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<SalesData | null>(null);
   const [dateFilter, setDateFilter] = useState('all');
 
@@ -28,12 +26,12 @@ export function SalesManagement() {
   const filteredSalesData = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     return salesData.filter(item => {
       const itemDate = new Date(item.date);
       itemDate.setHours(0, 0, 0, 0);
       const daysDiff = differenceInDays(today, itemDate);
-      
+
       if (dateFilter === '7days') return daysDiff <= 7;
       if (dateFilter === '30days') return daysDiff <= 30;
       return true;
@@ -60,7 +58,6 @@ export function SalesManagement() {
     }
     setEditingData(data);
     setNewQuantity(data.quantity.toString());
-    setEditReason('');
     setIsEditDialogOpen(true);
   };
 
@@ -68,7 +65,6 @@ export function SalesManagement() {
     setIsEditDialogOpen(false);
     setEditingData(null);
     setNewQuantity('');
-    setEditReason('');
   };
 
   const handleSubmitEdit = async () => {
@@ -77,11 +73,6 @@ export function SalesManagement() {
     const quantity = parseFloat(newQuantity);
     if (isNaN(quantity) || quantity < 0) {
       toast.error('Please enter a valid quantity');
-      return;
-    }
-
-    if (!editReason.trim()) {
-      toast.error('Please provide a reason for editing this historical data');
       return;
     }
 
@@ -153,7 +144,7 @@ export function SalesManagement() {
         <CardHeader>
           <CardTitle>Sales Records</CardTitle>
           <CardDescription>
-            {filteredSalesData.length} record{filteredSalesData.length !== 1 ? 's' : ''} found. 
+            {filteredSalesData.length} record{filteredSalesData.length !== 1 ? 's' : ''} found.
             Only data from the last 7 days can be edited.
           </CardDescription>
         </CardHeader>
@@ -162,7 +153,7 @@ export function SalesManagement() {
             {Object.entries(groupedData).map(([date, items]) => {
               const isEditable = canEdit(date);
               const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-              
+
               return (
                 <div key={date} className="space-y-2">
                   <div className="flex items-center justify-between bg-gray-50 px-4 py-2 rounded-lg">
@@ -179,7 +170,7 @@ export function SalesManagement() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="border rounded-lg overflow-hidden">
                     <Table>
                       <TableHeader>
@@ -255,13 +246,6 @@ export function SalesManagement() {
           </DialogHeader>
           {editingData && (
             <div className="space-y-4">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
-                <p className="text-amber-800 font-medium">⚠️ Audit Notice</p>
-                <p className="text-amber-700 mt-1">
-                  This change will be logged for audit purposes. Please provide a detailed reason.
-                </p>
-              </div>
-
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input value={format(new Date(editingData.date), 'd MMM yyyy')} disabled />
@@ -290,25 +274,11 @@ export function SalesManagement() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="reason">Reason for Edit *</Label>
-                <Textarea
-                  id="reason"
-                  value={editReason}
-                  onChange={(e) => setEditReason(e.target.value)}
-                  placeholder="Explain why this data needs to be corrected..."
-                  rows={3}
-                />
-                <p className="text-xs text-gray-500">
-                  This reason will be visible in the audit trail
-                </p>
-              </div>
-
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={handleCloseEditDialog}>
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSubmitEdit}
                   className="bg-[#81A263] hover:bg-[#6b9a4d]"
                 >
@@ -370,11 +340,6 @@ export function SalesManagement() {
                           <span className="font-medium text-[#81A263]">{entry.newValue}</span>
                         </p>
                       </div>
-                    </div>
-                    <div className="bg-gray-50 rounded p-3">
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Reason:</span> {entry.reason}
-                      </p>
                     </div>
                   </div>
                 ))}

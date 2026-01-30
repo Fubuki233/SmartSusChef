@@ -1,10 +1,29 @@
 import React from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Cloud, Droplets, Thermometer } from 'lucide-react';
+import { Cloud, Droplets, Thermometer, Loader2 } from 'lucide-react';
 
 export function WeatherWidget() {
-  const { weather } = useApp();
+  const { weather, dataLoading } = useApp();
+
+  if (dataLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Cloud className="w-4 h-4 text-[#4A90E2]" />
+            Current Weather
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+            <span className="ml-2 text-sm text-gray-500">Loading weather...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!weather || weather.temperature === undefined) {
     return null;

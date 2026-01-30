@@ -28,7 +28,7 @@ async function fetchWithAuth<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken();
-  
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options.headers,
@@ -118,18 +118,45 @@ export interface UpdateUserRequest {
   status?: string;
 }
 
+export interface UpdateProfileRequest {
+  name?: string;
+  email?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ForgotPasswordRequest {
+  emailOrUsername: string;
+}
+
+export interface ForgotPasswordResponse {
+  temporaryPassword: string;
+}
+
 export const authApi = {
   login: (data: LoginRequest): Promise<LoginResponse> =>
     fetchWithAuth('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   register: (data: RegisterRequest): Promise<RegisterResponse> =>
     fetchWithAuth('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   getCurrentUser: (): Promise<UserDto> =>
     fetchWithAuth('/auth/me'),
-  
+
   checkStoreSetupRequired: (): Promise<{ storeSetupRequired: boolean }> =>
     fetchWithAuth('/auth/store-setup-required'),
+
+  updateProfile: (data: UpdateProfileRequest): Promise<UserDto> =>
+    fetchWithAuth('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+
+  changePassword: (data: ChangePasswordRequest): Promise<void> =>
+    fetchWithAuth('/auth/password', { method: 'PUT', body: JSON.stringify(data) }),
+
+  forgotPassword: (data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> =>
+    fetchWithAuth('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // ==========================================
@@ -138,13 +165,13 @@ export const authApi = {
 export const usersApi = {
   getAll: (): Promise<UserListDto[]> =>
     fetchWithAuth('/users'),
-  
+
   create: (data: CreateUserRequest): Promise<UserListDto> =>
     fetchWithAuth('/users', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   update: (id: string, data: UpdateUserRequest): Promise<UserListDto> =>
     fetchWithAuth(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  
+
   delete: (id: string): Promise<void> =>
     fetchWithAuth(`/users/${id}`, { method: 'DELETE' }),
 };
@@ -186,13 +213,13 @@ export interface UpdateStoreRequest {
 export const storeApi = {
   get: (): Promise<StoreDto> =>
     fetchWithAuth('/store'),
-  
+
   getStatus: (): Promise<{ isSetupComplete: boolean; storeSetupRequired: boolean }> =>
     fetchWithAuth('/store/status'),
-  
+
   setup: (data: UpdateStoreRequest): Promise<StoreDto> =>
     fetchWithAuth('/store/setup', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   update: (data: UpdateStoreRequest): Promise<StoreDto> =>
     fetchWithAuth('/store', { method: 'PUT', body: JSON.stringify(data) }),
 };
@@ -222,16 +249,16 @@ export interface UpdateIngredientRequest {
 export const ingredientsApi = {
   getAll: (): Promise<IngredientDto[]> =>
     fetchWithAuth('/ingredients'),
-  
+
   getById: (id: string): Promise<IngredientDto> =>
     fetchWithAuth(`/ingredients/${id}`),
-  
+
   create: (data: CreateIngredientRequest): Promise<IngredientDto> =>
     fetchWithAuth('/ingredients', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   update: (id: string, data: UpdateIngredientRequest): Promise<IngredientDto> =>
     fetchWithAuth(`/ingredients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  
+
   delete: (id: string): Promise<void> =>
     fetchWithAuth(`/ingredients/${id}`, { method: 'DELETE' }),
 };
@@ -278,16 +305,16 @@ export interface UpdateRecipeRequest {
 export const recipesApi = {
   getAll: (): Promise<RecipeDto[]> =>
     fetchWithAuth('/recipes'),
-  
+
   getById: (id: string): Promise<RecipeDto> =>
     fetchWithAuth(`/recipes/${id}`),
-  
+
   create: (data: CreateRecipeRequest): Promise<RecipeDto> =>
     fetchWithAuth('/recipes', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   update: (id: string, data: UpdateRecipeRequest): Promise<RecipeDto> =>
     fetchWithAuth(`/recipes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  
+
   delete: (id: string): Promise<void> =>
     fetchWithAuth(`/recipes/${id}`, { method: 'DELETE' }),
 };
@@ -346,28 +373,28 @@ export const salesApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return fetchWithAuth(`/sales${query}`);
   },
-  
+
   getById: (id: string): Promise<SalesDataDto> =>
     fetchWithAuth(`/sales/${id}`),
-  
+
   getTrend: (startDate: string, endDate: string): Promise<SalesTrendDto[]> =>
     fetchWithAuth(`/sales/trend?startDate=${startDate}&endDate=${endDate}`),
-  
+
   getIngredientUsageByDate: (date: string): Promise<IngredientUsageDto[]> =>
     fetchWithAuth(`/sales/ingredients/${date}`),
-  
+
   getRecipeSalesByDate: (date: string): Promise<RecipeSalesDto[]> =>
     fetchWithAuth(`/sales/recipes/${date}`),
-  
+
   create: (data: CreateSalesDataRequest): Promise<SalesDataDto> =>
     fetchWithAuth('/sales', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   import: (data: ImportSalesDataRequest): Promise<{ message: string; count: number }> =>
     fetchWithAuth('/sales/import', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   update: (id: string, data: UpdateSalesDataRequest): Promise<SalesDataDto> =>
     fetchWithAuth(`/sales/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  
+
   delete: (id: string): Promise<void> =>
     fetchWithAuth(`/sales/${id}`, { method: 'DELETE' }),
 };
@@ -424,19 +451,19 @@ export const wastageApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return fetchWithAuth(`/wastage${query}`);
   },
-  
+
   getById: (id: string): Promise<WastageDataDto> =>
     fetchWithAuth(`/wastage/${id}`),
-  
+
   getTrend: (startDate: string, endDate: string): Promise<WastageTrendDto[]> =>
     fetchWithAuth(`/wastage/trend?startDate=${startDate}&endDate=${endDate}`),
-  
+
   create: (data: CreateWastageDataRequest): Promise<WastageDataDto> =>
     fetchWithAuth('/wastage', { method: 'POST', body: JSON.stringify(data) }),
-  
+
   update: (id: string, data: UpdateWastageDataRequest): Promise<WastageDataDto> =>
     fetchWithAuth(`/wastage/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  
+
   delete: (id: string): Promise<void> =>
     fetchWithAuth(`/wastage/${id}`, { method: 'DELETE' }),
 };
@@ -480,13 +507,13 @@ export interface HolidayDto {
 export const forecastApi = {
   get: (days: number = 7): Promise<ForecastDto[]> =>
     fetchWithAuth(`/forecast?days=${days}`),
-  
+
   getSummary: (days: number = 7): Promise<ForecastSummaryDto[]> =>
     fetchWithAuth(`/forecast/summary?days=${days}`),
-  
+
   getWeather: (): Promise<WeatherDto | null> =>
     fetchWithAuth('/forecast/weather').catch(() => null),
-  
+
   getHolidays: (year: number): Promise<HolidayDto[]> =>
     fetchWithAuth(`/forecast/holidays/${year}`).catch(() => []),
 };

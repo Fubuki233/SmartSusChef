@@ -10,6 +10,9 @@ public interface IAuthService
     Task<UserListDto?> CreateUserAsync(CreateUserRequest request, int storeId);
     Task<List<UserListDto>> GetAllUsersAsync(int storeId);
     Task<UserListDto?> UpdateUserAsync(Guid userId, UpdateUserRequest request);
+    Task<UserDto?> UpdateProfileAsync(Guid userId, UpdateProfileRequest request);
+    Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword);
+    Task<string?> ResetPasswordAsync(string emailOrUsername);
     Task<bool> DeleteUserAsync(Guid userId);
     Task<bool> IsStoreSetupRequiredAsync(Guid userId);
 }
