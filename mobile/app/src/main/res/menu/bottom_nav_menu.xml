@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_sales"
+        android:icon="@drawable/trending_up"
+        android:title="Overview" />
+    <item
+        android:id="@+id/nav_forecast"
+        android:icon="@drawable/sparkles"
+        android:title="Predictions" />
+    <item
+        android:id="@+id/nav_wastage"
+        android:icon="@drawable/trash_2"
+        android:title="Wastage" />
+    <item
+        android:id="@+id/nav_input"
+        android:icon="@drawable/plus"
+        android:title="Data Input" />
+</menu>
