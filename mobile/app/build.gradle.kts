@@ -1,20 +1,18 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("kotlin-kapt")
     id("com.google.dagger.hilt.android")
+    alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.smartsuschef.mobile"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.smartsuschef.mobile"
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -30,12 +28,26 @@ android {
             )
         }
     }
+
+    buildFeatures {
+        dataBinding = true
+        viewBinding = true
+    }
+
+    dataBinding {
+        enable = true
+    }
+
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
+    }
+
+    ksp {
+        arg("dagger.hilt.internal.useAggregatingRootProcessor", "false")
     }
 }
 
@@ -57,7 +69,7 @@ dependencies {
     implementation(libs.navigation.ui)
     // Hilt (Dependency Injection)
     implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
     // Storage (For TokenManager)
     implementation(libs.datastore.preferences)
     // UI Components (For charts)

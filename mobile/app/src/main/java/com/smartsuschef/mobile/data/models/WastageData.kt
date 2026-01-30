@@ -16,7 +16,7 @@ data class WastageData(
 
     // Optional: Backend might include these for convenience
     val ingredientName: String? = null,
-    val recipeName: String? = null
+    val recipeName: String? = null,
     val type: String, // if Backend can do the computation
 
     // Edit history tracking (for audit trail)
