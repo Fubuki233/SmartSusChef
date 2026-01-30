@@ -1,6 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/nav_graph">
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/nav_input">
 
+    <fragment
+        android:id="@+id/nav_sales"
+        android:name="com.smartsuschef.mobile.ui.sales.SalesOverviewFragment"
+        android:label="Sales Overview"
+        tools:layout="@layout/fragment_sales_overview" />
+    <fragment
+        android:id="@+id/nav_forecast"
+        android:name="com.smartsuschef.mobile.ui.forecast.ForecastFragment"
+        android:label="Predictions"
+        tools:layout="@layout/fragment_forecast" />
+    <fragment
+        android:id="@+id/nav_wastage"
+        android:name="com.smartsuschef.mobile.ui.wastage.WastageFragment"
+        android:label="Wastage"
+        tools:layout="@layout/fragment_wastage" />
+    <fragment
+        android:id="@+id/nav_input"
+        android:name="com.smartsuschef.mobile.ui.datainput.DataInputFragment"
+        android:label="Data Input"
+        tools:layout="@layout/fragment_data_input" />
 </navigation>

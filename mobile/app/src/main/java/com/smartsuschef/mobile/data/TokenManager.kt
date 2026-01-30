@@ -57,6 +57,15 @@ class TokenManager(private val context: Context) {
     }
 
     /**
+     * Retrieves the user role synchronously
+     */
+    fun getUserRole(): String? = runBlocking {
+        context.dataStore.data.map { preferences ->
+            preferences[USER_ROLE_KEY]
+        }.first()
+    }
+
+    /**
      * Clears all session data (Logout)
      */
     suspend fun clearSession() {
