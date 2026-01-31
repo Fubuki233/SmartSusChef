@@ -65,6 +65,9 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.CarbonFootprint).HasPrecision(18, 3);
 
+            // Unique index for (StoreId, Name)
+            entity.HasIndex(e => new { e.StoreId, e.Name }).IsUnique();
+
             entity.HasOne(e => e.Store)
                   .WithMany(s => s.Ingredients)
                   .HasForeignKey(e => e.StoreId);
@@ -74,6 +77,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Recipe>(entity =>
         {
             entity.HasKey(e => e.Id);
+            
+            // Unique index for (StoreId, Name)
+            entity.HasIndex(e => new { e.StoreId, e.Name }).IsUnique();
+
             entity.HasOne(e => e.Store)
                   .WithMany(s => s.Recipes)
                   .HasForeignKey(e => e.StoreId);
