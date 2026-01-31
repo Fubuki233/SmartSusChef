@@ -27,6 +27,7 @@ import {
   salesApi,
   wastageApi,
   forecastApi,
+  exportApi,
   setAuthToken,
   getAuthToken,
   UserDto,
@@ -77,7 +78,7 @@ interface AppContextType {
   deleteWastageData: (id: string) => Promise<void>;
   updateForecastData: (data: ForecastData[]) => void;
   importSalesData: (data: SalesData[]) => Promise<void>;
-  exportData: (type: "sales" | "wastage" | "forecast") => void;
+  exportData: (type: "sales" | "wastage" | "forecast") => Promise<void>;
   holidays: HolidayEvent[];
   weather: WeatherData | null;
   refreshData: () => Promise<void>;
@@ -650,59 +651,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ==========================================
   // EXPORT FUNCTION
   // ==========================================
-  const exportData = (type: "sales" | "wastage" | "forecast") => {
-    const escapeCsv = (value: string | number | undefined | null) => {
-      const safe = value === undefined || value === null ? '' : String(value);
-      const escaped = safe.replace(/"/g, '""');
-      return /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
-    };
-
-    let rows: Array<Array<string | number>> = [];
-    let headers: string[] = [];
-    let filename = '';
-
-    if (type === 'sales') {
-      headers = ['Date', 'Recipe', 'Quantity'];
-      rows = salesData.map((s) => [
-        s.date,
-        recipes.find((r) => r.id === s.recipeId)?.name || 'Unknown Recipe',
-        s.quantity,
-      ]);
-      filename = 'sales_data.csv';
-    } else if (type === 'wastage') {
-      headers = ['Date', 'Item', 'Type', 'Quantity', 'Unit'];
-      rows = wastageData.map((w) => {
-        const recipe = w.recipeId ? recipes.find((r) => r.id === w.recipeId) : undefined;
-        const ingredient = w.ingredientId ? ingredients.find((i) => i.id === w.ingredientId) : undefined;
-        const itemName = recipe?.name || ingredient?.name || 'Unknown Item';
-        const itemType = recipe ? (recipe.isSubRecipe ? 'Sub-Recipe' : 'Dish') : ingredient ? 'Raw' : 'Unknown';
-        const unit = recipe?.unit || ingredient?.unit || '-';
-        return [w.date, itemName, itemType, w.quantity, unit];
-      });
-      filename = 'wastage_data.csv';
-    } else if (type === 'forecast') {
-      headers = ['Date', 'Recipe', 'Quantity'];
-      rows = forecastData.map((f) => [
-        f.date,
-        recipes.find((r) => r.id === f.recipeId)?.name || 'Unknown Recipe',
-        f.quantity,
-      ]);
-      filename = 'forecast_data.csv';
+  const exportData = async (type: "sales" | "wastage" | "forecast") => {
+    try {
+      let blob: Blob;
+      let filename = '';
+  
+      if (type === 'sales') {
+        blob = await exportApi.getSalesCsv();
+        filename = 'sales_data.csv';
+      } else if (type === 'wastage') {
+        blob = await exportApi.getWastageCsv();
+        filename = 'wastage_data.csv';
+      } else if (type === 'forecast') {
+        blob = await exportApi.getForecastCsv();
+        filename = 'forecast_data.csv';
+      } else {
+        throw new Error('Invalid export type');
+      }
+  
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export data:', error);
+      // You might want to show a toast notification here
     }
-
-    const csvLines = [
-      headers.map(escapeCsv).join(','),
-      ...rows.map((row) => row.map(escapeCsv).join(',')),
-    ];
-    const csvContent = csvLines.join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   // ==========================================

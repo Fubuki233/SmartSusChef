@@ -11,8 +11,8 @@ export function ExportData() {
   const { exportData, salesData, wastageData, forecastData } = useApp();
   const [lastExport, setLastExport] = useState<string | null>(null);
 
-  const handleExportCSV = (type: 'sales' | 'wastage' | 'forecast') => {
-    exportData(type);
+  const handleExportCSV = async (type: 'sales' | 'wastage' | 'forecast') => {
+    await exportData(type);
     setLastExport(`csv-${type}`);
     toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} data exported as CSV successfully`);
   };
