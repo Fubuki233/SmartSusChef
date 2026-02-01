@@ -28,6 +28,11 @@
         <color name="chart_3_azure">#4A90E2</color>
         <color name="chart_4_olive">#8A9A5B</color>
         <color name="chart_5_gold">#B4A373</color>
+        <color name="chart_6_teal">#359290</color>
+        <color name="chart_7_darkorange">#B16A17</color>
+        <color name="chart_8_lightorange">#DDAB68</color>
+        <color name="chart_9_lavender">#8E7AB5</color>
+        <color name="chart_10_grey">#898989</color>
         <color name="sales_primary">#4F6F52</color>
         <color name="sales_trend_line">#2C3E2D</color>
         <color name="forecast_gold">#B4A373</color>

@@ -40,6 +40,27 @@ class DashboardActivity : AppCompatActivity() {
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
         binding.bottomNav.setupWithNavController(navController)
+
+        // links the toolbar to NavController so the title changes and back arrow appears automatically
+        androidx.navigation.ui.NavigationUI.setupActionBarWithNavController(this, navController)
+
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            // When we are on the main tabs, show the store info
+            if (destination.id == R.id.nav_sales || destination.id == R.id.nav_forecast ||
+                destination.id == R.id.nav_wastage || destination.id == R.id.nav_input) {
+
+                val name = viewModel.username.value ?: "User"
+                val role = viewModel.userRole.value ?: "Employee"
+                supportActionBar?.subtitle = "$name | ${role.lowercase().replaceFirstChar { it.uppercase() }}"
+
+                val storeName = viewModel.storeName.value ?: "SmartSus Chef"
+                val location = viewModel.outletLocation.value ?: ""
+                supportActionBar?.title = if (location.isNotEmpty()) "$storeName | $location" else storeName
+            } else {
+                // Remove the subtitle on SalesDtail so the title in this Fragment looks clean
+                supportActionBar?.subtitle = null
+            }
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {

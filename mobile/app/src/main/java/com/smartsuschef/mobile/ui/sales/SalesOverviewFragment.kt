@@ -47,6 +47,7 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
 
         setupBarChart()
         observeViewModel()
+        setWeatherIcon("cloudy")
     }
 
     private fun setupBarChart() {
@@ -59,9 +60,11 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 position = com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM
                 setDrawGridLines(false)
                 granularity = 1f // Ensures only whole numbers are displayed for entries
+                isGranularityEnabled = true
                 textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
                 axisLineColor = Color.TRANSPARENT
                 setLabelCount(7, true) // Show exactly 7 labels for 7 days
+                setAvoidFirstLastClipping(true) // Prevent first/last labels from being cut off
             }
 
             axisLeft.apply {
@@ -72,6 +75,11 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 // Ensure min value starts at 0, max is dynamic based on data
                 axisMinimum = 0f
             }
+            // Add padding to the left axis so numbers don't touch the edge
+            axisLeft.setSpaceBottom(15f)
+
+            // Ensure bars are centered over the labels
+            setFitBars(true)
 
             axisRight.isEnabled = false // Disable right y-axis
 
@@ -138,6 +146,17 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 }
             }
         }
+    }
+
+    private fun setWeatherIcon(condition: String) {
+        val drawableRes = when (condition.lowercase()) {
+            "cloudy", "partly cloudy" -> R.drawable.cloud
+            "rain", "showers" -> R.drawable.cloud_rain
+            "storm" -> R.drawable.cloud_hail
+            "sunny" -> R.drawable.sun
+            else -> R.drawable.cloud // Default
+        }
+        binding.ivWeatherIcon.setImageResource(drawableRes)
     }
     /*
     private fun setupChart() {
