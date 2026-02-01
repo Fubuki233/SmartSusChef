@@ -8,8 +8,8 @@ erDiagram
         datetime OpeningDate
         decimal Latitude
         decimal Longitude
-        string CountryCode
-        string Address
+        string CountryCode "nullable"
+        string Address "nullable"
         string ContactNumber
         bool IsActive
         datetime CreatedAt
