@@ -16,11 +16,11 @@ export function SalesInputForm() {
   const [selectedRecipe, setSelectedRecipe] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+
   // Warning modal state
   const [showWarning, setShowWarning] = useState(false);
   const [duplicateEntryId, setDuplicateEntryId] = useState<string | null>(null);
-  
+
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
 
@@ -51,13 +51,13 @@ export function SalesInputForm() {
         const timeB = new Date(b.modifiedAt || b.createdAt || 0).getTime();
         return timeB - timeA;
       });
-    
+
     return todaysData;
   }, [salesData, recipes, todayStr]);
 
   const handleRecipeSelect = (value: string) => {
     setSelectedRecipe(value);
-    
+
     // Check for duplicate entry if not in edit mode
     if (!editingId) {
       const existingEntry = recentEntries.find(entry => entry.recipeId === value);
@@ -68,7 +68,7 @@ export function SalesInputForm() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedRecipe) {
       toast.error('Please select a dish');
       return;
@@ -80,27 +80,30 @@ export function SalesInputForm() {
       return;
     }
 
-    if (editingId) {
-      // Update existing entry
-      updateSalesData(editingId, {
-        date: todayStr,
-        recipeId: selectedRecipe,
-        quantity: qty,
-      });
-      toast.success('Sales data updated successfully!');
-      setEditingId(null);
-    } else {
-      // Add new entry
-      addSalesData({
-        date: todayStr,
-        recipeId: selectedRecipe,
-        quantity: qty,
-      });
-      toast.success('Sales data saved successfully!');
-    }
+    try {
+      if (editingId) {
+        // Update existing entry
+        await updateSalesData(editingId, {
+          recipeId: selectedRecipe,
+          quantity: qty,
+        });
+        toast.success('Sales data updated successfully!');
+        setEditingId(null);
+      } else {
+        // Add new entry
+        await addSalesData({
+          date: todayStr,
+          recipeId: selectedRecipe,
+          quantity: qty,
+        });
+        toast.success('Sales data saved successfully!');
+      }
 
-    setSelectedRecipe('');
-    setQuantity('');
+      setSelectedRecipe('');
+      setQuantity('');
+    } catch (error) {
+      toast.error('Failed to save sales data');
+    }
   };
 
   const handleOverwrite = () => {
@@ -121,10 +124,14 @@ export function SalesInputForm() {
     setQuantity(entry.quantity.toString());
   };
 
-  const handleDelete = (id: string, dishName: string) => {
+  const handleDelete = async (id: string, dishName: string) => {
     if (confirm(`Are you sure you want to delete the entry for "${dishName}"?`)) {
-      deleteSalesData(id);
-      toast.success('Entry deleted successfully');
+      try {
+        await deleteSalesData(id);
+        toast.success('Entry deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete entry');
+      }
     }
   };
 
@@ -153,9 +160,8 @@ export function SalesInputForm() {
             <div className="space-y-2">
               <Label htmlFor="dish-select">Select Dish</Label>
               <Select value={selectedRecipe} onValueChange={handleRecipeSelect}>
-                <SelectTrigger 
+                <SelectTrigger
                   id="dish-select"
-                  // --- FIX APPLIED: Replaced 'outline' classes with standard 'border' classes ---
                   className="rounded-[8px] border border-gray-300 focus:ring-[#4F6F52] focus:border-[#4F6F52]"
                 >
                   <SelectValue placeholder="Choose a dish..." />
@@ -185,8 +191,8 @@ export function SalesInputForm() {
           </div>
 
           <div className="flex gap-2">
-            <Button 
-              onClick={handleSubmit} 
+            <Button
+              onClick={handleSubmit}
               className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-6"
             >
               {editingId ? 'Update Sales Data' : 'Save Sales Data'}
@@ -213,8 +219,8 @@ export function SalesInputForm() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4 gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowWarning(false);
                 setSelectedRecipe('');
@@ -223,8 +229,8 @@ export function SalesInputForm() {
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleOverwrite} 
+            <Button
+              onClick={handleOverwrite}
               className="bg-[#E74C3C] hover:bg-[#C0392B] text-white rounded-[8px]"
             >
               Overwrite Entry
@@ -247,23 +253,15 @@ export function SalesInputForm() {
                   <TableRow>
                     <TableHead>Dish Name</TableHead>
                     <TableHead>Quantity</TableHead>
-                    <TableHead>Last Modified</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {recentEntries.map((entry) => {
-                    const lastModified = entry.modifiedAt || entry.createdAt;
-                    const wasModified = entry.modifiedAt && entry.modifiedAt !== entry.createdAt;
-                    
                     return (
                       <TableRow key={entry.id}>
                         <TableCell className="font-medium">{entry.dishName}</TableCell>
                         <TableCell>{entry.quantity}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {lastModified ? format(parseISO(lastModified), 'd MMM yyyy, h:mm a') : '-'}
-                          {wasModified && <span className="text-xs text-gray-500 ml-1">(edited)</span>}
-                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button

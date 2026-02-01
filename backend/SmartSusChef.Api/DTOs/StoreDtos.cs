@@ -10,6 +10,7 @@ public record StoreDto(
     DateTime OpeningDate,
     decimal Latitude,
     decimal Longitude,
+    string? CountryCode,
     string? Address,
     bool IsActive,
     DateTime CreatedAt,
@@ -25,6 +26,7 @@ public record CreateStoreRequest(
     DateTime OpeningDate,
     decimal Latitude,
     decimal Longitude,
+    string? CountryCode,
     string? Address,
     bool IsActive = true
 );
@@ -38,6 +40,7 @@ public record UpdateStoreRequest(
     DateTime? OpeningDate,
     decimal? Latitude,
     decimal? Longitude,
+    string? CountryCode,
     string? Address,
     bool? IsActive
 );

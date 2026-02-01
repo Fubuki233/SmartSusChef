@@ -46,6 +46,16 @@ public partial class IngredientService : IIngredientService
         if (!allowedUnits.Contains(request.Unit))
             throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
 
+        // Refactor the duplicate check for high-reliability:
+        // Use .ToLower() to prevent "Tomato" vs "tomato" duplicates
+        var duplicate = await _context.Ingredients
+            .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name.ToLower() == request.Name.ToLower());
+            
+        if (duplicate)
+        {
+            throw new InvalidOperationException($"Ingredient '{request.Name}' already exists.");
+        }
+
         var ingredient = new Ingredient
         {
             Id = Guid.NewGuid(),
@@ -74,6 +84,18 @@ public partial class IngredientService : IIngredientService
         var allowedUnits = new[] { "g", "ml", "kg", "L" };
         if (!allowedUnits.Contains(request.Unit))
             throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
+
+        // Check for duplicates if name is changing
+        if (request.Name.ToLower() != ingredient.Name.ToLower())
+        {
+            var duplicate = await _context.Ingredients
+                .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name.ToLower() == request.Name.ToLower());
+                
+            if (duplicate)
+            {
+                throw new InvalidOperationException($"Ingredient '{request.Name}' already exists.");
+            }
+        }
 
         ingredient.Name = request.Name;
         ingredient.Unit = request.Unit;

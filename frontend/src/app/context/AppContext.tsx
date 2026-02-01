@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useCallback,
 } from "react";
 import {
   User,
@@ -17,24 +18,47 @@ import {
   StoreSettings,
 } from "@/app/types";
 
-import { api, UserListDto } from "@/app/services/api";
+import {
+  authApi,
+  usersApi,
+  storeApi,
+  ingredientsApi,
+  recipesApi,
+  salesApi,
+  wastageApi,
+  forecastApi,
+  exportApi,
+  setAuthToken,
+  getAuthToken,
+  UserDto,
+  StoreDto,
+  IngredientDto,
+  RecipeDto,
+  SalesDataDto,
+  WastageDataDto,
+  ForecastDto,
+  HolidayDto,
+  WeatherDto,
+} from "@/app/services/api";
 
 // --- Types for Context ---
 interface AppContextType {
   user: User | null;
+  loading: boolean;
+  dataLoading: boolean;
   storeSetupRequired: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; storeSetupRequired: boolean }>;
-  register: (username: string, password: string, name: string, email: string) => Promise<{ success: boolean; error?: string }>;
-  completeStoreSetup: () => void;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  register: (username: string, password: string, name: string, email: string) => Promise<{ success: boolean; storeSetupRequired: boolean; error?: string }>;
+  updateProfile: (data: { name?: string; email?: string }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  setupStore: (settings: Partial<StoreSettings>) => Promise<void>;
   storeSettings: StoreSettings;
   updateStoreSettings: (settings: Partial<StoreSettings>) => Promise<void>;
-  loadStoreSettings: () => Promise<void>;
   storeUsers: User[];
-  loadStoreUsers: () => Promise<void>;
-  addUser: (user: Omit<User, "id"> & { password: string }) => Promise<boolean>;
-  updateUser: (id: string, user: Partial<User> & { password?: string }) => Promise<boolean>;
-  deleteUser: (id: string) => Promise<boolean>;
+  addUser: (user: Omit<User, "id"> & { password?: string }) => Promise<void>;
+  updateUser: (id: string, user: Partial<User> & { password?: string }) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
   ingredients: Ingredient[];
   recipes: Recipe[];
   salesData: SalesData[];
@@ -54,586 +78,339 @@ interface AppContextType {
   deleteWastageData: (id: string) => Promise<void>;
   updateForecastData: (data: ForecastData[]) => void;
   importSalesData: (data: SalesData[]) => Promise<void>;
-  exportData: (type: "sales" | "wastage" | "forecast") => void;
+  exportData: (type: "sales" | "wastage" | "forecast") => Promise<void>;
   holidays: HolidayEvent[];
   weather: WeatherData | null;
-  loading: boolean;
-  error: string | null;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
 // ==========================================
-// 1. DEFAULT MOCK DATA (FALLBACK for ML)
+// HELPER FUNCTIONS TO CONVERT API TYPES TO FRONTEND TYPES
 // ==========================================
 
-const MOCK_HOLIDAYS: HolidayEvent[] = [
-  { date: '2026-01-01', name: "New Year's Day", type: 'public' },
-  { date: '2026-02-17', name: 'Chinese New Year', type: 'public' },
-  { date: '2026-02-18', name: 'Chinese New Year', type: 'public' },
-  { date: '2026-04-03', name: 'Good Friday', type: 'public' },
-  { date: '2026-05-01', name: 'Labour Day', type: 'public' },
-  { date: '2026-05-31', name: 'Vesak Day', type: 'public' },
-  { date: '2026-06-15', name: 'Hari Raya Puasa', type: 'public' },
-  { date: '2026-08-09', name: 'National Day', type: 'public' },
-  { date: '2026-08-21', name: 'Hari Raya Haji', type: 'public' },
-  { date: '2026-11-08', name: 'Deepavali', type: 'public' },
-  { date: '2026-12-25', name: 'Christmas Day', type: 'public' },
-];
+const mapUserDto = (dto: UserDto): User => ({
+  id: dto.id,
+  username: dto.username,
+  name: dto.name,
+  email: dto.email,
+  role: dto.role as 'employee' | 'manager',
+  status: dto.status as 'Active' | 'Inactive',
+});
 
-const MOCK_WEATHER: WeatherData = {
-  temperature: 30,
-  condition: 'Partly Cloudy',
-  humidity: 75,
-  description: 'Warm with possible afternoon showers',
-  feelsLike: 34
+const mapStoreDto = (dto: StoreDto): StoreSettings => ({
+  storeId: dto.id.toString(),
+  companyName: dto.companyName || '',
+  uen: dto.uen || '',
+  storeName: dto.storeName || '',
+  outletLocation: dto.outletLocation || '',
+  address: dto.address || '',
+  contactNumber: dto.contactNumber || '',
+  latitude: dto.latitude,
+  longitude: dto.longitude,
+  countryCode: dto.countryCode || '',
+});
+
+const mapIngredientDto = (dto: IngredientDto): Ingredient => ({
+  id: dto.id,
+  name: dto.name,
+  unit: dto.unit,
+  carbonFootprint: dto.carbonFootprint,
+});
+
+const mapRecipeDto = (dto: RecipeDto): Recipe => ({
+  id: dto.id,
+  name: dto.name,
+  isSubRecipe: dto.isSubRecipe,
+  isSellable: dto.isSellable,
+  ingredients: dto.ingredients.map(ing => ({
+    ingredientId: ing.ingredientId,
+    childRecipeId: ing.childRecipeId,
+    quantity: ing.quantity,
+  })),
+});
+
+const mapSalesDataDto = (dto: SalesDataDto): SalesData => ({
+  id: dto.id,
+  date: dto.date,
+  recipeId: dto.recipeId,
+  quantity: dto.quantity,
+});
+
+const mapWastageDataDto = (dto: WastageDataDto): WastageData => ({
+  id: dto.id,
+  date: dto.date,
+  ingredientId: dto.ingredientId,
+  recipeId: dto.recipeId,
+  quantity: dto.quantity,
+});
+
+const mapForecastDto = (dto: ForecastDto): ForecastData => ({
+  date: dto.date,
+  recipeId: dto.recipeId,
+  quantity: dto.quantity,
+});
+
+const mapHolidayDto = (dto: HolidayDto): HolidayEvent => ({
+  date: dto.date,
+  name: dto.name,
+});
+
+const mapWeatherDto = (dto: WeatherDto | null): WeatherData | null => {
+  if (!dto) return null;
+  return {
+    temperature: dto.temperature,
+    condition: dto.condition,
+    humidity: dto.humidity,
+    description: dto.description,
+  };
+};
+
+// Default empty store settings
+const defaultStoreSettings: StoreSettings = {
+  storeId: '',
+  companyName: '',
+  uen: '',
+  storeName: '',
+  outletLocation: '',
+  address: '',
+  contactNumber: '',
+  latitude: undefined,
+  longitude: undefined,
+  countryCode: '',
 };
 
 // ==========================================
-// 2. DATA CONVERSION FUNCTIONS
+// PROVIDER COMPONENT
 // ==========================================
-
-const convertIngredientsFromAPI = (apiData: any[]): Ingredient[] => {
-  return apiData.map((ing) => ({
-    id: ing.id,
-    storeId: "SSC-2026-001",
-    name: ing.name,
-    unit: ing.unit,
-    carbonFootprint: ing.carbonFootprint || 0,
-  }));
-};
-
-const convertRecipesFromAPI = (apiData: any[]): Recipe[] => {
-  return apiData.map((rec) => ({
-    id: rec.id,
-    storeId: "SSC-2026-001",
-    name: rec.name,
-    isSubRecipe: rec.isSubRecipe || false,
-    isSellable: rec.isSellable !== false,
-    ingredients: (rec.ingredients || []).map((ing: any) => ({
-      ingredientId: ing.ingredientId || undefined,
-      childRecipeId: ing.childRecipeId || undefined,
-      quantity: ing.quantity,
-    })),
-  }));
-};
-
-const convertSalesFromAPI = (apiData: any[]): SalesData[] => {
-  return apiData.map((sale) => ({
-    id: sale.id,
-    storeId: "SSC-2026-001",
-    date: sale.date,
-    recipeId: sale.recipeId,
-    quantity: sale.quantity || 0,
-  }));
-};
-
-const convertWastageFromAPI = (apiData: any[]): WastageData[] => {
-  return apiData.map((waste) => ({
-    id: waste.id,
-    storeId: "SSC-2026-001",
-    date: waste.date,
-    ingredientId: waste.ingredientId,
-    quantity: waste.quantity || 0,
-  }));
-};
-
-const convertForecastFromAPI = (apiData: any[]): ForecastData[] => {
-  return apiData.map((fc) => ({
-    id: fc.id,
-    storeId: "SSC-2026-001",
-    date: fc.date,
-    recipeId: fc.recipeId,
-    predictedQuantity: fc.predictedQuantity || 0,
-  }));
-};
-
-const convertUsersFromAPI = (apiData: UserListDto[]): User[] => {
-  return apiData.map((u) => ({
-    id: u.id,
-    username: u.username,
-    name: u.name,
-    email: u.email,
-    role: u.role as "manager" | "employee",
-    status: u.status as "Active" | "Inactive",
-  }));
-};
-
-// ==========================================
-// 3. PROVIDER COMPONENT
-// ==========================================
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [storeSetupRequired, setStoreSetupRequired] = useState(false);
-  const [data, setData] = useState<any>({
-    storeSettings: {
-      uen: "",
-      storeName: "",
-      outletLocation: "",
-      address: "",
-      contactNumber: "",
-    },
-    storeUsers: [],
-    ingredients: [],
-    recipes: [],
-    salesData: [],
-    wastageData: [],
-    forecastData: [],
-    holidays: MOCK_HOLIDAYS,
-    weather: MOCK_WEATHER,
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(defaultStoreSettings);
+  const [storeUsers, setStoreUsers] = useState<User[]>([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [salesData, setSalesData] = useState<SalesData[]>([]);
+  const [wastageData, setWastageData] = useState<WastageData[]>([]);
+  const [forecastData, setForecastData] = useState<ForecastData[]>([]);
+  const [holidays, setHolidays] = useState<HolidayEvent[]>([]);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
 
-  // Load user from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem("smartsus-user");
-    const storeSetup = localStorage.getItem("smartsus-store-setup-required");
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-        setStoreSetupRequired(storeSetup === "true");
-      } catch (e) {
-        console.error("Failed to load user from localStorage", e);
+  // ==========================================
+  // LOAD ALL DATA
+  // ==========================================
+  const loadAllData = useCallback(async () => {
+    setDataLoading(true);
+    try {
+      // Load all data in parallel
+      const [
+        ingredientsData,
+        recipesData,
+        salesDataResult,
+        wastageDataResult,
+        forecastDataResult,
+        weatherData,
+        holidaysData,
+        storeData,
+      ] = await Promise.all([
+        ingredientsApi.getAll().catch(() => []),
+        recipesApi.getAll().catch(() => []),
+        salesApi.getAll().catch(() => []),
+        wastageApi.getAll().catch(() => []),
+        forecastApi.get(7).catch(() => []),
+        forecastApi.getWeather().catch(() => null),
+        forecastApi.getHolidays(new Date().getFullYear()).catch(() => []),
+        storeApi.get().catch(() => null),
+      ]);
+
+      setIngredients(ingredientsData.map(mapIngredientDto));
+      setRecipes(recipesData.map(mapRecipeDto));
+      setSalesData(salesDataResult.map(mapSalesDataDto));
+      setWastageData(wastageDataResult.map(mapWastageDataDto));
+      setForecastData(forecastDataResult.map(mapForecastDto));
+      setWeather(mapWeatherDto(weatherData));
+      setHolidays(holidaysData.map(mapHolidayDto));
+
+      if (storeData) {
+        setStoreSettings(mapStoreDto(storeData));
       }
+
+      // Load users if manager
+      if (user?.role === 'manager') {
+        const usersData = await usersApi.getAll().catch(() => []);
+        setStoreUsers(usersData.map(u => mapUserDto(u)));
+      }
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    } finally {
+      setDataLoading(false);
     }
+  }, [user?.role]);
+
+  // ==========================================
+  // INITIALIZE APP
+  // ==========================================
+  useEffect(() => {
+    const initializeApp = async () => {
+      const token = getAuthToken();
+      if (token) {
+        try {
+          const userData = await authApi.getCurrentUser();
+          setUser(mapUserDto(userData));
+        } catch (error) {
+          console.error('Failed to get current user:', error);
+          setAuthToken(null);
+        }
+      }
+      setLoading(false);
+    };
+
+    initializeApp();
   }, []);
 
-  // Load all data from API when user logs in (only if store setup is complete)
+  // Load data when user logs in
   useEffect(() => {
-    if (user && !storeSetupRequired) {
+    if (user) {
       loadAllData();
     }
-  }, [user, storeSetupRequired]);
+  }, [user, loadAllData]);
 
-  const loadAllData = async () => {
-    setLoading(true);
-    setError(null);
+  // ==========================================
+  // AUTH FUNCTIONS
+  // ==========================================
+  const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const [ingredients, recipes, sales, wastage, forecast, holidays, weather, storeData] =
-        await Promise.allSettled([
-          api.ingredients.getAll(),
-          api.recipes.getAll(),
-          api.sales.getAll(),
-          api.wastage.getAll(),
-          api.forecast.getForecast(7),
-          api.forecast.getHolidays(new Date().getFullYear()),
-          api.forecast.getWeather(),
-          api.store.get(),
-        ]);
-
-      setData((prev: any) => ({
-        ...prev,
-        ingredients: ingredients.status === "fulfilled" ? convertIngredientsFromAPI(ingredients.value) : [],
-        recipes: recipes.status === "fulfilled" ? convertRecipesFromAPI(recipes.value) : [],
-        salesData: sales.status === "fulfilled" ? convertSalesFromAPI(sales.value) : [],
-        wastageData: wastage.status === "fulfilled" ? convertWastageFromAPI(wastage.value) : [],
-        forecastData: forecast.status === "fulfilled" ? convertForecastFromAPI(forecast.value) : [],
-        holidays: holidays.status === "fulfilled" ? (holidays.value || MOCK_HOLIDAYS) : MOCK_HOLIDAYS,
-        weather: weather.status === "fulfilled" ? (weather.value || MOCK_WEATHER) : MOCK_WEATHER,
-        storeSettings: storeData.status === "fulfilled" ? {
-          uen: storeData.value.uen,
-          storeName: storeData.value.storeName,
-          outletLocation: storeData.value.outletLocation,
-          address: storeData.value.address || "",
-          contactNumber: storeData.value.contactNumber,
-          companyName: storeData.value.companyName,
-        } : prev.storeSettings,
-      }));
-    } catch (err) {
-      console.error("Error loading data from API:", err);
-      setError(err instanceof Error ? err.message : "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load store settings
-  const loadStoreSettings = async () => {
-    try {
-      const storeData = await api.store.get();
-      setData((prev: any) => ({
-        ...prev,
-        storeSettings: {
-          uen: storeData.uen,
-          storeName: storeData.storeName,
-          outletLocation: storeData.outletLocation,
-          address: storeData.address || "",
-          contactNumber: storeData.contactNumber,
-          companyName: storeData.companyName,
-        },
-      }));
-    } catch (err) {
-      console.error("Failed to load store settings:", err);
-    }
-  };
-
-  // Load store users
-  const loadStoreUsers = async () => {
-    try {
-      const users = await api.users.getAll();
-      setData((prev: any) => ({
-        ...prev,
-        storeUsers: convertUsersFromAPI(users),
-      }));
-    } catch (err) {
-      console.error("Failed to load store users:", err);
-    }
-  };
-
-  // Authentication methods
-  const register = async (username: string, password: string, name: string, email: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const response = await api.auth.register({ username, password, name, email });
-      const userData: User = {
-        id: response.user.id,
-        username: response.user.username,
-        role: response.user.role as "manager" | "employee",
-        name: response.user.name,
-        email: response.user.email,
-        status: response.user.status as "Active" | "Inactive",
-      };
-      setUser(userData);
-      setStoreSetupRequired(true);
-      localStorage.setItem("smartsus-user", JSON.stringify(userData));
-      localStorage.setItem("smartsus-store-setup-required", "true");
-      return { success: true };
-    } catch (err: any) {
-      console.error("Registration failed:", err);
-      return { success: false, error: err.message || "Registration failed" };
-    }
-  };
-
-  const login = async (username: string, password: string): Promise<{ success: boolean; storeSetupRequired: boolean }> => {
-    try {
-      const response = await api.auth.login({ username, password });
-      const userData: User = {
-        id: response.user.id,
-        username: response.user.username,
-        role: response.user.role as "manager" | "employee",
-        name: response.user.name,
-        email: response.user.email || "",
-        status: response.user.status as "Active" | "Inactive" || "Active",
-      };
-      setUser(userData);
+      const response = await authApi.login({ username, password });
+      setAuthToken(response.token);
+      setUser(mapUserDto(response.user));
       setStoreSetupRequired(response.storeSetupRequired);
-      localStorage.setItem("smartsus-user", JSON.stringify(userData));
-      localStorage.setItem("smartsus-store-setup-required", response.storeSetupRequired ? "true" : "false");
-      return { success: true, storeSetupRequired: response.storeSetupRequired };
-    } catch (err) {
-      console.error("Login failed:", err);
-      setError(err instanceof Error ? err.message : "Login failed");
-      return { success: false, storeSetupRequired: false };
-    }
-  };
-
-  const completeStoreSetup = () => {
-    setStoreSetupRequired(false);
-    localStorage.setItem("smartsus-store-setup-required", "false");
-  };
-
-  const logout = () => {
-    setUser(null);
-    setStoreSetupRequired(false);
-    api.auth.logout();
-    localStorage.removeItem("smartsus-user");
-    localStorage.removeItem("smartsus-store-setup-required");
-  };
-
-  // Ingredient methods
-  const addIngredient = async (ingredient: Omit<Ingredient, "id">) => {
-    try {
-      const created = await api.ingredients.create({
-        name: ingredient.name,
-        unit: ingredient.unit,
-        carbonFootprint: ingredient.carbonFootprint,
-      });
-      setData((p: any) => ({
-        ...p,
-        ingredients: [...p.ingredients, convertIngredientsFromAPI([created])[0]],
-      }));
-    } catch (err) {
-      console.error("Failed to add ingredient:", err);
-      setError(err instanceof Error ? err.message : "Failed to add ingredient");
-    }
-  };
-
-  const updateIngredient = async (id: string, ingredient: Partial<Ingredient>) => {
-    try {
-      const updated = await api.ingredients.update(id, {
-        name: ingredient.name || "",
-        unit: ingredient.unit || "",
-        carbonFootprint: ingredient.carbonFootprint || 0,
-      });
-      setData((p: any) => ({
-        ...p,
-        ingredients: p.ingredients.map((ing: Ingredient) =>
-          ing.id === id ? convertIngredientsFromAPI([updated])[0] : ing
-        ),
-      }));
-    } catch (err) {
-      console.error("Failed to update ingredient:", err);
-      setError(err instanceof Error ? err.message : "Failed to update ingredient");
-    }
-  };
-
-  const deleteIngredient = async (id: string) => {
-    try {
-      await api.ingredients.delete(id);
-      setData((p: any) => ({
-        ...p,
-        ingredients: p.ingredients.filter((ing: Ingredient) => ing.id !== id),
-      }));
-    } catch (err) {
-      console.error("Failed to delete ingredient:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete ingredient");
-    }
-  };
-
-  // Recipe methods
-  const addRecipe = async (recipe: Omit<Recipe, "id">) => {
-    try {
-      const created = await api.recipes.create({
-        name: recipe.name,
-        isSellable: !recipe.isSubRecipe, // If it's a sub-recipe, it's not directly sellable
-        isSubRecipe: recipe.isSubRecipe || false,
-        ingredients: recipe.ingredients.map((ing) => ({
-          ingredientId: ing.ingredientId || undefined,
-          childRecipeId: ing.childRecipeId || undefined,
-          quantity: ing.quantity,
-        })),
-      });
-      setData((p: any) => ({
-        ...p,
-        recipes: [...p.recipes, convertRecipesFromAPI([created])[0]],
-      }));
-    } catch (err) {
-      console.error("Failed to add recipe:", err);
-      setError(err instanceof Error ? err.message : "Failed to add recipe");
-    }
-  };
-
-  const updateRecipe = async (id: string, recipe: Partial<Recipe>) => {
-    try {
-      const isSubRecipeValue = recipe.isSubRecipe === true;
-      const updated = await api.recipes.update(id, {
-        name: recipe.name || "",
-        isSellable: !isSubRecipeValue,
-        isSubRecipe: isSubRecipeValue,
-        ingredients: (recipe.ingredients || []).map((ing) => ({
-          ingredientId: ing.ingredientId || undefined,
-          childRecipeId: ing.childRecipeId || undefined,
-          quantity: ing.quantity,
-        })),
-      });
-      setData((p: any) => ({
-        ...p,
-        recipes: p.recipes.map((rec: Recipe) =>
-          rec.id === id ? convertRecipesFromAPI([updated])[0] : rec
-        ),
-      }));
-    } catch (err) {
-      console.error("Failed to update recipe:", err);
-      setError(err instanceof Error ? err.message : "Failed to update recipe");
-    }
-  };
-
-  const deleteRecipe = async (id: string) => {
-    try {
-      await api.recipes.delete(id);
-      setData((p: any) => ({
-        ...p,
-        recipes: p.recipes.filter((rec: Recipe) => rec.id !== id),
-      }));
-    } catch (err) {
-      console.error("Failed to delete recipe:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete recipe");
-    }
-  };
-
-  // Sales data methods
-  const addSalesData = async (salesData: Omit<SalesData, "id">) => {
-    try {
-      const created = await api.sales.create({
-        date: salesData.date,
-        recipeId: salesData.recipeId,
-        quantity: salesData.quantity,
-      });
-      setData((p: any) => ({
-        ...p,
-        salesData: [...p.salesData, convertSalesFromAPI([created])[0]],
-      }));
-    } catch (err) {
-      console.error("Failed to add sales data:", err);
-      setError(err instanceof Error ? err.message : "Failed to add sales data");
-    }
-  };
-
-  const updateSalesData = async (id: string, salesData: Partial<SalesData>) => {
-    try {
-      const updated = await api.sales.update(id, {
-        date: salesData.date || "",
-        recipeId: salesData.recipeId || "",
-        quantity: salesData.quantity || 0,
-      });
-      setData((p: any) => ({
-        ...p,
-        salesData: p.salesData.map((item: SalesData) =>
-          item.id === id ? convertSalesFromAPI([updated])[0] : item
-        ),
-      }));
-    } catch (err) {
-      console.error("Failed to update sales data:", err);
-      setError(err instanceof Error ? err.message : "Failed to update sales data");
-    }
-  };
-
-  const deleteSalesData = async (id: string) => {
-    try {
-      await api.sales.delete(id);
-      setData((p: any) => ({
-        ...p,
-        salesData: p.salesData.filter((item: SalesData) => item.id !== id),
-      }));
-    } catch (err) {
-      console.error("Failed to delete sales data:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete sales data");
-    }
-  };
-
-  // Wastage data methods
-  const addWastageData = async (wastageData: Omit<WastageData, "id">) => {
-    try {
-      const created = await api.wastage.create({
-        date: wastageData.date,
-        ingredientId: wastageData.ingredientId,
-        quantity: wastageData.quantity,
-      });
-      setData((p: any) => ({
-        ...p,
-        wastageData: [...p.wastageData, convertWastageFromAPI([created])[0]],
-      }));
-    } catch (err) {
-      console.error("Failed to add wastage data:", err);
-      setError(err instanceof Error ? err.message : "Failed to add wastage data");
-    }
-  };
-
-  const updateWastageData = async (id: string, wastageData: Partial<WastageData>) => {
-    try {
-      const updated = await api.wastage.update(id, {
-        date: wastageData.date || "",
-        ingredientId: wastageData.ingredientId || "",
-        quantity: wastageData.quantity || 0,
-      });
-      setData((p: any) => ({
-        ...p,
-        wastageData: p.wastageData.map((item: WastageData) =>
-          item.id === id ? convertWastageFromAPI([updated])[0] : item
-        ),
-      }));
-    } catch (err) {
-      console.error("Failed to update wastage data:", err);
-      setError(err instanceof Error ? err.message : "Failed to update wastage data");
-    }
-  };
-
-  const deleteWastageData = async (id: string) => {
-    try {
-      await api.wastage.delete(id);
-      setData((p: any) => ({
-        ...p,
-        wastageData: p.wastageData.filter((item: WastageData) => item.id !== id),
-      }));
-    } catch (err) {
-      console.error("Failed to delete wastage data:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete wastage data");
-    }
-  };
-
-  // Forecast and import/export methods
-  const updateForecastData = (forecastData: ForecastData[]) => {
-    setData((p: any) => ({ ...p, forecastData }));
-  };
-
-  const importSalesData = async (salesDataArray: SalesData[]) => {
-    try {
-      const created = await Promise.all(
-        salesDataArray.map((sale) =>
-          api.sales.create({
-            date: sale.date,
-            recipeId: sale.recipeId,
-            quantitySold: sale.quantity,
-          })
-        )
-      );
-      setData((p: any) => ({
-        ...p,
-        salesData: [...p.salesData, ...convertSalesFromAPI(created)],
-      }));
-    } catch (err) {
-      console.error("Failed to import sales data:", err);
-      setError(err instanceof Error ? err.message : "Failed to import sales data");
-    }
-  };
-
-  const exportData = () => {
-    // Implementation for export
-  };
-
-  // Store settings and users
-  const updateStoreSettings = async (settings: Partial<StoreSettings>) => {
-    try {
-      await api.store.update({
-        storeName: settings.storeName,
-        uen: settings.uen,
-        outletLocation: settings.outletLocation,
-        address: settings.address,
-        contactNumber: settings.contactNumber,
-        companyName: (settings as any).companyName,
-      });
-      setData((p: any) => ({
-        ...p,
-        storeSettings: { ...p.storeSettings, ...settings },
-      }));
-    } catch (err) {
-      console.error("Failed to update store settings:", err);
-      setError(err instanceof Error ? err.message : "Failed to update store settings");
-    }
-  };
-
-  const addUser = async (userData: Omit<User, "id"> & { password: string }): Promise<boolean> => {
-    try {
-      const created = await api.users.create({
-        username: userData.username,
-        password: userData.password,
-        name: userData.name,
-        email: userData.email || "",
-        role: userData.role,
-      });
-      setData((p: any) => ({
-        ...p,
-        storeUsers: [...p.storeUsers, {
-          id: created.id,
-          username: created.username,
-          name: created.name,
-          email: created.email,
-          role: created.role as "manager" | "employee",
-          status: created.status as "Active" | "Inactive",
-        }],
-      }));
       return true;
-    } catch (err) {
-      console.error("Failed to add user:", err);
-      setError(err instanceof Error ? err.message : "Failed to add user");
+    } catch (error) {
+      console.error('Login failed:', error);
       return false;
     }
   };
 
-  const updateUser = async (id: string, userData: Partial<User> & { password?: string }): Promise<boolean> => {
+  const logout = () => {
+    setUser(null);
+    setAuthToken(null);
+    setStoreSetupRequired(false);
+    setStoreSettings(defaultStoreSettings);
+    setStoreUsers([]);
+    setIngredients([]);
+    setRecipes([]);
+    setSalesData([]);
+    setWastageData([]);
+    setForecastData([]);
+    setHolidays([]);
+    setWeather(null);
+  };
+
+  const register = async (username: string, password: string, name: string, email: string): Promise<{ success: boolean; storeSetupRequired: boolean; error?: string }> => {
     try {
-      const updated = await api.users.update(id, {
+      const response = await authApi.register({ username, password, name, email });
+      setAuthToken(response.token);
+      setUser(mapUserDto(response.user));
+      setStoreSetupRequired(response.storeSetupRequired);
+      return { success: true, storeSetupRequired: response.storeSetupRequired };
+    } catch (error) {
+      console.error('Registration failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+      return { success: false, storeSetupRequired: false, error: errorMessage };
+    }
+  };
+
+  const updateProfile = async (data: { name?: string; email?: string }) => {
+    try {
+      const updated = await authApi.updateProfile(data);
+      setUser(mapUserDto(updated));
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // STORE SETTINGS FUNCTIONS
+  // ==========================================
+  const setupStore = async (settings: Partial<StoreSettings>) => {
+    try {
+      const updatedStore = await storeApi.setup({
+        companyName: settings.companyName,
+        uen: settings.uen,
+        storeName: settings.storeName,
+        outletLocation: settings.outletLocation,
+        address: settings.address,
+        contactNumber: settings.contactNumber,
+        latitude: settings.latitude,
+        longitude: settings.longitude,
+        countryCode: settings.countryCode,
+      });
+      setStoreSettings(mapStoreDto(updatedStore));
+      setStoreSetupRequired(false);
+    } catch (error) {
+      console.error('Failed to setup store:', error);
+      throw error;
+    }
+  };
+
+  const updateStoreSettings = async (settings: Partial<StoreSettings>) => {
+    try {
+      const updatedStore = await storeApi.update({
+        companyName: settings.companyName,
+        uen: settings.uen,
+        storeName: settings.storeName,
+        outletLocation: settings.outletLocation,
+        address: settings.address,
+        contactNumber: settings.contactNumber,
+        latitude: settings.latitude,
+        longitude: settings.longitude,
+        countryCode: settings.countryCode,
+      });
+      setStoreSettings(mapStoreDto(updatedStore));
+    } catch (error) {
+      console.error('Failed to update store settings:', error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // USER MANAGEMENT FUNCTIONS
+  // ==========================================
+  const addUser = async (userData: Omit<User, "id"> & { password?: string }) => {
+    try {
+      if (!userData.password) {
+        throw new Error('Password is required');
+      }
+      const newUser = await usersApi.create({
+        username: userData.username,
+        password: userData.password,
+        name: userData.name,
+        email: userData.email || '',
+        role: userData.role,
+      });
+      setStoreUsers(prev => [...prev, mapUserDto(newUser)]);
+    } catch (error) {
+      console.error('Failed to add user:', error);
+      throw error;
+    }
+  };
+
+  const updateUser = async (id: string, userData: Partial<User> & { password?: string }) => {
+    try {
+      const updatedUser = await usersApi.update(id, {
         username: userData.username,
         password: userData.password,
         name: userData.name,
@@ -641,62 +418,300 @@ export function AppProvider({ children }: { children: ReactNode }) {
         role: userData.role,
         status: userData.status,
       });
-      setData((p: any) => ({
-        ...p,
-        storeUsers: p.storeUsers.map((u: User) =>
-          u.id === id ? {
-            id: updated.id,
-            username: updated.username,
-            name: updated.name,
-            email: updated.email,
-            role: updated.role as "manager" | "employee",
-            status: updated.status as "Active" | "Inactive",
-          } : u
-        ),
-      }));
-      return true;
-    } catch (err) {
-      console.error("Failed to update user:", err);
-      setError(err instanceof Error ? err.message : "Failed to update user");
-      return false;
+      setStoreUsers(prev => prev.map(u => u.id === id ? mapUserDto(updatedUser) : u));
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw error;
     }
   };
 
-  const deleteUser = async (id: string): Promise<boolean> => {
+  const deleteUser = async (id: string) => {
     try {
-      await api.users.delete(id);
-      setData((p: any) => ({
-        ...p,
-        storeUsers: p.storeUsers.filter((u: User) => u.id !== id),
-      }));
-      return true;
-    } catch (err) {
-      console.error("Failed to delete user:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete user");
-      return false;
+      await usersApi.delete(id);
+      setStoreUsers(prev => prev.filter(u => u.id !== id));
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      throw error;
     }
+  };
+
+  // ==========================================
+  // INGREDIENT FUNCTIONS
+  // ==========================================
+  const addIngredient = async (ingredientData: Omit<Ingredient, "id">) => {
+    try {
+      const newIngredient = await ingredientsApi.create({
+        name: ingredientData.name,
+        unit: ingredientData.unit,
+        carbonFootprint: ingredientData.carbonFootprint,
+      });
+      setIngredients(prev => [...prev, mapIngredientDto(newIngredient)]);
+    } catch (error) {
+      console.error('Failed to add ingredient:', error);
+      throw error;
+    }
+  };
+
+  const updateIngredient = async (id: string, ingredientData: Partial<Ingredient>) => {
+    try {
+      const current = ingredients.find(i => i.id === id);
+      if (!current) throw new Error('Ingredient not found');
+
+      const updated = await ingredientsApi.update(id, {
+        name: ingredientData.name || current.name,
+        unit: ingredientData.unit || current.unit,
+        carbonFootprint: ingredientData.carbonFootprint ?? current.carbonFootprint,
+      });
+      setIngredients(prev => prev.map(i => i.id === id ? mapIngredientDto(updated) : i));
+    } catch (error) {
+      console.error('Failed to update ingredient:', error);
+      throw error;
+    }
+  };
+
+  const deleteIngredient = async (id: string) => {
+    try {
+      await ingredientsApi.delete(id);
+      setIngredients(prev => prev.filter(i => i.id !== id));
+    } catch (error) {
+      console.error('Failed to delete ingredient:', error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // RECIPE FUNCTIONS
+  // ==========================================
+  const addRecipe = async (recipeData: Omit<Recipe, "id">) => {
+    try {
+      const newRecipe = await recipesApi.create({
+        name: recipeData.name,
+        isSellable: recipeData.isSellable ?? !recipeData.isSubRecipe,
+        isSubRecipe: recipeData.isSubRecipe || false,
+        ingredients: recipeData.ingredients.map(ing => ({
+          ingredientId: ing.ingredientId,
+          childRecipeId: ing.childRecipeId,
+          quantity: ing.quantity,
+        })),
+      });
+      setRecipes(prev => [...prev, mapRecipeDto(newRecipe)]);
+    } catch (error) {
+      console.error('Failed to add recipe:', error);
+      throw error;
+    }
+  };
+
+  const updateRecipe = async (id: string, recipeData: Partial<Recipe>) => {
+    try {
+      const current = recipes.find(r => r.id === id);
+      if (!current) throw new Error('Recipe not found');
+
+      const updated = await recipesApi.update(id, {
+        name: recipeData.name || current.name,
+        isSellable: recipeData.isSellable ?? current.isSellable ?? !current.isSubRecipe,
+        isSubRecipe: recipeData.isSubRecipe ?? current.isSubRecipe ?? false,
+        ingredients: (recipeData.ingredients || current.ingredients).map(ing => ({
+          ingredientId: ing.ingredientId,
+          childRecipeId: ing.childRecipeId,
+          quantity: ing.quantity,
+        })),
+      });
+      setRecipes(prev => prev.map(r => r.id === id ? mapRecipeDto(updated) : r));
+    } catch (error) {
+      console.error('Failed to update recipe:', error);
+      throw error;
+    }
+  };
+
+  const deleteRecipe = async (id: string) => {
+    try {
+      await recipesApi.delete(id);
+      setRecipes(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Failed to delete recipe:', error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // SALES DATA FUNCTIONS
+  // ==========================================
+  const addSalesData = async (data: Omit<SalesData, "id">) => {
+    try {
+      const newSale = await salesApi.create({
+        date: data.date,
+        recipeId: data.recipeId,
+        quantity: data.quantity,
+      });
+      setSalesData(prev => [...prev, mapSalesDataDto(newSale)]);
+    } catch (error) {
+      console.error('Failed to add sales data:', error);
+      throw error;
+    }
+  };
+
+  const updateSalesData = async (id: string, data: Partial<SalesData>) => {
+    try {
+      const current = salesData.find(s => s.id === id);
+      if (!current) throw new Error('Sales data not found');
+
+      const updated = await salesApi.update(id, {
+        date: data.date || current.date,
+        recipeId: data.recipeId || current.recipeId,
+        quantity: data.quantity ?? current.quantity,
+      });
+      setSalesData(prev => prev.map(s => s.id === id ? mapSalesDataDto(updated) : s));
+    } catch (error) {
+      console.error('Failed to update sales data:', error);
+      throw error;
+    }
+  };
+
+  const deleteSalesData = async (id: string) => {
+    try {
+      await salesApi.delete(id);
+      setSalesData(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      console.error('Failed to delete sales data:', error);
+      throw error;
+    }
+  };
+
+  const importSalesData = async (data: SalesData[]) => {
+    try {
+      await salesApi.import({
+        salesData: data.map(d => ({
+          date: d.date,
+          recipeId: d.recipeId,
+          quantity: d.quantity,
+        })),
+      });
+      // Refresh sales data after import
+      const refreshed = await salesApi.getAll();
+      setSalesData(refreshed.map(mapSalesDataDto));
+    } catch (error) {
+      console.error('Failed to import sales data:', error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // WASTAGE DATA FUNCTIONS
+  // ==========================================
+  const addWastageData = async (data: Omit<WastageData, "id">) => {
+    try {
+      const newWastage = await wastageApi.create({
+        date: data.date,
+        ingredientId: data.ingredientId,
+        recipeId: data.recipeId,
+        quantity: data.quantity,
+      });
+      setWastageData(prev => [...prev, mapWastageDataDto(newWastage)]);
+    } catch (error) {
+      console.error('Failed to add wastage data:', error);
+      throw error;
+    }
+  };
+
+  const updateWastageData = async (id: string, data: Partial<WastageData>) => {
+    try {
+      const current = wastageData.find(w => w.id === id);
+      if (!current) throw new Error('Wastage data not found');
+
+      const updated = await wastageApi.update(id, {
+        date: data.date || current.date,
+        ingredientId: data.ingredientId || current.ingredientId,
+        recipeId: data.recipeId || current.recipeId,
+        quantity: data.quantity ?? current.quantity,
+      });
+      setWastageData(prev => prev.map(w => w.id === id ? mapWastageDataDto(updated) : w));
+    } catch (error) {
+      console.error('Failed to update wastage data:', error);
+      throw error;
+    }
+  };
+
+  const deleteWastageData = async (id: string) => {
+    try {
+      await wastageApi.delete(id);
+      setWastageData(prev => prev.filter(w => w.id !== id));
+    } catch (error) {
+      console.error('Failed to delete wastage data:', error);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // FORECAST FUNCTIONS
+  // ==========================================
+  const updateForecastData = (data: ForecastData[]) => {
+    setForecastData(data);
+  };
+
+  // ==========================================
+  // EXPORT FUNCTION
+  // ==========================================
+  const exportData = async (type: "sales" | "wastage" | "forecast") => {
+    try {
+      let blob: Blob;
+      let filename = '';
+  
+      if (type === 'sales') {
+        blob = await exportApi.getSalesCsv();
+        filename = 'sales_data.csv';
+      } else if (type === 'wastage') {
+        blob = await exportApi.getWastageCsv();
+        filename = 'wastage_data.csv';
+      } else if (type === 'forecast') {
+        blob = await exportApi.getForecastCsv();
+        filename = 'forecast_data.csv';
+      } else {
+        throw new Error('Invalid export type');
+      }
+  
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export data:', error);
+      // You might want to show a toast notification here
+    }
+  };
+
+  // ==========================================
+  // REFRESH DATA FUNCTION
+  // ==========================================
+  const refreshData = async () => {
+    await loadAllData();
   };
 
   const value: AppContextType = {
     user,
+    loading,
+    dataLoading,
     storeSetupRequired,
     login,
-    register,
-    completeStoreSetup,
     logout,
-    storeSettings: data.storeSettings,
+    register,
+    updateProfile,
+    changePassword,
+    setupStore,
+    storeSettings,
     updateStoreSettings,
-    loadStoreSettings,
-    storeUsers: data.storeUsers || [],
-    loadStoreUsers,
+    storeUsers,
     addUser,
     updateUser,
     deleteUser,
-    ingredients: data.ingredients,
-    recipes: data.recipes,
-    salesData: data.salesData,
-    wastageData: data.wastageData,
-    forecastData: data.forecastData,
+    ingredients,
+    recipes,
+    salesData,
+    wastageData,
+    forecastData,
     addIngredient,
     updateIngredient,
     deleteIngredient,
@@ -712,10 +727,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateForecastData,
     importSalesData,
     exportData,
-    holidays: data.holidays || [],
-    weather: data.weather || null,
-    loading,
-    error,
+    holidays,
+    weather,
+    refreshData,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

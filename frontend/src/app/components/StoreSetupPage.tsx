@@ -3,325 +3,238 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Store, MapPin, Phone, Calendar, Building2, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
-import { api, UpdateStoreRequest } from '@/app/services/api';
+import { ChefHat, AlertCircle, MapPin, Building2, Store, Globe } from 'lucide-react';
+import { useApp } from '@/app/context/AppContext';
 import { toast } from 'sonner';
 
-interface StoreSetupPageProps {
-    onSetupComplete: () => void;
-}
+export function StoreSetupPage() {
+  const { setupStore, user } = useApp();
+  const [formData, setFormData] = useState({
+    storeName: '',
+    companyName: '',
+    uen: '',
+    outletLocation: '',
+    address: '',
+    contactNumber: '',
+    latitude: '',
+    longitude: '',
+  });
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-export function StoreSetupPage({ onSetupComplete }: StoreSetupPageProps) {
-    const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState<UpdateStoreRequest>({
-        companyName: '',
-        uen: '',
-        storeName: '',
-        outletLocation: '',
-        contactNumber: '',
-        address: '',
-        latitude: 1.3521,
-        longitude: 103.8198,
-        openingDate: new Date().toISOString().split('T')[0],
-    });
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-        setError('');
-    };
+    // Validation
+    if (!formData.storeName.trim()) {
+      setError('Store name is required');
+      return;
+    }
 
-    const validateStep1 = (): boolean => {
-        if (!formData.storeName?.trim()) {
-            setError('Store name is required');
-            return false;
-        }
-        if (!formData.companyName?.trim()) {
-            setError('Company name is required');
-            return false;
-        }
-        return true;
-    };
+    const lat = parseFloat(formData.latitude);
+    const lng = parseFloat(formData.longitude);
 
-    const validateStep2 = (): boolean => {
-        if (!formData.outletLocation?.trim()) {
-            setError('Outlet location is required');
-            return false;
-        }
-        if (!formData.contactNumber?.trim()) {
-            setError('Contact number is required');
-            return false;
-        }
-        return true;
-    };
+    if (formData.latitude && (isNaN(lat) || lat < -90 || lat > 90)) {
+      setError('Latitude must be between -90 and 90');
+      return;
+    }
 
-    const handleNext = () => {
-        if (step === 1 && validateStep1()) {
-            setStep(2);
-        }
-    };
+    if (formData.longitude && (isNaN(lng) || lng < -180 || lng > 180)) {
+      setError('Longitude must be between -180 and 180');
+      return;
+    }
 
-    const handleBack = () => {
-        setStep(1);
-        setError('');
-    };
+    setIsLoading(true);
+    try {
+      await setupStore({
+        storeName: formData.storeName,
+        companyName: formData.companyName,
+        uen: formData.uen,
+        outletLocation: formData.outletLocation,
+        address: formData.address,
+        contactNumber: formData.contactNumber,
+        latitude: formData.latitude ? lat : undefined,
+        longitude: formData.longitude ? lng : undefined,
+      });
+      toast.success('Store setup complete! Country code will be automatically detected from coordinates.');
+    } catch (err) {
+      setError('Failed to setup store. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F9FBF7] p-4">
+      <Card className="w-full max-w-2xl shadow-lg rounded-[8px]">
+        <CardHeader className="space-y-4 text-center">
+          <div className="flex justify-center">
+            <div className="bg-[#4F6F52] p-4 rounded-full shadow-md">
+              <ChefHat className="w-12 h-12 text-white" />
+            </div>
+          </div>
+          <CardTitle className="text-3xl text-[#1A1C18]">Welcome, {user?.name}!</CardTitle>
+          <CardDescription className="text-[#6b7280]">
+            Let's set up your store to get started. The country code will be automatically detected from your coordinates.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Store Info Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-[#4F6F52] font-medium">
+                  <Store className="w-5 h-5" />
+                  <span>Store Information</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="storeName">Store Name *</Label>
+                  <Input
+                    id="storeName"
+                    type="text"
+                    placeholder="e.g., SmartSus Kitchen"
+                    value={formData.storeName}
+                    onChange={(e) => setFormData({...formData, storeName: e.target.value})}
+                    required
+                    className="rounded-[8px]"
+                  />
+                </div>
 
-        if (!validateStep2()) {
-            return;
-        }
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Company Name</Label>
+                  <Input
+                    id="companyName"
+                    type="text"
+                    placeholder="e.g., SmartSus Pte Ltd"
+                    value={formData.companyName}
+                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
+                    className="rounded-[8px]"
+                  />
+                </div>
 
-        setIsLoading(true);
-        try {
-            await api.store.setup({
-                ...formData,
-                openingDate: formData.openingDate || new Date().toISOString(),
-            });
+                <div className="space-y-2">
+                  <Label htmlFor="uen">UEN (Unique Entity Number)</Label>
+                  <Input
+                    id="uen"
+                    type="text"
+                    placeholder="e.g., 202012345A"
+                    value={formData.uen}
+                    onChange={(e) => setFormData({...formData, uen: e.target.value})}
+                    className="rounded-[8px]"
+                  />
+                </div>
 
-            toast.success('Store setup complete! Welcome to SmartSus Chef.');
-            onSetupComplete();
-        } catch (err: any) {
-            const message = err.message || 'Failed to set up store. Please try again.';
-            setError(message);
-            toast.error(message);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+                <div className="space-y-2">
+                  <Label htmlFor="contactNumber">Contact Number</Label>
+                  <Input
+                    id="contactNumber"
+                    type="text"
+                    placeholder="e.g., +65 6123 4567"
+                    value={formData.contactNumber}
+                    onChange={(e) => setFormData({...formData, contactNumber: e.target.value})}
+                    className="rounded-[8px]"
+                  />
+                </div>
+              </div>
 
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F9FBF7] p-4">
-            <Card className="w-full max-w-lg shadow-lg rounded-[8px]">
-                <CardHeader className="space-y-4 text-center">
-                    <div className="flex justify-center">
-                        <div className="bg-[#4F6F52] p-4 rounded-full shadow-md">
-                            <Store className="w-12 h-12 text-white" />
-                        </div>
-                    </div>
-                    <CardTitle className="text-2xl text-[#1A1C18]">Set Up Your Store</CardTitle>
-                    <CardDescription className="text-[#6b7280]">
-                        Please provide your store information to continue
-                    </CardDescription>
+              {/* Location Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-[#4F6F52] font-medium">
+                  <MapPin className="w-5 h-5" />
+                  <span>Location Details</span>
+                </div>
 
-                    {/* Progress indicator */}
-                    <div className="flex items-center justify-center gap-2 pt-2">
-                        <div className={`w-3 h-3 rounded-full ${step >= 1 ? 'bg-[#4F6F52]' : 'bg-gray-300'}`} />
-                        <div className={`w-12 h-1 ${step >= 2 ? 'bg-[#4F6F52]' : 'bg-gray-300'}`} />
-                        <div className={`w-3 h-3 rounded-full ${step >= 2 ? 'bg-[#4F6F52]' : 'bg-gray-300'}`} />
-                    </div>
-                    <p className="text-sm text-gray-500">Step {step} of 2</p>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {error && (
-                            <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                <span>{error}</span>
-                            </div>
-                        )}
+                <div className="space-y-2">
+                  <Label htmlFor="outletLocation">Outlet Location</Label>
+                  <Input
+                    id="outletLocation"
+                    type="text"
+                    placeholder="e.g., Orchard Road Branch"
+                    value={formData.outletLocation}
+                    onChange={(e) => setFormData({...formData, outletLocation: e.target.value})}
+                    className="rounded-[8px]"
+                  />
+                </div>
 
-                        {step === 1 ? (
-                            /* Step 1: Basic Info */
-                            <>
-                                <div className="space-y-2">
-                                    <Label htmlFor="storeName" className="flex items-center gap-2">
-                                        <Store className="w-4 h-4" />
-                                        Store Name *
-                                    </Label>
-                                    <Input
-                                        id="storeName"
-                                        name="storeName"
-                                        type="text"
-                                        placeholder="e.g., Aunty May's Cafe"
-                                        value={formData.storeName || ''}
-                                        onChange={handleChange}
-                                        required
-                                        className="rounded-[8px]"
-                                    />
-                                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Full Address</Label>
+                  <Input
+                    id="address"
+                    type="text"
+                    placeholder="e.g., 123 Orchard Road, #01-01"
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    className="rounded-[8px]"
+                  />
+                </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="companyName" className="flex items-center gap-2">
-                                        <Building2 className="w-4 h-4" />
-                                        Company Name *
-                                    </Label>
-                                    <Input
-                                        id="companyName"
-                                        name="companyName"
-                                        type="text"
-                                        placeholder="e.g., Aunty May's Pte Ltd"
-                                        value={formData.companyName || ''}
-                                        onChange={handleChange}
-                                        required
-                                        className="rounded-[8px]"
-                                    />
-                                </div>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-[8px] text-sm text-blue-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Globe className="w-4 h-4" />
+                    <span className="font-medium">Coordinates for Weather & Holidays</span>
+                  </div>
+                  <p className="text-xs">
+                    Enter your store's coordinates to enable automatic weather forecasting and local holiday detection.
+                    Country code will be automatically determined from coordinates.
+                  </p>
+                </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="uen">UEN (Business Registration Number)</Label>
-                                    <Input
-                                        id="uen"
-                                        name="uen"
-                                        type="text"
-                                        placeholder="e.g., 202012345Z"
-                                        value={formData.uen || ''}
-                                        onChange={handleChange}
-                                        className="rounded-[8px]"
-                                    />
-                                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="latitude">Latitude</Label>
+                    <Input
+                      id="latitude"
+                      type="text"
+                      placeholder="e.g., 1.3521"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData({...formData, latitude: e.target.value})}
+                      className="rounded-[8px]"
+                    />
+                  </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="openingDate" className="flex items-center gap-2">
-                                        <Calendar className="w-4 h-4" />
-                                        Store Opening Date
-                                    </Label>
-                                    <Input
-                                        id="openingDate"
-                                        name="openingDate"
-                                        type="date"
-                                        value={formData.openingDate?.split('T')[0] || ''}
-                                        onChange={handleChange}
-                                        className="rounded-[8px]"
-                                    />
-                                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="longitude">Longitude</Label>
+                    <Input
+                      id="longitude"
+                      type="text"
+                      placeholder="e.g., 103.8198"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData({...formData, longitude: e.target.value})}
+                      className="rounded-[8px]"
+                    />
+                  </div>
+                </div>
 
-                                <Button
-                                    type="button"
-                                    onClick={handleNext}
-                                    className="w-full bg-[#4F6F52] hover:bg-[#3d5a40] text-white rounded-[32px] h-11 mt-4"
-                                >
-                                    Continue
-                                </Button>
-                            </>
-                        ) : (
-                            /* Step 2: Location & Contact */
-                            <>
-                                <div className="space-y-2">
-                                    <Label htmlFor="outletLocation" className="flex items-center gap-2">
-                                        <MapPin className="w-4 h-4" />
-                                        Outlet Location *
-                                    </Label>
-                                    <Input
-                                        id="outletLocation"
-                                        name="outletLocation"
-                                        type="text"
-                                        placeholder="e.g., Orchard Central"
-                                        value={formData.outletLocation || ''}
-                                        onChange={handleChange}
-                                        required
-                                        className="rounded-[8px]"
-                                        disabled={isLoading}
-                                    />
-                                </div>
+                <p className="text-xs text-gray-500">
+                  Tip: You can find coordinates using Google Maps by right-clicking on your location.
+                </p>
+              </div>
+            </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="address">Full Address</Label>
-                                    <Input
-                                        id="address"
-                                        name="address"
-                                        type="text"
-                                        placeholder="e.g., 181 Orchard Rd, #04-01, Singapore 238896"
-                                        value={formData.address || ''}
-                                        onChange={handleChange}
-                                        className="rounded-[8px]"
-                                        disabled={isLoading}
-                                    />
-                                </div>
+            {error && (
+              <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 p-3 rounded-[8px]">
+                <AlertCircle className="w-4 h-4" />
+                <span>{error}</span>
+              </div>
+            )}
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="contactNumber" className="flex items-center gap-2">
-                                        <Phone className="w-4 h-4" />
-                                        Contact Number *
-                                    </Label>
-                                    <Input
-                                        id="contactNumber"
-                                        name="contactNumber"
-                                        type="tel"
-                                        placeholder="e.g., +65 6733 1234"
-                                        value={formData.contactNumber || ''}
-                                        onChange={handleChange}
-                                        required
-                                        className="rounded-[8px]"
-                                        disabled={isLoading}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="latitude">Latitude</Label>
-                                        <Input
-                                            id="latitude"
-                                            name="latitude"
-                                            type="number"
-                                            step="any"
-                                            placeholder="1.3521"
-                                            value={formData.latitude || ''}
-                                            onChange={handleChange}
-                                            className="rounded-[8px]"
-                                            disabled={isLoading}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="longitude">Longitude</Label>
-                                        <Input
-                                            id="longitude"
-                                            name="longitude"
-                                            type="number"
-                                            step="any"
-                                            placeholder="103.8198"
-                                            value={formData.longitude || ''}
-                                            onChange={handleChange}
-                                            className="rounded-[8px]"
-                                            disabled={isLoading}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="bg-green-50 p-3 rounded-lg text-sm text-green-700">
-                                    <div className="flex items-start gap-2">
-                                        <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                                        <span>
-                                            After setup, you can manage employees, track sales,
-                                            monitor wastage, and view demand forecasts.
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 mt-4">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={handleBack}
-                                        className="flex-1 rounded-[32px] h-11"
-                                        disabled={isLoading}
-                                    >
-                                        Back
-                                    </Button>
-                                    <Button
-                                        type="submit"
-                                        className="flex-1 bg-[#4F6F52] hover:bg-[#3d5a40] text-white rounded-[32px] h-11"
-                                        disabled={isLoading}
-                                    >
-                                        {isLoading ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Setting Up...
-                                            </>
-                                        ) : (
-                                            'Complete Setup'
-                                        )}
-                                    </Button>
-                                </div>
-                            </>
-                        )}
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
-    );
+            <Button 
+              type="submit" 
+              className="w-full bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] h-12 gap-2 text-base"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Setting up store...' : (
+                <>
+                  <Building2 className="w-5 h-5" />
+                  Complete Store Setup
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

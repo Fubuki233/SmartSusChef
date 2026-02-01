@@ -58,6 +58,10 @@ public class ForecastController : ControllerBase
     public async Task<ActionResult<WeatherDto>> GetWeather()
     {
         var weather = await _weatherService.GetCurrentWeatherAsync();
+        if (weather == null)
+        {
+            return NoContent();
+        }
         return Ok(weather);
     }
 
@@ -73,13 +77,22 @@ public class ForecastController : ControllerBase
         var store = await _storeService.GetStoreAsync();
         string countryCode;
 
-        if (store != null)
+        if (store == null || (store.Latitude == 0 && store.Longitude == 0))
         {
-            countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+            return Ok(new List<HolidayDto>());
+        }
+
+        if (!string.IsNullOrWhiteSpace(store.CountryCode))
+        {
+            countryCode = store.CountryCode;
         }
         else
         {
-            countryCode = "SG"; // Default to Singapore
+            countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+        }
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            return Ok(new List<HolidayDto>());
         }
 
         var holidays = await _holidayService.GetHolidaysAsync(year, countryCode);
@@ -95,22 +108,27 @@ public class ForecastController : ControllerBase
     {
         var tomorrow = DateTime.UtcNow.Date.AddDays(1);
 
-        // Get store coordinates or use default (Singapore)
-        decimal latitude = 1.3521m;
-        decimal longitude = 103.8198m;
+        decimal? latitude = null;
+        decimal? longitude = null;
+        string? countryCode = null;
 
         var store = await _storeService.GetStoreAsync();
-        if (store != null)
+        if (store != null && !(store.Latitude == 0 && store.Longitude == 0))
         {
             latitude = store.Latitude;
             longitude = store.Longitude;
+            countryCode = !string.IsNullOrWhiteSpace(store.CountryCode)
+                ? store.CountryCode
+                : await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
         }
 
-        // Get weather forecast for tomorrow
-        var weather = await _weatherService.GetWeatherForecastAsync(tomorrow, latitude, longitude);
+        WeatherForecastDto? weather = null;
+        if (latitude.HasValue && longitude.HasValue)
+        {
+            weather = await _weatherService.GetWeatherForecastAsync(tomorrow, latitude.Value, longitude.Value);
+        }
 
-        // Get calendar info
-        var calendar = await GetCalendarDayAsync(tomorrow, "SG", latitude, longitude);
+        var calendar = await GetCalendarDayAsync(tomorrow, countryCode, latitude, longitude);
 
         return Ok(new TomorrowForecastDto(
             tomorrow.ToString("yyyy-MM-dd"),
@@ -130,18 +148,21 @@ public class ForecastController : ControllerBase
             return BadRequest(new { message = "Invalid date format. Use yyyy-MM-dd" });
         }
 
-        // Get store coordinates or use default (Singapore)
-        decimal latitude = 1.3521m;
-        decimal longitude = 103.8198m;
+        decimal? latitude = null;
+        decimal? longitude = null;
+        string? countryCode = null;
 
         var store = await _storeService.GetStoreAsync();
-        if (store != null)
+        if (store != null && !(store.Latitude == 0 && store.Longitude == 0))
         {
             latitude = store.Latitude;
             longitude = store.Longitude;
+            countryCode = !string.IsNullOrWhiteSpace(store.CountryCode)
+                ? store.CountryCode
+                : await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
         }
 
-        var calendar = await GetCalendarDayAsync(targetDate, "SG", latitude, longitude);
+        var calendar = await GetCalendarDayAsync(targetDate, countryCode, latitude, longitude);
         return Ok(calendar);
     }
 
@@ -173,21 +194,24 @@ public class ForecastController : ControllerBase
             return BadRequest(new { message = "Date range cannot exceed 30 days" });
         }
 
-        // Get store coordinates or use default (Singapore)
-        decimal latitude = 1.3521m;
-        decimal longitude = 103.8198m;
+        decimal? latitude = null;
+        decimal? longitude = null;
+        string? countryCode = null;
 
         var store = await _storeService.GetStoreAsync();
-        if (store != null)
+        if (store != null && !(store.Latitude == 0 && store.Longitude == 0))
         {
             latitude = store.Latitude;
             longitude = store.Longitude;
+            countryCode = !string.IsNullOrWhiteSpace(store.CountryCode)
+                ? store.CountryCode
+                : await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
         }
 
         var result = new List<CalendarDayDto>();
         for (var date = start; date <= end; date = date.AddDays(1))
         {
-            var calendar = await GetCalendarDayAsync(date, "SG", latitude, longitude);
+            var calendar = await GetCalendarDayAsync(date, countryCode, latitude, longitude);
             result.Add(calendar);
         }
 
@@ -199,12 +223,16 @@ public class ForecastController : ControllerBase
     /// </summary>
     private async Task<CalendarDayDto> GetCalendarDayAsync(
         DateTime date,
-        string countryCode,
-        decimal latitude,
-        decimal longitude)
+        string? countryCode,
+        decimal? latitude,
+        decimal? longitude)
     {
-        // Check if it's a public holiday
-        var (isHoliday, holidayName) = await _holidayService.IsHolidayAsync(date, countryCode);
+        bool isHoliday = false;
+        string? holidayName = null;
+        if (!string.IsNullOrWhiteSpace(countryCode))
+        {
+            (isHoliday, holidayName) = await _holidayService.IsHolidayAsync(date, countryCode);
+        }
 
         // Check if it's a school holiday
         var isSchoolHoliday = _holidayService.IsSchoolHoliday(date);
@@ -213,7 +241,11 @@ public class ForecastController : ControllerBase
         var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 
         // Get weather forecast
-        var weather = await _weatherService.GetWeatherForecastAsync(date, latitude, longitude);
+        WeatherForecastDto? weather = null;
+        if (latitude.HasValue && longitude.HasValue)
+        {
+            weather = await _weatherService.GetWeatherForecastAsync(date, latitude.Value, longitude.Value);
+        }
 
         return new CalendarDayDto(
             date.ToString("yyyy-MM-dd"),

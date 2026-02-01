@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
-import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/app/components/ui/dialog';
@@ -14,6 +13,8 @@ import { Trash2, Edit, History, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays, subDays } from 'date-fns';
 import { WastageData, EditHistory } from '@/app/types/index';
+import { getRecipeUnit, calculateRecipeCarbon } from '@/app/utils/recipeCalculations';
+import { getStandardizedQuantity } from '@/app/utils/unitConversion';
 
 export function WastageManagement() {
   const { user, wastageData, ingredients, recipes, updateWastageData } = useApp();
@@ -22,10 +23,9 @@ export function WastageManagement() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingData, setEditingData] = useState<WastageData | null>(null);
   const [newQuantity, setNewQuantity] = useState<string>('');
-  const [editReason, setEditReason] = useState('');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<WastageData | null>(null);
 
-  // --- LOGIC FIX: Check both recipeId and ingredientId ---
+  // --- LOGIC: Check both recipeId and ingredientId ---
   const getItemInfo = (recipeId?: string | null, ingredientId?: string | null) => {
     // 1. Try to find a Recipe/Sub-Recipe first
     if (recipeId) {
@@ -34,12 +34,12 @@ export function WastageManagement() {
         return {
           name: recipe.name,
           type: recipe.isSubRecipe ? 'Sub-Recipe' : 'Dish',
-          unit: recipe.isSubRecipe ? 'L' : 'plate',
+          unit: getRecipeUnit(recipe), // Use utility function
           badgeColor: recipe.isSubRecipe ? 'bg-[#E67E22]' : 'bg-[#3498DB]'
         };
       }
     }
-    
+
     // 2. Fallback to Ingredient if no recipe found
     if (ingredientId) {
       const ingredient = ingredients.find(i => i.id === ingredientId);
@@ -52,7 +52,7 @@ export function WastageManagement() {
         };
       }
     }
-    
+
     // Fallback for corrupted or legacy "ghost" data
     return { name: 'Unknown Item', type: 'Unknown', unit: '-', badgeColor: 'bg-gray-400' };
   };
@@ -70,10 +70,10 @@ export function WastageManagement() {
       data = data.filter((waste) => {
         // Pass both IDs to get accurate type for filtering
         const info = getItemInfo(waste.recipeId, waste.ingredientId);
-        return info.type.toLowerCase() === selectedType.toLowerCase() || 
-               (selectedType === 'Dish' && info.type === 'Dish') ||
-               (selectedType === 'Sub-Recipe' && info.type === 'Sub-Recipe') ||
-               (selectedType === 'Raw' && info.type === 'Raw');
+        return info.type.toLowerCase() === selectedType.toLowerCase() ||
+          (selectedType === 'Dish' && info.type === 'Dish') ||
+          (selectedType === 'Sub-Recipe' && info.type === 'Sub-Recipe') ||
+          (selectedType === 'Raw' && info.type === 'Raw');
       });
     }
 
@@ -82,23 +82,30 @@ export function WastageManagement() {
 
   const stats = useMemo(() => {
     const ingredientMap = new Map(ingredients.map((i) => [i.id, i]));
+    const recipeMap = new Map(recipes.map((r) => [r.id, r]));
+
     const totals = filteredData.reduce((acc, waste) => {
       acc.quantity += waste.quantity;
-      
+
       // Carbon footprint calculation
-      if (waste.ingredientId) {
+      if (waste.recipeId) {
+        // Use accurate recipe carbon calculation
+        const carbonPerUnit = calculateRecipeCarbon(waste.recipeId, recipeMap, ingredientMap);
+        acc.carbon += carbonPerUnit * waste.quantity;
+      } else if (waste.ingredientId) {
+        // Ingredient carbon calculation
         const ingredient = ingredientMap.get(waste.ingredientId);
         if (ingredient) {
-          acc.carbon += waste.quantity * ingredient.carbonFootprint;
+          const standardQty = getStandardizedQuantity(waste.quantity, ingredient.unit);
+          acc.carbon += standardQty * ingredient.carbonFootprint;
         }
-      } else {
-        // For dishes/sub-recipes, using a mock value (can be expanded to aggregate recipe ingredients)
-        acc.carbon += waste.quantity * 0.5; 
       }
+
       return acc;
     }, { quantity: 0, carbon: 0 });
+
     return totals;
-  }, [filteredData, ingredients]);
+  }, [filteredData, ingredients, recipes]);
 
   const canEdit = (dateStr: string): boolean => {
     const today = new Date();
@@ -116,7 +123,6 @@ export function WastageManagement() {
     }
     setEditingData(data);
     setNewQuantity(data.quantity.toString());
-    setEditReason('');
     setIsEditDialogOpen(true);
   };
 
@@ -124,10 +130,9 @@ export function WastageManagement() {
     setIsEditDialogOpen(false);
     setEditingData(null);
     setNewQuantity('');
-    setEditReason('');
   };
 
-  const handleSubmitEdit = () => {
+  const handleSubmitEdit = async () => {
     if (!editingData) return;
 
     const quantity = parseFloat(newQuantity);
@@ -136,28 +141,16 @@ export function WastageManagement() {
       return;
     }
 
-    if (!editReason.trim()) {
-      toast.error('Please provide a reason for editing this historical data');
-      return;
+    try {
+      await updateWastageData(editingData.id, {
+        quantity,
+      });
+
+      toast.success('Wastage data updated successfully');
+      handleCloseEditDialog();
+    } catch (error) {
+      toast.error('Failed to update wastage data');
     }
-
-    const historyEntry: EditHistory = {
-      timestamp: new Date().toISOString(),
-      editedBy: user?.name || 'Unknown User',
-      reason: editReason.trim(),
-      previousValue: editingData.quantity,
-      newValue: quantity,
-    };
-
-    const updatedHistory = [...(editingData.editHistory || []), historyEntry];
-    
-    updateWastageData(editingData.id, {
-      quantity,
-      editHistory: updatedHistory,
-    });
-
-    toast.success('Wastage data updated successfully');
-    handleCloseEditDialog();
   };
 
   const handleViewHistory = (data: WastageData) => {
@@ -176,7 +169,7 @@ export function WastageManagement() {
           <Trash2 className="w-6 h-6 text-[#E74C3C]" />
           Wastage Data Management
         </h1>
-        <p className="text-gray-600 mt-1">Audit log and data controls for <span className="font-bold text-[#4F6F52]">{useApp().storeSettings.storeName}</span></p>
+        <p className="text-gray-600 mt-1">Audit log and data controls for store management</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -311,10 +304,6 @@ export function WastageManagement() {
           </DialogHeader>
           {editingData && (
             <div className="space-y-4 pt-2">
-              <div className="bg-amber-50 border border-amber-200 rounded-[8px] p-3 text-sm">
-                <p className="text-amber-800 font-semibold flex items-center gap-1">⚠️ Audit Notice</p>
-                <p className="text-amber-700 mt-1">This change will be logged for audit purposes. Please provide a detailed reason.</p>
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-500 uppercase tracking-wider">Date</Label>
@@ -334,10 +323,6 @@ export function WastageManagement() {
               <div className="space-y-2">
                 <Label htmlFor="new-quantity" className="text-sm font-semibold">New Quantity *</Label>
                 <Input id="new-quantity" type="number" step="0.1" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} className="rounded-[8px]" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reason" className="text-sm font-semibold">Reason for Edit *</Label>
-                <Textarea id="reason" placeholder="e.g., Wrong quantity entered by staff..." value={editReason} onChange={(e) => setEditReason(e.target.value)} rows={3} className="rounded-[8px] resize-none" />
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={handleCloseEditDialog} className="rounded-[32px] px-6">Cancel</Button>

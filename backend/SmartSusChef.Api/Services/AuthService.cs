@@ -71,10 +71,19 @@ public class AuthService : IAuthService
             return new RegisterResult(null, RegisterErrorType.UsernameExists);
         }
 
+        // Generate unique store ID using hash
+        var storeId = GenerateUniqueStoreId();
+
+        // Ensure unique store ID
+        while (await _context.Store.AnyAsync(s => s.Id == storeId))
+        {
+            storeId = GenerateUniqueStoreId();
+        }
+
         // Create new empty store for this manager (multi-store system)
         var store = new Store
         {
-            // Id is auto-generated
+            Id = storeId,
             CompanyName = "",
             UEN = "",
             StoreName = "", // Empty - indicates setup required
@@ -174,6 +183,7 @@ public class AuthService : IAuthService
     public async Task<List<UserListDto>> GetAllUsersAsync(int storeId)
     {
         var users = await _context.Users
+            .AsNoTracking()
             .Where(u => u.StoreId == storeId)
             .OrderBy(u => u.CreatedAt)
             .ToListAsync();
@@ -232,6 +242,58 @@ public class AuthService : IAuthService
         );
     }
 
+    public async Task<UserDto?> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return null;
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+            user.Name = request.Name;
+
+        if (!string.IsNullOrWhiteSpace(request.Email))
+            user.Email = request.Email;
+
+        user.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return new UserDto(
+            user.Id.ToString(),
+            user.Username,
+            user.Name,
+            user.Email,
+            user.Role.ToString().ToLower(),
+            user.UserStatus
+        );
+    }
+
+    public async Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return false;
+
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+            return false;
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<string?> ResetPasswordAsync(string emailOrUsername)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == emailOrUsername || u.Username == emailOrUsername);
+
+        if (user == null) return null;
+
+        var tempPassword = Guid.NewGuid().ToString("N")[..8];
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return tempPassword;
+    }
+
     public async Task<bool> DeleteUserAsync(Guid userId)
     {
         var user = await _context.Users.FindAsync(userId);
@@ -275,5 +337,20 @@ public class AuthService : IAuthService
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    /// <summary>
+    /// Generate a unique store ID using timestamp and random hash
+    /// </summary>
+    private static int GenerateUniqueStoreId()
+    {
+        // Combine timestamp with random bytes to create unique hash
+        var timestamp = DateTime.UtcNow.Ticks;
+        var random = Random.Shared.Next();
+        var combined = $"{timestamp}-{random}-{Guid.NewGuid()}";
+
+        // Get hash code and ensure positive
+        var hash = combined.GetHashCode();
+        return hash < 0 ? -hash : hash;
     }
 }

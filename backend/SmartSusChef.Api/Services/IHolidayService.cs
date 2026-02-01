@@ -4,9 +4,11 @@ namespace SmartSusChef.Api.Services;
 
 public interface IHolidayService
 {
-    /// <summary>
-    /// Get holidays for a specific year and country code
-    /// </summary>
+    Task SyncHolidaysAsync(int year, string countryCode);
+    Task<bool> IsHolidayAsync(DateTime date);
+
+    // Methods required by ForecastController
+    Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude);
     Task<List<HolidayDto>> GetHolidaysAsync(int year, string? countryCode = null);
 
     /// <summary>
@@ -21,14 +23,4 @@ public interface IHolidayService
     /// 2. Two weeks before and after Chinese New Year are winter holidays
     /// </summary>
     bool IsSchoolHoliday(DateTime date);
-
-    /// <summary>
-    /// Get Chinese New Year date for a specific year
-    /// </summary>
-    DateTime? GetChineseNewYear(int year);
-
-    /// <summary>
-    /// Get country code from latitude and longitude coordinates
-    /// </summary>
-    Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude);
 }

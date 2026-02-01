@@ -54,6 +54,7 @@ public class StoreService : IStoreService
             existingStore.OpeningDate = request.OpeningDate;
             existingStore.Latitude = request.Latitude;
             existingStore.Longitude = request.Longitude;
+            existingStore.CountryCode = request.CountryCode;
             existingStore.Address = request.Address;
             existingStore.IsActive = request.IsActive;
             existingStore.UpdatedAt = DateTime.UtcNow;
@@ -73,6 +74,7 @@ public class StoreService : IStoreService
             OpeningDate = request.OpeningDate,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
+            CountryCode = request.CountryCode,
             Address = request.Address,
             IsActive = request.IsActive,
             CreatedAt = DateTime.UtcNow,
@@ -111,6 +113,14 @@ public class StoreService : IStoreService
         return await UpdateStoreInternal(store, request);
     }
 
+    // Added method to satisfy test requirement
+    public async Task<bool> UpdateStoreSettingsAsync(int storeId, string storeName)
+    {
+        var request = new UpdateStoreRequest(null, null, storeName, null, null, null, null, null, null, null, null);
+        var result = await UpdateStoreByIdAsync(storeId, request);
+        return result != null;
+    }
+
     private async Task<StoreDto> UpdateStoreInternal(Store store, UpdateStoreRequest request)
     {
         // Update only provided fields
@@ -130,6 +140,8 @@ public class StoreService : IStoreService
             store.Latitude = request.Latitude.Value;
         if (request.Longitude.HasValue)
             store.Longitude = request.Longitude.Value;
+        if (request.CountryCode != null)
+            store.CountryCode = request.CountryCode;
         if (request.Address != null)
             store.Address = request.Address;
         if (request.IsActive.HasValue)
@@ -168,6 +180,7 @@ public class StoreService : IStoreService
             store.OpeningDate,
             store.Latitude,
             store.Longitude,
+            store.CountryCode,
             store.Address,
             store.IsActive,
             store.CreatedAt,

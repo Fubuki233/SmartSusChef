@@ -1,11 +1,11 @@
 import React from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format, parseISO, isAfter, isBefore, addDays } from 'date-fns';
 
 export function CalendarWidget() {
-  const { holidays } = useApp();
+  const { holidays, dataLoading } = useApp();
   const today = new Date();
   const nextWeek = addDays(today, 7);
 
@@ -29,7 +29,12 @@ export function CalendarWidget() {
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
-          {upcomingHolidays.length > 0 ? (
+          {dataLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+              <span className="ml-2 text-sm text-gray-500">Loading events...</span>
+            </div>
+          ) : upcomingHolidays.length > 0 ? (
             upcomingHolidays.map((event) => {
               const eventDate = parseISO(event.date);
               return (

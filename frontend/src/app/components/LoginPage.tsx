@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app
 import { ChefHat, AlertCircle, ArrowLeft, MailCheck, UserPlus } from 'lucide-react';
 import { useApp } from '@/app/context/AppContext';
 import { toast } from 'sonner';
+import { authApi } from '@/app/services/api';
 
 interface LoginPageProps {
   onNavigateToRegister?: () => void;
+  onLoginSuccess?: () => void;
 }
 
-export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
+export function LoginPage({ onNavigateToRegister, onLoginSuccess }: LoginPageProps) {
   const context = useApp();
   if (!context) return null;
   const { login } = context;
@@ -19,6 +21,7 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,28 +30,29 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
     setError('');
     setIsLoading(true);
     try {
-      const result = await login(username, password);
-      if (!result.success) {
+      const success = await login(username, password);
+      if (!success) {
         setError('Invalid credentials. Please key in the correct username and password.');
-        toast.error('Login failed');
       } else {
-        toast.success('Login successful!');
+        onLoginSuccess?.();
       }
     } catch (err) {
-      setError('An error occurred during login. Please try again.');
-      toast.error('Login error');
-      console.error(err);
+      setError('Failed to connect to the server. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResetRequest = (e: React.FormEvent) => {
+  const handleResetRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Feature 18B logic
-    // Simulate sending email
-    setView('success');
-    toast.success(`Reset link sent to ${email}`);
+    try {
+      const response = await authApi.forgotPassword({ emailOrUsername: email });
+      setTempPassword(response.temporaryPassword);
+      setView('success');
+      toast.success('Temporary password generated');
+    } catch (err) {
+      toast.error('Failed to reset password. Please check the email/username.');
+    }
   };
 
   /* --- View 1: Success Message --- */
@@ -64,7 +68,12 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
             </div>
             <div className="space-y-2">
               <h2 className="text-2xl font-bold text-[#1A1C18]">Check your email</h2>
-              <p className="text-gray-500">We've sent a password reset link to <strong>{email}</strong></p>
+              <p className="text-gray-500">We've generated a temporary password for <strong>{email}</strong></p>
+              {tempPassword && (
+                <div className="bg-[#F9FBF7] border border-[#E6EFE0] rounded-lg px-3 py-2 text-sm text-[#1A1C18]">
+                  Temporary Password: <span className="font-semibold">{tempPassword}</span>
+                </div>
+              )}
             </div>
             <Button onClick={() => setView('login')} variant="outline" className="w-full rounded-[32px] border-[#4F6F52] text-[#4F6F52]">
               Return to Login
@@ -135,38 +144,34 @@ export function LoginPage({ onNavigateToRegister }: LoginPageProps) {
                 </div>
               )}
 
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="bg-[#4F6F52] hover:bg-[#3d563f] text-white w-full rounded-[32px]"
-              >
+              <Button type="submit" disabled={isLoading} className="bg-[#4F6F52] hover:bg-[#3d563f] text-white w-full rounded-[32px]">
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
 
-              {onNavigateToRegister && (
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-gray-600 text-center mb-3">New to SmartSus Chef?</p>
+              <div className="pt-4 border-t">
+                <p className="text-sm text-gray-600 text-center mb-3">Don't have an account?</p>
+                {onNavigateToRegister && (
                   <Button
                     type="button"
                     variant="outline"
                     onClick={onNavigateToRegister}
-                    className="w-full rounded-[32px] border-[#4F6F52] text-[#4F6F52] hover:bg-[#4F6F52] hover:text-white"
+                    className="w-full rounded-[32px] border-[#4F6F52] text-[#4F6F52] hover:bg-[#4F6F52]/5 gap-2"
                   >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Create Manager Account
+                    <UserPlus className="w-4 h-4" />
+                    Register as Manager
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </form>
           ) : (
             /* --- View 3: Forgot Password Form --- */
             <form onSubmit={handleResetRequest} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="reset-email">Email Address</Label>
+                <Label htmlFor="reset-email">Email or Username</Label>
                 <Input
                   id="reset-email"
-                  type="email"
-                  placeholder="Enter your registered email"
+                  type="text"
+                  placeholder="Enter your email or username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

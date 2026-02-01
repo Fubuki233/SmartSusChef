@@ -17,143 +17,171 @@ public class ApplicationDbContext : DbContext
     public DbSet<SalesData> SalesData { get; set; }
     public DbSet<WastageData> WastageData { get; set; }
     public DbSet<Store> Store { get; set; }
-    
+
     public DbSet<GlobalCalendarSignals> GlobalCalendarSignals { get; set; }
-    
+
     public DbSet<ForecastData> ForecastData { get; set; }
+    public DbSet<HolidayCalendar> HolidayCalendars { get; set; }
+    public DbSet<WeatherDaily> WeatherDaily { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
-{
-    base.OnModelCreating(modelBuilder);
-
-    // Store Configuration (Enhanced with corporate fields)
-    modelBuilder.Entity<Store>(entity =>
     {
-        entity.HasKey(e => e.Id);
-        entity.Property(e => e.Id).ValueGeneratedNever(); // Singleton-friendly ID
-        entity.Property(e => e.CompanyName).IsRequired().HasMaxLength(255);
-        entity.Property(e => e.UEN).IsRequired().HasMaxLength(20);
-        entity.Property(e => e.StoreName).IsRequired().HasMaxLength(200);
-        entity.Property(e => e.OutletLocation).HasMaxLength(200);
-        entity.Property(e => e.Latitude).HasPrecision(10, 7);
-        entity.Property(e => e.Longitude).HasPrecision(10, 7);
-        entity.Property(e => e.ContactNumber).HasMaxLength(20);
-    });
+        base.OnModelCreating(modelBuilder);
 
-    // User Configuration
-    modelBuilder.Entity<User>(entity =>
-    {
-        entity.HasKey(e => e.Id);
-        entity.HasIndex(e => e.Username).IsUnique();
-        entity.Property(e => e.Username).IsRequired().HasMaxLength(50);
-        entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
-        entity.Property(e => e.UserStatus).HasDefaultValue("Active");
-        entity.Property(e => e.Role).HasConversion<string>();
-        
-        // Link to Store
-        entity.HasOne(e => e.Store)
-              .WithMany(s => s.Users)
-              .HasForeignKey(e => e.StoreId);
-    });
+        // Store Configuration (Enhanced with corporate fields)
+        modelBuilder.Entity<Store>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever(); // ID is generated via hash
+            entity.Property(e => e.CompanyName).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.UEN).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.StoreName).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.OutletLocation).HasMaxLength(200);
+            entity.Property(e => e.Latitude).HasPrecision(10, 7);
+            entity.Property(e => e.Longitude).HasPrecision(10, 7);
+            entity.Property(e => e.CountryCode).HasMaxLength(2);
+            entity.Property(e => e.ContactNumber).HasMaxLength(20);
+        });
 
-    // Ingredient Configuration
-    modelBuilder.Entity<Ingredient>(entity =>
-    {
-        entity.HasKey(e => e.Id);
-        entity.Property(e => e.CarbonFootprint).HasPrecision(18, 3);
-        
-        entity.HasOne(e => e.Store)
-              .WithMany(s => s.Ingredients)
-              .HasForeignKey(e => e.StoreId);
-    });
+        // User Configuration
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Username).IsUnique();
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.UserStatus).HasDefaultValue("Active");
+            entity.Property(e => e.Role).HasConversion<string>();
 
-    // Recipe Configuration (Support for sub-recipes)
-    modelBuilder.Entity<Recipe>(entity =>
-    {
-        entity.HasKey(e => e.Id);
-        entity.HasOne(e => e.Store)
-              .WithMany(s => s.Recipes)
-              .HasForeignKey(e => e.StoreId);
-    });
+            // Link to Store
+            entity.HasOne(e => e.Store)
+                  .WithMany(s => s.Users)
+                  .HasForeignKey(e => e.StoreId);
+        });
 
-    // RecipeIngredient Configuration (Recursive BOM Logic)
-    modelBuilder.Entity<RecipeIngredient>(entity =>
-    {
-        entity.HasKey(e => e.Id);
-        entity.Property(e => e.Quantity).HasPrecision(18, 3);
+        // Ingredient Configuration
+        modelBuilder.Entity<Ingredient>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CarbonFootprint).HasPrecision(18, 3);
 
-        // Link to Parent Recipe
-        entity.HasOne(e => e.Recipe)
-              .WithMany(r => r.RecipeIngredients)
-              .HasForeignKey(e => e.RecipeId);
+            // Unique index for (StoreId, Name)
+            entity.HasIndex(e => new { e.StoreId, e.Name }).IsUnique();
 
-        // Optional link to Raw Ingredient
-        entity.HasOne(e => e.Ingredient)
-              .WithMany(i => i.RecipeIngredients)
-              .HasForeignKey(e => e.IngredientId)
-              .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.Store)
+                  .WithMany(s => s.Ingredients)
+                  .HasForeignKey(e => e.StoreId);
+        });
 
-        // Optional link to Child Sub-Recipe
-        entity.HasOne(e => e.ChildRecipe)
-              .WithMany()
-              .HasForeignKey(e => e.ChildRecipeId)
-              .OnDelete(DeleteBehavior.Restrict); // Prevent circular deletes
-    });
+        // Recipe Configuration (Support for sub-recipes)
+        modelBuilder.Entity<Recipe>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            // Unique index for (StoreId, Name)
+            entity.HasIndex(e => new { e.StoreId, e.Name }).IsUnique();
 
-    // SalesData Configuration
-    modelBuilder.Entity<SalesData>(entity =>
-    {
-        entity.HasKey(e => e.Id);
-        entity.HasOne(e => e.Store)
-              .WithMany(s => s.SalesData)
-              .HasForeignKey(e => e.StoreId);
-        entity.HasOne(e => e.Recipe)
-              .WithMany(r => r.SalesRecords)
-              .HasForeignKey(e => e.RecipeId);
-    });
+            entity.HasOne(e => e.Store)
+                  .WithMany(s => s.Recipes)
+                  .HasForeignKey(e => e.StoreId);
+        });
 
-    // WastageData Configuration (Either/Or Logic)
-    modelBuilder.Entity<WastageData>(entity =>
-    {
-        entity.HasKey(e => e.Id);
-        entity.Property(e => e.Quantity).HasPrecision(18, 3);
-        
-        entity.HasOne(e => e.Store)
-              .WithMany(s => s.WastageData)
-              .HasForeignKey(e => e.StoreId);
+        // RecipeIngredient Configuration (Recursive BOM Logic)
+        modelBuilder.Entity<RecipeIngredient>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
 
-        // Flexible links
-        entity.HasOne(e => e.Ingredient)
-              .WithMany(i => i.WastageRecords)
-              .HasForeignKey(e => e.IngredientId);
+            // Link to Parent Recipe
+            entity.HasOne(e => e.Recipe)
+                  .WithMany(r => r.RecipeIngredients)
+                  .HasForeignKey(e => e.RecipeId);
 
-        entity.HasOne(e => e.Recipe)
-              .WithMany(r => r.WastageRecords)
-              .HasForeignKey(e => e.RecipeId);
-    });
+            // Optional link to Raw Ingredient
+            entity.HasOne(e => e.Ingredient)
+                  .WithMany(i => i.RecipeIngredients)
+                  .HasForeignKey(e => e.IngredientId)
+                  .OnDelete(DeleteBehavior.SetNull);
 
-    // ForecastData Configuration (New Predictive Entity)
-    modelBuilder.Entity<ForecastData>(entity =>
-    {
-        entity.HasKey(e => e.Id);
-        entity.HasOne(e => e.Store)
-              .WithMany(s => s.ForecastData)
-              .HasForeignKey(e => e.StoreId);
-        entity.HasOne(e => e.Recipe)
-              .WithMany()
-              .HasForeignKey(e => e.RecipeId);
-    });
+            // Optional link to Child Sub-Recipe
+            entity.HasOne(e => e.ChildRecipe)
+                  .WithMany()
+                  .HasForeignKey(e => e.ChildRecipeId)
+                  .OnDelete(DeleteBehavior.Restrict); // Prevent circular deletes
+        });
 
-    // GlobalCalendarSignals Configuration (Date as Key)
-    modelBuilder.Entity<GlobalCalendarSignals>(entity =>
-    {
-        entity.HasKey(e => e.Date);
-        entity.Property(e => e.RainMm).HasPrecision(10, 2);
-    });
+        // SalesData Configuration
+        modelBuilder.Entity<SalesData>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Store)
+                  .WithMany(s => s.SalesData)
+                  .HasForeignKey(e => e.StoreId);
+            entity.HasOne(e => e.Recipe)
+                  .WithMany(r => r.SalesRecords)
+                  .HasForeignKey(e => e.RecipeId);
+        });
 
-    // Seed data
-    SeedData(modelBuilder);
-}
+        // WastageData Configuration (Either/Or Logic)
+        modelBuilder.Entity<WastageData>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
+
+            entity.HasOne(e => e.Store)
+                  .WithMany(s => s.WastageData)
+                  .HasForeignKey(e => e.StoreId);
+
+            // Flexible links
+            entity.HasOne(e => e.Ingredient)
+                  .WithMany(i => i.WastageRecords)
+                  .HasForeignKey(e => e.IngredientId);
+
+            entity.HasOne(e => e.Recipe)
+                  .WithMany(r => r.WastageRecords)
+                  .HasForeignKey(e => e.RecipeId);
+        });
+
+        // ForecastData Configuration (New Predictive Entity)
+        modelBuilder.Entity<ForecastData>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Store)
+                  .WithMany(s => s.ForecastData)
+                  .HasForeignKey(e => e.StoreId);
+            entity.HasOne(e => e.Recipe)
+                  .WithMany()
+                  .HasForeignKey(e => e.RecipeId);
+        });
+
+        // GlobalCalendarSignals Configuration (Date as Key)
+        modelBuilder.Entity<GlobalCalendarSignals>(entity =>
+        {
+            entity.HasKey(e => e.Date);
+            entity.Property(e => e.RainMm).HasPrecision(10, 2);
+        });
+
+        // HolidayCalendar Configuration (Country + Year)
+        modelBuilder.Entity<HolidayCalendar>(entity =>
+        {
+            entity.HasKey(e => new { e.CountryCode, e.Year });
+            entity.Property(e => e.CountryCode).IsRequired().HasMaxLength(2);
+            entity.Property(e => e.HolidaysJson).IsRequired();
+        });
+
+        // WeatherDaily Configuration (Store + Date)
+        modelBuilder.Entity<WeatherDaily>(entity =>
+        {
+            entity.HasKey(e => new { e.StoreId, e.Date });
+            entity.Property(e => e.Temperature).HasPrecision(10, 2);
+            entity.HasOne<Store>()
+                  .WithMany()
+                  .HasForeignKey(e => e.StoreId);
+        });
+
+        // Seed data
+        SeedData(modelBuilder);
+    }
 
     private void SeedData(ModelBuilder modelBuilder)
     {

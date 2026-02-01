@@ -21,6 +21,7 @@ public class RecipeService : IRecipeService
     public async Task<List<RecipeDto>> GetAllAsync()
     {
         var recipes = await _context.Recipes
+            .AsNoTracking()
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.ChildRecipe)
             .Where(r => r.StoreId == CurrentStoreId)
@@ -33,6 +34,7 @@ public class RecipeService : IRecipeService
     public async Task<RecipeDto?> GetByIdAsync(Guid id)
     {
         var recipe = await _context.Recipes
+            .AsNoTracking()
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.ChildRecipe)
             .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == CurrentStoreId);
@@ -42,6 +44,14 @@ public class RecipeService : IRecipeService
 
     public async Task<RecipeDto> CreateAsync(CreateRecipeRequest request)
     {
+        var nameExists = await _context.Recipes
+            .AnyAsync(r => r.StoreId == CurrentStoreId && r.Name == request.Name);
+        if (nameExists)
+            throw new InvalidOperationException("Recipe name already exists");
+
+        // Validate basic structure (e.g. either ingredient or sub-recipe, not both)
+        ValidateIngredientsStructure(request.Ingredients);
+
         var recipe = new Recipe
         {
             Id = Guid.NewGuid(),
@@ -53,13 +63,15 @@ public class RecipeService : IRecipeService
             UpdatedAt = DateTime.UtcNow
         };
 
-        foreach (var riReq in request.Ingredients)
+        // Aggregate duplicate ingredients
+        var aggregatedIngredients = AggregateIngredients(request.Ingredients);
+
+        foreach (var riReq in aggregatedIngredients)
         {
             recipe.RecipeIngredients.Add(new RecipeIngredient
             {
                 Id = Guid.NewGuid(),
                 RecipeId = recipe.Id,
-                // Fixed variable names from riRequest to riReq
                 IngredientId = string.IsNullOrEmpty(riReq.IngredientId) ? null : Guid.Parse(riReq.IngredientId),
                 ChildRecipeId = string.IsNullOrEmpty(riReq.ChildRecipeId) ? null : Guid.Parse(riReq.ChildRecipeId),
                 Quantity = riReq.Quantity
@@ -79,6 +91,24 @@ public class RecipeService : IRecipeService
             .FirstOrDefaultAsync(r => r.Id == id && r.StoreId == CurrentStoreId);
 
         if (recipe == null) return null;
+
+        if (!string.Equals(recipe.Name, request.Name, StringComparison.Ordinal))
+        {
+            var nameExists = await _context.Recipes
+                .AnyAsync(r => r.StoreId == CurrentStoreId && r.Name == request.Name && r.Id != id);
+            if (nameExists)
+                throw new InvalidOperationException("Recipe name already exists");
+        }
+
+        ValidateIngredientsStructure(request.Ingredients);
+
+        if (recipe.IsSubRecipe && !request.IsSubRecipe)
+        {
+            var isChild = await _context.RecipeIngredients
+                .AnyAsync(ri => ri.ChildRecipeId == id);
+            if (isChild)
+                throw new InvalidOperationException("Sub-recipe is used by other recipes and cannot be converted to main recipe");
+        }
 
         recipe.Name = request.Name;
         recipe.IsSellable = request.IsSellable;
@@ -102,8 +132,11 @@ public class RecipeService : IRecipeService
         // Save the recipe changes first
         await _context.SaveChangesAsync();
 
+        // Aggregate duplicate ingredients
+        var aggregatedIngredients = AggregateIngredients(request.Ingredients);
+
         // Add new ingredients
-        foreach (var riReq in request.Ingredients)
+        foreach (var riReq in aggregatedIngredients)
         {
             var newIngredient = new RecipeIngredient
             {
@@ -123,6 +156,7 @@ public class RecipeService : IRecipeService
     public async Task<decimal> CalculateTotalCarbonFootprintAsync(Guid recipeId)
     {
         var recipe = await _context.Recipes
+            .AsNoTracking()
             .Include(r => r.RecipeIngredients).ThenInclude(ri => ri.Ingredient)
             .FirstOrDefaultAsync(r => r.Id == recipeId && r.StoreId == CurrentStoreId);
 
@@ -158,9 +192,66 @@ public class RecipeService : IRecipeService
 
         if (recipe == null) return false;
 
+        var isChild = await _context.RecipeIngredients
+            .AnyAsync(ri => ri.ChildRecipeId == id);
+
+        if (isChild)
+        {
+            throw new InvalidOperationException("Recipe is used as a sub-recipe and cannot be deleted");
+        }
+
         _context.Recipes.Remove(recipe);
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    private static void ValidateIngredientsStructure(List<CreateRecipeIngredientRequest> ingredients)
+    {
+        foreach (var item in ingredients)
+        {
+            var hasIngredient = !string.IsNullOrWhiteSpace(item.IngredientId);
+            var hasChildRecipe = !string.IsNullOrWhiteSpace(item.ChildRecipeId);
+
+            if (hasIngredient == hasChildRecipe)
+            {
+                throw new InvalidOperationException("Each recipe item must specify either an ingredient or a sub-recipe");
+            }
+        }
+    }
+
+    private static List<CreateRecipeIngredientRequest> AggregateIngredients(List<CreateRecipeIngredientRequest> ingredients)
+    {
+        var aggregated = new List<CreateRecipeIngredientRequest>();
+
+        // Group by IngredientId
+        var ingredientGroups = ingredients
+            .Where(i => !string.IsNullOrWhiteSpace(i.IngredientId))
+            .GroupBy(i => i.IngredientId);
+
+        foreach (var group in ingredientGroups)
+        {
+            aggregated.Add(new CreateRecipeIngredientRequest(
+                group.Key,
+                null,
+                group.Sum(i => i.Quantity)
+            ));
+        }
+
+        // Group by ChildRecipeId
+        var childRecipeGroups = ingredients
+            .Where(i => !string.IsNullOrWhiteSpace(i.ChildRecipeId))
+            .GroupBy(i => i.ChildRecipeId);
+
+        foreach (var group in childRecipeGroups)
+        {
+            aggregated.Add(new CreateRecipeIngredientRequest(
+                null,
+                group.Key,
+                group.Sum(i => i.Quantity)
+            ));
+        }
+
+        return aggregated;
     }
 
     private static RecipeDto MapToDto(Recipe recipe)

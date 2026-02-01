@@ -25,45 +25,47 @@ function MainContent() {
     );
   }
 
-  const { user, storeSetupRequired, completeStoreSetup } = context;
+  const { user, loading, storeSetupRequired } = context;
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [authView, setAuthView] = useState<AuthView>('login');
 
-  // Not logged in - show login or register
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F9FBF7]">
+        <div className="text-center p-8 bg-white rounded-lg shadow-sm border">
+          <p className="text-gray-600 animate-pulse">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not logged in - show login or register page
   if (!user) {
     if (authView === 'register') {
       return (
-        <>
-          <RegisterPage
-            onRegisterSuccess={() => {
-              // After registration, user will need to set up store
-              // The context will automatically set storeSetupRequired to true
-            }}
-            onBackToLogin={() => setAuthView('login')}
-          />
-          <Toaster position="top-right" />
-        </>
+        <RegisterPage
+          onBackToLogin={() => setAuthView('login')}
+          onRegisterSuccess={() => { }} // Will automatically show store setup if needed
+        />
       );
     }
     return (
-      <>
-        <LoginPage onNavigateToRegister={() => setAuthView('register')} />
-        <Toaster position="top-right" />
-      </>
+      <LoginPage
+        onNavigateToRegister={() => setAuthView('register')}
+        onLoginSuccess={() => {
+          setAuthView('login');
+          setCurrentView('dashboard');
+        }}
+      />
     );
   }
 
   // Logged in but store setup required
   if (storeSetupRequired) {
-    return (
-      <>
-        <StoreSetupPage onSetupComplete={completeStoreSetup} />
-        <Toaster position="top-right" />
-      </>
-    );
+    return <StoreSetupPage />;
   }
 
-  // Fully logged in with store set up
+  // Logged in and store is set up
   return (
     <div className="min-h-screen bg-[#F9FBF7]">
       <Header

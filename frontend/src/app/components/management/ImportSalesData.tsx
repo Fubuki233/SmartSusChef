@@ -122,34 +122,39 @@ export function ImportSalesData() {
     }
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (errors.length > 0) {
       toast.error('Please fix all errors before importing');
       return;
     }
 
     const recipeMap = new Map(recipes.map(r => [r.name.toLowerCase(), r.id]));
-    let importedCount = 0;
+    const salesToImport: { date: string; recipeId: string; quantity: number }[] = [];
 
     csvData.forEach((row) => {
       const recipeId = recipeMap.get(row.Dish_Name.trim().toLowerCase());
       if (recipeId) {
-        // Auto-correct currency formatting
         const quantity = parseFloat(row.Quantity_Sold);
-        
-        addSalesData({
+        salesToImport.push({
           date: row.Date,
           recipeId,
           quantity,
         });
-        importedCount++;
       }
     });
 
-    toast.success(`Successfully imported ${importedCount} sales records`);
-    setCsvData([]);
-    setErrors([]);
-    setShowPreview(false);
+    try {
+      // Import all sales data
+      for (const sale of salesToImport) {
+        await addSalesData(sale);
+      }
+      toast.success(`Successfully imported ${salesToImport.length} sales records`);
+      setCsvData([]);
+      setErrors([]);
+      setShowPreview(false);
+    } catch (error) {
+      toast.error('Failed to import sales data');
+    }
   };
 
   const handleCancel = () => {

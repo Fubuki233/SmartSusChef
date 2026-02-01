@@ -80,6 +80,27 @@ namespace SmartSusChef.Api.Migrations
                     b.ToTable("GlobalCalendarSignals");
                 });
 
+            modelBuilder.Entity("SmartSusChef.Api.Models.HolidayCalendar", b =>
+                {
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("varchar(2)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.Property<string>("HolidaysJson")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("CountryCode", "Year");
+
+                    b.ToTable("HolidayCalendars");
+                });
+
             modelBuilder.Entity("SmartSusChef.Api.Models.Ingredient", b =>
                 {
                     b.Property<Guid>("Id")
@@ -118,51 +139,51 @@ namespace SmartSusChef.Api.Migrations
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
                             CarbonFootprint = 1.1m,
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4390),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6434),
                             Name = "Tomato",
                             StoreId = 1,
                             Unit = "kg",
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4390)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6434)
                         },
                         new
                         {
                             Id = new Guid("44444444-4444-4444-4444-444444444444"),
                             CarbonFootprint = 13.5m,
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4390),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6438),
                             Name = "Cheese",
                             StoreId = 1,
                             Unit = "kg",
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4390)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6439)
                         },
                         new
                         {
                             Id = new Guid("55555555-5555-5555-5555-555555555555"),
                             CarbonFootprint = 0.9m,
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4410),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6459),
                             Name = "Dough",
                             StoreId = 1,
                             Unit = "kg",
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4410)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6460)
                         },
                         new
                         {
                             Id = new Guid("66666666-6666-6666-6666-666666666666"),
                             CarbonFootprint = 0.5m,
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4410),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6463),
                             Name = "Lettuce",
                             StoreId = 1,
                             Unit = "kg",
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4410)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6463)
                         },
                         new
                         {
                             Id = new Guid("77777777-7777-7777-7777-777777777777"),
                             CarbonFootprint = 27.0m,
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4410),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6466),
                             Name = "Beef",
                             StoreId = 1,
                             Unit = "kg",
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4410)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6467)
                         });
                 });
 
@@ -201,22 +222,22 @@ namespace SmartSusChef.Api.Migrations
                         new
                         {
                             Id = new Guid("88888888-8888-8888-8888-888888888888"),
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4440),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6562),
                             IsSellable = false,
                             IsSubRecipe = false,
                             Name = "Margherita Pizza",
                             StoreId = 1,
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4440)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6564)
                         },
                         new
                         {
                             Id = new Guid("99999999-9999-9999-9999-999999999999"),
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4440),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6566),
                             IsSellable = false,
                             IsSubRecipe = false,
                             Name = "Beef Burger",
                             StoreId = 1,
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4440)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(6567)
                         });
                 });
 
@@ -345,6 +366,10 @@ namespace SmartSusChef.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("varchar(2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -390,7 +415,7 @@ namespace SmartSusChef.Api.Migrations
                             Id = 1,
                             CompanyName = "Smart Sus Chef Corp",
                             ContactNumber = "+65 6000 0000",
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 58, 985, DateTimeKind.Utc).AddTicks(8100),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 7, DateTimeKind.Utc).AddTicks(7704),
                             IsActive = true,
                             Latitude = 0m,
                             Longitude = 0m,
@@ -398,7 +423,7 @@ namespace SmartSusChef.Api.Migrations
                             OutletLocation = "123 Orchard Road",
                             StoreName = "Downtown Outlet",
                             UEN = "202400001A",
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 58, 985, DateTimeKind.Utc).AddTicks(8100)
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 7, DateTimeKind.Utc).AddTicks(7707)
                         });
                 });
 
@@ -458,26 +483,26 @@ namespace SmartSusChef.Api.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 96, DateTimeKind.Utc).AddTicks(7380),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 125, DateTimeKind.Utc).AddTicks(4058),
                             Email = "",
                             Name = "Administrator",
-                            PasswordHash = "$2a$11$b/6y0xvJkmDXxuTNJu0PlutfA.UDmSQSK48hGOQnw2NxCLEcNJThG",
+                            PasswordHash = "$2a$11$UgKlLTqGhRjy8vBUxfq4D.rAslh1BvCkBfTNIFeLmL5pmyk1p.1he",
                             Role = "Manager",
                             StoreId = 1,
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 96, DateTimeKind.Utc).AddTicks(7380),
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 125, DateTimeKind.Utc).AddTicks(4067),
                             UserStatus = "Active",
                             Username = "admin"
                         },
                         new
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            CreatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4180),
+                            CreatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(5605),
                             Email = "",
                             Name = "Employee User",
-                            PasswordHash = "$2a$11$1L1XFjTvpHjqy67yiTn4TOIkcj6NJtebzIKQxyw1GygATf7LFG/8O",
+                            PasswordHash = "$2a$11$9cbaY78NhA4ZnhWUdW9hs.Hh.OiEoL1RZTaBzL3Ng5fPoqUwWgJz2",
                             Role = "Employee",
                             StoreId = 1,
-                            UpdatedAt = new DateTime(2026, 1, 27, 11, 42, 59, 206, DateTimeKind.Utc).AddTicks(4180),
+                            UpdatedAt = new DateTime(2026, 1, 29, 10, 32, 34, 246, DateTimeKind.Utc).AddTicks(5611),
                             UserStatus = "Active",
                             Username = "employee"
                         });
@@ -520,6 +545,37 @@ namespace SmartSusChef.Api.Migrations
                     b.HasIndex("StoreId");
 
                     b.ToTable("WastageData");
+                });
+
+            modelBuilder.Entity("SmartSusChef.Api.Models.WeatherDaily", b =>
+                {
+                    b.Property<int>("StoreId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Condition")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("Humidity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Temperature")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("StoreId", "Date");
+
+                    b.ToTable("WeatherDaily");
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.ForecastData", b =>
@@ -639,6 +695,15 @@ namespace SmartSusChef.Api.Migrations
                     b.Navigation("Recipe");
 
                     b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("SmartSusChef.Api.Models.WeatherDaily", b =>
+                {
+                    b.HasOne("SmartSusChef.Api.Models.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.Ingredient", b =>

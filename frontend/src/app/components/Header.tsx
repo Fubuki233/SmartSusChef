@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '@/app/context/AppContext';
-import { Bell, User as UserIcon, ChefHat, LogOut, Settings } from 'lucide-react';
+import { ChefHat, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import {
   DropdownMenu,
@@ -54,11 +54,6 @@ export function Header({ onNavigateToSettings, showSettingsLink = true }: Header
         )}
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="relative text-gray-600 rounded-full h-10 w-10">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-[#E74C3C] rounded-full border-2 border-white"></span>
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-3 px-2 rounded-full hover:bg-gray-100 h-10">

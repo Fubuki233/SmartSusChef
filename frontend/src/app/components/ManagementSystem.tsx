@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { Button } from '@/app/components/ui/button';
-import { ArrowLeft, LogOut, ChefHat, Package, Upload, Trash2, Download, Users } from 'lucide-react';
+import { ArrowLeft, LogOut, ChefHat, Package, Upload, Trash2, Download, DollarSign } from 'lucide-react';
 import { RecipeManagement } from '@/app/components/management/RecipeManagement';
 import { IngredientManagement } from '@/app/components/management/IngredientManagement';
 import { ImportSalesData } from '@/app/components/management/ImportSalesData';
+import { SalesManagement } from '@/app/components/management/SalesManagement'; // FIX: Import Component
 import { WastageManagement } from '@/app/components/management/WastageManagement';
 import { ExportData } from '@/app/components/management/ExportData';
-import { StaffManagement } from '@/app/components/management/StaffManagement';
 
 interface ManagementSystemProps {
   onNavigateToDashboard: () => void;
 }
 
-type MenuSection = 'recipes' | 'ingredients' | 'import' | 'wastage' | 'export' | 'staff';
+// FIX: Added 'sales' to the type definition
+type MenuSection = 'recipes' | 'ingredients' | 'sales' | 'import' | 'wastage' | 'export';
 
 export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProps) {
   const { storeSettings } = useApp();
@@ -23,9 +24,10 @@ export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProp
     { id: 'recipes' as MenuSection, label: 'Recipe Management', icon: ChefHat },
     { id: 'ingredients' as MenuSection, label: 'Ingredient Management', icon: Package },
     { id: 'import' as MenuSection, label: 'Import Sales Data', icon: Upload },
+    // FIX: Added Sales Data Management Link
+    { id: 'sales' as MenuSection, label: 'Sales Data Management', icon: DollarSign }, 
     { id: 'wastage' as MenuSection, label: 'Wastage Data Management', icon: Trash2 },
     { id: 'export' as MenuSection, label: 'Export Data', icon: Download },
-    { id: 'staff' as MenuSection, label: 'Staff Management', icon: Users },
   ];
 
   return (
@@ -79,9 +81,10 @@ export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProp
           {activeSection === 'recipes' && <RecipeManagement />}
           {activeSection === 'ingredients' && <IngredientManagement />}
           {activeSection === 'import' && <ImportSalesData />}
+          {/* FIX: Added conditional render for SalesManagement */}
+          {activeSection === 'sales' && <SalesManagement />} 
           {activeSection === 'wastage' && <WastageManagement />}
           {activeSection === 'export' && <ExportData />}
-          {activeSection === 'staff' && <StaffManagement />}
         </div>
       </main>
     </div>

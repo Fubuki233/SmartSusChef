@@ -37,8 +37,7 @@ import {
   Pencil,
   Trash2,
   MapPin,
-  Phone,
-  Loader2
+  Phone
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { User } from '@/app/types';
@@ -53,18 +52,17 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
     updateStoreSettings,
     storeUsers,
     user,
+    updateProfile,
+    changePassword,
     addUser,
     updateUser,
-    deleteUser,
-    loadStoreUsers
+    deleteUser
   } = useApp();
 
   const isManager = user?.role === 'manager';
 
   const [formData, setFormData] = useState({ ...storeSettings });
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
 
   // User Dialog State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -78,13 +76,15 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
     status: 'Active' as 'Active' | 'Inactive'
   });
 
-  // Load users on mount for managers
-  useEffect(() => {
-    if (isManager) {
-      setIsLoadingUsers(true);
-      loadStoreUsers().finally(() => setIsLoadingUsers(false));
-    }
-  }, [isManager, loadStoreUsers]);
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+  });
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+  });
 
   // Sync form when editing starts or dialog opens
   useEffect(() => {
@@ -93,7 +93,7 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
         name: editingUser.name,
         email: editingUser.email || '',
         username: editingUser.username,
-        password: '', // Don't pre-fill password for editing
+        password: '',
         role: editingUser.role,
         status: editingUser.status || 'Active'
       });
@@ -108,6 +108,13 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
       });
     }
   }, [editingUser, isUserDialogOpen]);
+
+  useEffect(() => {
+    setProfileForm({
+      name: user?.name || '',
+      email: user?.email || '',
+    });
+  }, [user]);
 
   const handleSaveStore = async () => {
     if (!isManager) return;
@@ -129,39 +136,23 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
       return;
     }
 
-    // Password required for new users
-    if (!editingUser && !userForm.password) {
-      toast.error('Password is required for new users');
-      return;
-    }
-
-    setIsSubmittingUser(true);
     try {
       if (editingUser) {
-        await updateUser(editingUser.id, {
-          name: userForm.name,
-          email: userForm.email,
-          role: userForm.role,
-          status: userForm.status
-        });
+        await updateUser(editingUser.id, userForm.password ? userForm : { ...userForm, password: undefined });
         toast.success('User updated successfully');
       } else {
-        await addUser({
-          name: userForm.name,
-          email: userForm.email,
-          username: userForm.username,
-          password: userForm.password,
-          role: userForm.role
-        });
+        if (!userForm.password) {
+          toast.error('Please set a password for the new user');
+          return;
+        }
+        await addUser(userForm);
         toast.success('New user added successfully');
       }
 
       setIsUserDialogOpen(false);
       setEditingUser(null);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save user');
-    } finally {
-      setIsSubmittingUser(false);
+    } catch (error) {
+      toast.error('Failed to save user');
     }
   };
 
@@ -179,9 +170,40 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
       try {
         await deleteUser(id);
         toast.success("User deleted successfully");
-      } catch (error: any) {
-        toast.error(error.message || "Failed to delete user");
+      } catch (error) {
+        toast.error("Failed to delete user");
       }
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      toast.error('Please enter both current and new password');
+      return;
+    }
+    if (passwordForm.currentPassword === passwordForm.newPassword) {
+      toast.error('New password must be different');
+      return;
+    }
+    try {
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+      toast.success('Password updated successfully');
+      setPasswordForm({ currentPassword: '', newPassword: '' });
+    } catch (error) {
+      toast.error('Failed to update password');
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileForm.name || !profileForm.email) {
+      toast.error('Please fill in name and email');
+      return;
+    }
+    try {
+      await updateProfile({ name: profileForm.name, email: profileForm.email });
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      toast.error('Failed to update profile');
     }
   };
 
@@ -284,6 +306,50 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
                     <Label className="text-sm font-bold text-gray-700">Store Address</Label>
                     <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="rounded-[8px] border-gray-200" />
                   </div>
+
+                  {/* Location Coordinates Section */}
+                  <div className="md:col-span-2 pt-4 border-t">
+                    <div className="flex items-center gap-2 mb-4">
+                      <MapPin className="w-5 h-5 text-[#4F6F52]" />
+                      <span className="text-sm font-bold text-gray-700">Location Coordinates (for Weather & Holidays)</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm text-gray-600">Latitude</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="e.g., 1.3521"
+                          value={formData.latitude ?? ''}
+                          onChange={(e) => setFormData({ ...formData, latitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          className="rounded-[8px] border-gray-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm text-gray-600">Longitude</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          placeholder="e.g., 103.8198"
+                          value={formData.longitude ?? ''}
+                          onChange={(e) => setFormData({ ...formData, longitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                          className="rounded-[8px] border-gray-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm text-gray-600">Country Code (Auto-detected)</Label>
+                        <Input
+                          placeholder="Auto-detected from coordinates"
+                          value={formData.countryCode ?? ''}
+                          onChange={(e) => setFormData({ ...formData, countryCode: e.target.value })}
+                          className="rounded-[8px] border-gray-200 bg-gray-50"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Country code will be automatically detected when you save if coordinates are provided and country code is empty.
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -313,69 +379,56 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
                 </Button>
               </CardHeader>
               <CardContent className="p-0">
-                {isLoadingUsers ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#4F6F52]" />
-                    <span className="ml-2 text-gray-500">Loading team members...</span>
-                  </div>
-                ) : storeUsers.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-                    <Users className="w-12 h-12 text-gray-300 mb-2" />
-                    <p>No team members yet</p>
-                    <p className="text-sm">Click "Add New User" to invite your first team member</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50/50">
-                        <TableHead className="font-bold py-4 pl-6">User Info</TableHead>
-                        <TableHead className="font-bold py-4">Role</TableHead>
-                        <TableHead className="font-bold py-4">Status</TableHead>
-                        <TableHead className="font-bold py-4 text-right pr-6">Actions</TableHead>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50/50">
+                      <TableHead className="font-bold py-4 pl-6">User Info</TableHead>
+                      <TableHead className="font-bold py-4">Role</TableHead>
+                      <TableHead className="font-bold py-4">Status</TableHead>
+                      <TableHead className="font-bold py-4 text-right pr-6">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {storeUsers.map((u) => (
+                      <TableRow key={u.id} className="hover:bg-gray-50/30">
+                        <TableCell className="py-4 pl-6">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                              <AvatarFallback className="bg-[#4F6F52]/10 text-[#4F6F52] text-xs font-bold">
+                                {u.name.split(' ').map(n => n[0]).join('')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium text-sm">{u.name}</p>
+                              <p className="text-[11px] text-[#4F6F52] font-mono">@{u.username}</p>
+                              <p className="text-[11px] text-gray-400">{u.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`uppercase text-[10px] ${u.role === 'manager' ? 'border-[#4F6F52] text-[#4F6F52]' : ''}`}>
+                            {u.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={`text-[10px] ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {u.status || 'Active'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEditUser(u)} className="h-8 w-8 rounded-full hover:bg-[#4F6F52]/10">
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(u.id)} className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {storeUsers.map((u) => (
-                        <TableRow key={u.id} className="hover:bg-gray-50/30">
-                          <TableCell className="py-4 pl-6">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-9 w-9">
-                                <AvatarFallback className="bg-[#4F6F52]/10 text-[#4F6F52] text-xs font-bold">
-                                  {u.name.split(' ').map(n => n[0]).join('')}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium text-sm">{u.name}</p>
-                                <p className="text-[11px] text-[#4F6F52] font-mono">@{u.username}</p>
-                                <p className="text-[11px] text-gray-400">{u.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`uppercase text-[10px] ${u.role === 'manager' ? 'border-[#4F6F52] text-[#4F6F52]' : ''}`}>
-                              {u.role}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className={`text-[10px] ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                              {u.status || 'Active'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right pr-6">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => handleEditUser(u)} className="h-8 w-8 rounded-full hover:bg-[#4F6F52]/10">
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(u.id)} className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600" disabled={u.id === user?.id}>
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
@@ -395,13 +448,28 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-gray-700">Current Password</Label>
-                  <Input type="password" placeholder="••••••••" className="rounded-[8px] border-gray-200" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                    className="rounded-[8px] border-gray-200"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-bold text-gray-700">New Password</Label>
-                  <Input type="password" placeholder="••••••••" className="rounded-[8px] border-gray-200" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                    className="rounded-[8px] border-gray-200"
+                  />
                 </div>
-                <Button className="w-full bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] h-11 shadow-sm mt-2">
+                <Button
+                  onClick={handleUpdatePassword}
+                  className="w-full bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] h-11 shadow-sm mt-2"
+                >
                   Update Password
                 </Button>
               </CardContent>
@@ -419,14 +487,26 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-bold text-gray-700">Full Name</Label>
-                    <Input defaultValue={user?.name} className="rounded-[8px] border-gray-200" />
+                    <Input
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="rounded-[8px] border-gray-200"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-bold text-gray-700">Email Address</Label>
-                    <Input defaultValue={user?.email} className="rounded-[8px] border-gray-200" />
+                    <Input
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
+                      className="rounded-[8px] border-gray-200"
+                    />
                   </div>
                 </div>
-                <Button variant="outline" className="w-full border-[#4F6F52] text-[#4F6F52] hover:bg-[#4F6F52]/5 rounded-[32px] h-11">
+                <Button
+                  variant="outline"
+                  onClick={handleSaveProfile}
+                  className="w-full border-[#4F6F52] text-[#4F6F52] hover:bg-[#4F6F52]/5 rounded-[32px] h-11"
+                >
                   Save Profile Info
                 </Button>
               </CardContent>
@@ -473,25 +553,18 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
               </p>
             </div>
 
-            {/* Password field - only for new users */}
-            {!editingUser && (
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-bold">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Create a secure password"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                  className="rounded-[8px]"
-                  required
-                  minLength={6}
-                />
-                <p className="text-[10px] text-gray-400 italic px-1">
-                  Minimum 6 characters. User can change password after first login.
-                </p>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-sm font-bold">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder={editingUser ? "Leave blank to keep current password" : "Set a temporary password"}
+                value={userForm.password}
+                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                className="rounded-[8px]"
+                required={!editingUser}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-bold">Full Name</Label>
@@ -553,23 +626,12 @@ export function StoreSettings({ onBack }: StoreSettingsProps) {
 
             <DialogFooter className="pt-6 gap-2">
               <DialogClose asChild>
-                <Button type="button" variant="outline" className="rounded-[32px] flex-1" disabled={isSubmittingUser}>
+                <Button type="button" variant="outline" className="rounded-[32px] flex-1">
                   Cancel
                 </Button>
               </DialogClose>
-              <Button
-                type="submit"
-                className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] flex-1"
-                disabled={isSubmittingUser}
-              >
-                {isSubmittingUser ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {editingUser ? 'Saving...' : 'Creating...'}
-                  </>
-                ) : (
-                  editingUser ? 'Save Changes' : 'Create Account'
-                )}
+              <Button type="submit" className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] flex-1">
+                {editingUser ? 'Save Changes' : 'Create Account'}
               </Button>
             </DialogFooter>
           </form>

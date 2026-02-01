@@ -41,35 +41,56 @@ public class RecipesController : ControllerBase
     [Authorize(Roles = "Manager")]
     public async Task<ActionResult<RecipeDto>> Create([FromBody] CreateRecipeRequest request)
     {
-        var recipe = await _recipeService.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = recipe.Id }, recipe);
+        try
+        {
+            var recipe = await _recipeService.CreateAsync(request);
+            return CreatedAtAction(nameof(GetById), new { id = recipe.Id }, recipe);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Manager")]
     public async Task<ActionResult<RecipeDto>> Update(Guid id, [FromBody] UpdateRecipeRequest request)
     {
-        var recipe = await _recipeService.UpdateAsync(id, request);
-
-        if (recipe == null)
+        try
         {
-            return NotFound();
-        }
+            var recipe = await _recipeService.UpdateAsync(id, request);
 
-        return Ok(recipe);
+            if (recipe == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(recipe);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "Manager")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var result = await _recipeService.DeleteAsync(id);
-
-        if (!result)
+        try
         {
-            return NotFound();
-        }
+            var result = await _recipeService.DeleteAsync(id);
 
-        return NoContent();
+            if (!result)
+            {
+                return NotFound();
+            }
+
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 }

@@ -21,36 +21,77 @@ public class WeatherService : IWeatherService
         _context = context;
     }
 
-    public async Task<WeatherDto> GetCurrentWeatherAsync()
+    public async Task<WeatherDto?> GetCurrentWeatherAsync()
     {
         try
         {
             // Get store coordinates
             var store = await _storeService.GetStoreAsync();
-            if (store == null)
+            if (store == null || (store.Latitude == 0 && store.Longitude == 0))
             {
-                // Fallback to Singapore coordinates if store not initialized
-                return await GetWeatherForCoordinates(1.3521, 103.8198);
+                return null;
             }
 
-            return await GetWeatherForCoordinates((double)store.Latitude, (double)store.Longitude);
+            var today = DateTime.UtcNow.Date;
+
+            var cached = await _context.WeatherDaily
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.StoreId == store.Id && w.Date == today);
+
+            if (cached != null)
+            {
+                return new WeatherDto(
+                    cached.Temperature,
+                    cached.Condition,
+                    cached.Humidity,
+                    cached.Description
+                );
+            }
+
+            var fresh = await GetWeatherForCoordinates((double)store.Latitude, (double)store.Longitude);
+            if (fresh == null)
+            {
+                return null;
+            }
+
+            var existing = await _context.WeatherDaily
+                .FirstOrDefaultAsync(w => w.StoreId == store.Id && w.Date == today);
+
+            if (existing == null)
+            {
+                _context.WeatherDaily.Add(new WeatherDaily
+                {
+                    StoreId = store.Id,
+                    Date = today,
+                    Temperature = fresh.Temperature,
+                    Condition = fresh.Condition,
+                    Humidity = fresh.Humidity,
+                    Description = fresh.Description,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                existing.Temperature = fresh.Temperature;
+                existing.Condition = fresh.Condition;
+                existing.Humidity = fresh.Humidity;
+                existing.Description = fresh.Description;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return fresh;
         }
         catch (Exception)
         {
-            // Return mock data if API fails
-            return new WeatherDto(
-                28.5m,
-                "Partly Cloudy",
-                75,
-                "Warm and humid with partial cloud cover"
-            );
+            return null;
         }
     }
 
-    private async Task<WeatherDto> GetWeatherForCoordinates(double latitude, double longitude)
+    private async Task<WeatherDto?> GetWeatherForCoordinates(double latitude, double longitude)
     {
         var baseUrl = _configuration["ExternalApis:WeatherApiUrl"];
-        var url = $"{baseUrl}?latitude={latitude}&longitude={longitude}&current_weather=true";
+        var url = $"{baseUrl}?latitude={latitude}&longitude={longitude}&current_weather=true&hourly=relativehumidity_2m&timezone=auto";
 
         var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
@@ -58,19 +99,47 @@ public class WeatherService : IWeatherService
         var content = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(content);
 
-        var currentWeather = doc.RootElement.GetProperty("current_weather");
+        if (!doc.RootElement.TryGetProperty("current_weather", out var currentWeather))
+        {
+            return null;
+        }
+
         var temperature = currentWeather.GetProperty("temperature").GetDouble();
         var weatherCode = currentWeather.GetProperty("weathercode").GetInt32();
+        var currentTime = currentWeather.TryGetProperty("time", out var timeEl) ? timeEl.GetString() : null;
 
         var (condition, description) = MapWeatherCode(weatherCode);
 
-        // Get humidity if available from hourly data
-        var humidity = 70; // Default value
+        if (!doc.RootElement.TryGetProperty("hourly", out var hourly) ||
+            !hourly.TryGetProperty("time", out var times) ||
+            !hourly.TryGetProperty("relativehumidity_2m", out var humidities))
+        {
+            return null;
+        }
+
+        int? humidityValue = null;
+        if (!string.IsNullOrWhiteSpace(currentTime))
+        {
+            for (var i = 0; i < times.GetArrayLength(); i++)
+            {
+                if (times[i].GetString() == currentTime &&
+                    humidities[i].ValueKind != JsonValueKind.Null)
+                {
+                    humidityValue = humidities[i].GetInt32();
+                    break;
+                }
+            }
+        }
+
+        if (humidityValue == null)
+        {
+            return null;
+        }
 
         return new WeatherDto(
             (decimal)temperature,
             condition,
-            humidity,
+            humidityValue.Value,
             description
         );
     }
@@ -119,7 +188,7 @@ public class WeatherService : IWeatherService
                     decimal? tempMax = null;
                     decimal? tempMin = null;
                     decimal rainMm = 0;
-                    int weatherCode = 0;
+                    int weatherCode = -1; // Default to -1 (Unknown)
 
                     if (daily.TryGetProperty("temperature_2m_max", out var maxTemps) &&
                         maxTemps[0].ValueKind != JsonValueKind.Null)

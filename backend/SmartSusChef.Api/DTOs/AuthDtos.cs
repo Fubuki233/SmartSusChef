@@ -51,6 +51,24 @@ public record UpdateUserRequest(
     string? Status // "Active" or "Inactive"
 );
 
+public record UpdateProfileRequest(
+    string? Name,
+    string? Email
+);
+
+public record ChangePasswordRequest(
+    string CurrentPassword,
+    string NewPassword
+);
+
+public record ForgotPasswordRequest(
+    string EmailOrUsername
+);
+
+public record ForgotPasswordResponse(
+    string TemporaryPassword
+);
+
 public record UserListDto(
     string Id,
     string Username,
