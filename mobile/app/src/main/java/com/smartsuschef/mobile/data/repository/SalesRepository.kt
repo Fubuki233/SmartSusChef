@@ -34,12 +34,27 @@ class SalesRepository @Inject constructor(
 
     suspend fun getTrend(startDate: String, endDate: String): Resource<List<SalesTrendDto>> {
         // --- MOCK IMPLEMENTATION FOR UI TESTING ---
-        val fakeTrend = listOf(
-            SalesTrendDto(date = "2024-01-01", totalQuantity = 100, recipeBreakdown = emptyList()),
-            SalesTrendDto(date = "2024-01-02", totalQuantity = 120, recipeBreakdown = emptyList()),
-            SalesTrendDto(date = "2024-01-03", totalQuantity = 90, recipeBreakdown = emptyList())
-        )
-        return Resource.Success(fakeTrend)
+        return withContext(Dispatchers.IO) {
+            val trend = mutableListOf<SalesTrendDto>()
+            val calendar = java.util.Calendar.getInstance()
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+
+            // Start from 7 days ago
+            calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
+
+            for (i in 0..6) {
+                val date = dateFormat.format(calendar.time)
+                trend.add(
+                    SalesTrendDto(
+                        date = date,
+                        totalQuantity = (80..150).random(), // Random sales data
+                        recipeBreakdown = emptyList()
+                    )
+                )
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            Resource.Success(trend)
+        }
 
         /*
         // --- ORIGINAL IMPLEMENTATION ---

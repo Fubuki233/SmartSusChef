@@ -11,6 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
+import com.smartsuschef.mobile.util.DateUtils
 
 @HiltViewModel
 class SalesViewModel @Inject constructor(
@@ -53,6 +54,7 @@ class SalesViewModel @Inject constructor(
     }
 
     fun fetchIngredientsForDate(date: String) {
+//        val formattedDate = DateUtils.formatDateForApi(date)
         viewModelScope.launch {
             _ingredientBreakdown.value = Resource.Loading()
             when(val result = salesRepository.getIngredientUsageByDate(date)) {

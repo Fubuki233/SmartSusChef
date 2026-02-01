@@ -3,13 +3,27 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/nav_input">
+    app:startDestination="@id/nav_sales">
 
     <fragment
         android:id="@+id/nav_sales"
         android:name="com.smartsuschef.mobile.ui.sales.SalesOverviewFragment"
         android:label="Sales Overview"
-        tools:layout="@layout/fragment_sales_overview" />
+        tools:layout="@layout/fragment_sales_overview">
+        <action
+            android:id="@+id/action_nav_sales_to_salesDetailFragment"
+            app:destination="@id/salesDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/salesDetailFragment"
+        android:name="com.smartsuschef.mobile.ui.sales.SalesDetailFragment"
+        android:label="Sales Details">
+        <argument
+            android:name="date"
+            app:argType="string" />
+    </fragment>
+
     <fragment
         android:id="@+id/nav_forecast"
         android:name="com.smartsuschef.mobile.ui.forecast.ForecastFragment"

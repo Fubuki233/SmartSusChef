@@ -14,6 +14,19 @@ class UsersRepository @Inject constructor(
     private val authApiService: AuthApiService
 ) {
     suspend fun getCurrentUser(): Resource<UserDto> {
+        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
+        val fakeUser = UserDto(
+            id = "user-123",
+            name = "Test Employee",
+            username = "test",
+            email = "test@test.com",
+            role = "employee",
+            status = "Active"
+        )
+        return Resource.Success(fakeUser)
+
+        /*
+        // --- ORIGINAL IMPLEMENTATION ---
         return withContext(Dispatchers.IO) {
             try {
                 val response = authApiService.getCurrentUser()
@@ -28,6 +41,7 @@ class UsersRepository @Inject constructor(
                 Resource.Error("Couldn't reach the server. Check your internet connection.")
             }
         }
+        */
     }
 
     suspend fun updateUser(request: UpdateProfileRequest): Resource<UserDto> {

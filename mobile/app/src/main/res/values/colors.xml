@@ -1,29 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--Android Default Color Scheme-->
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <!-- Default Colors -->
+        <color name="purple_200">#FFBB86FC</color>
+        <color name="purple_500">#FF6200EE</color>
+        <color name="purple_700">#FF3700B3</color>
+        <color name="teal_200">#FF03DAC5</color>
+        <color name="teal_700">#FF018786</color>
+        <color name="black">#FF000000</color>
+        <color name="white">#FFFFFFFF</color>
 
-    <!--App Defined Color Scheme-->
-    <color name="primary">#4F6F52</color>
-    <color name="secondary">#E6EFE0</color>
-    <color name="background">#F9FBF7</color>
-    <color name="foreground">#1A1C18</color>
-    <color name="card_white">#FFFFFF</color>
-    <color name="border_grey">#D1D1D1</color>
-    <color name="muted_text">#6B7280</color>
-    <color name="destructive">#E67E22</color>
-    <color name="sales_primary">#4F6F52</color>
-    <color name="sales_trend_line">#2C3E2D</color>
-    <color name="wastage_primary">#E67E22</color>
-    <color name="carbon_green">#8A9A5B</color>
-    <color name="forecast_gold">#B4A373</color>
-    <color name="forecast_trend">#8E7AB5</color>
-    <color name="weather_blue">#4A90E2</color>
-    <color name="success_green">#27AE60</color>
+    <!-- App Defined Color Scheme -->
+        <color name="primary">#4F6F52</color>
+        <color name="primary_variant">#3A533C</color>
+        <color name="on_primary">#FFFFFF</color>
+        <color name="secondary">#E6EFE0</color>
+        <color name="on_secondary">#4F6F52</color>
+        <color name="background">#F9FBF7</color>
+        <color name="foreground">#1A1C18</color>
+        <color name="card_white">#FFFFFF</color>
+        <color name="border_grey">#D1D1D1</color>
+        <color name="muted_bg">#F0F4ED</color>
+        <color name="muted_text">#6B7280</color>
+        <color name="destructive">#E67E22</color>
+        <color name="success_green">#27AE60</color>
+        <color name="chart_1_sage">#4F6F52</color>
+        <color name="chart_2_orange">#E67E22</color>
+        <color name="chart_3_azure">#4A90E2</color>
+        <color name="chart_4_olive">#8A9A5B</color>
+        <color name="chart_5_gold">#B4A373</color>
+        <color name="sales_primary">#4F6F52</color>
+        <color name="sales_trend_line">#2C3E2D</color>
+        <color name="forecast_gold">#B4A373</color>
+        <color name="forecast_trend">#8E7AB5</color>
+        <color name="wastage_primary">#E67E22</color>
+        <color name="carbon_green">#8A9A5B</color>
+        <color name="weather_blue">#4A90E2</color>
+
 </resources>
