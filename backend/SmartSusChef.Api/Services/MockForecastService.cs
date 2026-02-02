@@ -24,6 +24,11 @@ public class MockForecastService : IForecastService
 
     public async Task<List<ForecastDto>> GetForecastAsync(int days = 7)
     {
+        if (days < 1 || days > 30)
+        {
+            throw new ArgumentException("Forecast days must be between 1 and 30.");
+        }
+
         var recipes = await _context.Recipes
             .Where(r => r.StoreId == CurrentStoreId)
             .Include(r => r.RecipeIngredients)
@@ -62,7 +67,14 @@ public class MockForecastService : IForecastService
 
                 // Add random variation between -10% to +10%
                 var randomFactor = 0.9 + (_random.NextDouble() * 0.2);
-                var predictedQuantity = (int)Math.Max(1, avgQuantity * multiplier * randomFactor);
+                
+                // Ensure non-negative prediction
+                var rawPrediction = avgQuantity * multiplier * randomFactor;
+                var predictedQuantity = (int)Math.Max(0, rawPrediction);
+
+                // Simulate ML confidence
+                // In a real scenario, this would come from the model's probability score
+                var confidence = predictedQuantity > 50 ? "High" : (predictedQuantity > 20 ? "Medium" : "Low");
 
                 var forecastIngredients = recipe.RecipeIngredients
                     .Where(ri => ri.Ingredient != null && ri.IngredientId.HasValue) // Filter out null ingredients
@@ -79,7 +91,8 @@ public class MockForecastService : IForecastService
                     recipe.Id.ToString(),
                     recipe.Name,
                     predictedQuantity,
-                    forecastIngredients
+                    forecastIngredients,
+                    confidence
                 ));
             }
         }
