@@ -11,7 +11,7 @@ public class SalesData
     public DateTime UpdatedAt { get; set; }
 
     // Navigation properties
-    
+
     // Link to the Store (ensures multi-tenant data isolation)
     public Store Store { get; set; } = null!;
     public Recipe Recipe { get; set; } = null!;

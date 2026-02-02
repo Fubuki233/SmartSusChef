@@ -26,7 +26,23 @@ export function WeatherWidget() {
   }
 
   if (!weather || weather.temperature === undefined) {
-    return null;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Cloud className="w-4 h-4 text-[#4A90E2]" />
+            Current Weather
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <Cloud className="w-12 h-12 text-gray-300 mb-2" />
+            <p className="text-sm text-gray-500">Weather data unavailable</p>
+            <p className="text-xs text-gray-400 mt-1">Please set store coordinates in Settings</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

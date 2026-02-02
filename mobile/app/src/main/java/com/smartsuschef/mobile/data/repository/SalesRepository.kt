@@ -39,19 +39,22 @@ class SalesRepository @Inject constructor(
             val calendar = java.util.Calendar.getInstance()
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
 
-            // Start from 7 days ago
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
-
-            for (i in 0..6) {
-                val date = dateFormat.format(calendar.time)
-                trend.add(
-                    SalesTrendDto(
-                        date = date,
-                        totalQuantity = (80..150).random(), // Random sales data
-                        recipeBreakdown = emptyList()
+            if (startDate == endDate) {
+                trend.add(SalesTrendDto(endDate, (80..150).random(), emptyList()))
+            } else {
+                // Start from 7 days ago
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
+                for (i in 0..6) {
+                    val date = dateFormat.format(calendar.time)
+                    trend.add(
+                        SalesTrendDto(
+                            date = date,
+                            totalQuantity = (80..150).random(), // Random sales data
+                            recipeBreakdown = emptyList()
+                        )
                     )
-                )
-                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                    calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                }
             }
             Resource.Success(trend)
         }
@@ -76,6 +79,21 @@ class SalesRepository @Inject constructor(
     }
 
     suspend fun getIngredientUsageByDate(date: String): Resource<List<IngredientUsageDto>> {
+
+        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
+        return withContext(Dispatchers.IO) {
+            val fakeIngredients = listOf(
+                IngredientUsageDto("ing-1", "Chicken (Whole)", "kg", 25.5),
+                IngredientUsageDto("ing-2", "Fragrant Rice", "kg", 15.0),
+                IngredientUsageDto("ing-3", "Cucumber", "pcs", 10.0),
+                IngredientUsageDto("ing-4", "Ginger", "kg", 2.5),
+                IngredientUsageDto("ing-5", "Garlic", "kg", 1.8),
+                IngredientUsageDto("ing-6", "Pandan Leaves", "bundle", 5.0),
+                IngredientUsageDto("ing-7", "Sesame Oil", "litres", 0.5)
+            )
+            Resource.Success(fakeIngredients)
+        }
+        /*
         return withContext(Dispatchers.IO) {
             try {
                 val response = salesApiService.getIngredientUsageByDate(date)
@@ -90,6 +108,7 @@ class SalesRepository @Inject constructor(
                 Resource.Error("Couldn't reach the server. Check your internet connection.")
             }
         }
+        */
     }
 
     suspend fun create(request: CreateSalesDataRequest): Resource<SalesDataDto> {
@@ -98,7 +117,7 @@ class SalesRepository @Inject constructor(
             id = "sales-${System.currentTimeMillis()}",
             date = request.date,
             recipeId = request.recipeId,
-            recipeName = "Mocked Recipe", // In a real scenario, you might fetch this
+            recipeName = "Mocked Recipe",
             quantity = request.quantity
         )
         return Resource.Success(fakeDto)

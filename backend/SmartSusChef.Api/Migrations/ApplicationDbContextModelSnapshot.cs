@@ -49,7 +49,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("ForecastData");
+                    b.ToTable("ForecastData", (string)null);
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.GlobalCalendarSignals", b =>
@@ -77,7 +77,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasKey("Date");
 
-                    b.ToTable("GlobalCalendarSignals");
+                    b.ToTable("GlobalCalendarSignals", (string)null);
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.HolidayCalendar", b =>
@@ -98,7 +98,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasKey("CountryCode", "Year");
 
-                    b.ToTable("HolidayCalendars");
+                    b.ToTable("HolidayCalendars", (string)null);
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.Ingredient", b =>
@@ -132,7 +132,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("Ingredients");
+                    b.ToTable("Ingredients", (string)null);
 
                     b.HasData(
                         new
@@ -216,7 +216,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("Recipes");
+                    b.ToTable("Recipes", (string)null);
 
                     b.HasData(
                         new
@@ -268,7 +268,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasIndex("RecipeId");
 
-                    b.ToTable("RecipeIngredients");
+                    b.ToTable("RecipeIngredients", (string)null);
 
                     b.HasData(
                         new
@@ -345,7 +345,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("SalesData");
+                    b.ToTable("SalesData", (string)null);
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.Store", b =>
@@ -407,7 +407,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Store");
+                    b.ToTable("Store", (string)null);
 
                     b.HasData(
                         new
@@ -477,7 +477,7 @@ namespace SmartSusChef.Api.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
 
                     b.HasData(
                         new
@@ -544,7 +544,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("WastageData");
+                    b.ToTable("WastageData", (string)null);
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.WeatherDaily", b =>
@@ -575,7 +575,7 @@ namespace SmartSusChef.Api.Migrations
 
                     b.HasKey("StoreId", "Date");
 
-                    b.ToTable("WeatherDaily");
+                    b.ToTable("WeatherDaily", (string)null);
                 });
 
             modelBuilder.Entity("SmartSusChef.Api.Models.ForecastData", b =>

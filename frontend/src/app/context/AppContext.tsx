@@ -160,7 +160,7 @@ const mapHolidayDto = (dto: HolidayDto): HolidayEvent => ({
 });
 
 const mapWeatherDto = (dto: WeatherDto | null): WeatherData | null => {
-  if (!dto) return null;
+  if (!dto || dto.temperature === undefined) return null;
   return {
     temperature: dto.temperature,
     condition: dto.condition,
@@ -557,9 +557,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const current = salesData.find(s => s.id === id);
       if (!current) throw new Error('Sales data not found');
 
+      // Only quantity can be updated
       const updated = await salesApi.update(id, {
-        date: data.date || current.date,
-        recipeId: data.recipeId || current.recipeId,
         quantity: data.quantity ?? current.quantity,
       });
       setSalesData(prev => prev.map(s => s.id === id ? mapSalesDataDto(updated) : s));
