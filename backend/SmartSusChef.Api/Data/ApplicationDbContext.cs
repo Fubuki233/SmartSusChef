@@ -77,7 +77,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Recipe>(entity =>
         {
             entity.HasKey(e => e.Id);
-            
+
             // Unique index for (StoreId, Name)
             entity.HasIndex(e => new { e.StoreId, e.Name }).IsUnique();
 
