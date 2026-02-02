@@ -14,13 +14,15 @@ import { SalesData, EditHistory } from '@/app/types';
 import { format, differenceInDays } from 'date-fns';
 
 export function SalesManagement() {
-  const { user, salesData, recipes, updateSalesData } = useApp();
+  const { user, salesData, recipes, updateSalesData, deleteSalesData } = useApp();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingData, setEditingData] = useState<SalesData | null>(null);
   const [newQuantity, setNewQuantity] = useState<string>('');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<SalesData | null>(null);
   const [dateFilter, setDateFilter] = useState('all');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingData, setDeletingData] = useState<SalesData | null>(null);
 
   // Filter sales data by date range
   const filteredSalesData = useMemo(() => {
@@ -91,6 +93,25 @@ export function SalesManagement() {
       handleCloseEditDialog();
     } catch (error) {
       toast.error('Failed to update sales data');
+    }
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!deletingData) return;
+
+    try {
+      await deleteSalesData(deletingData.id);
+
+      toast.success('Sales record deleted successfully');
+
+      setIsDeleteDialogOpen(false);
+      setIsEditDialogOpen(false);
+      setEditingData(null);
+      setDeletingData(null);
+
+    } catch (error) {
+      console.error('Failed to delete sales data:', error);
+      toast.error('Failed to delete sales record');
     }
   };
 
@@ -268,19 +289,87 @@ export function SalesManagement() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={handleCloseEditDialog}>
-                  Cancel
-                </Button>
+              <div className="flex justify-between pt-4">
                 <Button
-                  onClick={handleSubmitEdit}
-                  className="bg-[#81A263] hover:bg-[#6b9a4d]"
+                  variant="destructive"
+                  onClick={() => {
+                    setDeletingData(editingData);
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  className="bg-red-600 hover:bg-red-700"
                 >
-                  Update Record
+                  Delete Record
                 </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleCloseEditDialog}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSubmitEdit}
+                    className="bg-[#81A263] hover:bg-[#6b9a4d]"
+                  >
+                    Update Record
+                  </Button>
+                </div>
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Confirm Deletion
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-gray-700">
+                Are you sure you want to delete this sales record?
+              </p>
+              {deletingData && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="text-gray-600">Date:</div>
+                    <div className="font-medium">
+                      {format(new Date(deletingData.date), 'd MMM yyyy')}
+                    </div>
+                    <div className="text-gray-600">Recipe:</div>
+                    <div className="font-medium">
+                      {getRecipeName(deletingData.recipeId)}
+                    </div>
+                    <div className="text-gray-600">Quantity:</div>
+                    <div className="font-medium">
+                      {deletingData.quantity} dishes
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm text-red-600 font-medium">
+                Warning: This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+                className="hover:bg-gray-100"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteRecord}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Yes, Delete Record
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
