@@ -13,6 +13,8 @@ import java.util.Locale
 import javax.inject.Inject
 import com.smartsuschef.mobile.util.DateUtils
 
+enum class SalesFilter { TODAY, LAST_7_DAYS }
+
 @HiltViewModel
 class SalesViewModel @Inject constructor(
     private val salesRepository: SalesRepository
@@ -21,6 +23,8 @@ class SalesViewModel @Inject constructor(
     // Sales Trend (7 days)
     private val _salesTrend = MutableLiveData<Resource<List<SalesTrendItem>>>()
     val salesTrend: LiveData<Resource<List<SalesTrendItem>>> = _salesTrend
+    private val _currentFilter = MutableLiveData(SalesFilter.LAST_7_DAYS)
+    val currentFilter: LiveData<SalesFilter> = _currentFilter
 
     // Ingredient breakdown for a specific date
     private val _ingredientBreakdown = MutableLiveData<Resource<List<IngredientRequirement>>>()
@@ -29,16 +33,27 @@ class SalesViewModel @Inject constructor(
     init {
         fetchOverviewData()
     }
+    fun setFilter(filter: SalesFilter) {
+        _currentFilter.value = filter
+        fetchOverviewData(filter)
+    }
 
-    fun fetchOverviewData() {
+    fun fetchOverviewData(filter: SalesFilter = SalesFilter.LAST_7_DAYS) {
         viewModelScope.launch {
             _salesTrend.value = Resource.Loading()
             
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val calendar = Calendar.getInstance()
+            // Always get today's date as the end date
             val endDate = dateFormat.format(calendar.time)
-            calendar.add(Calendar.DAY_OF_YEAR, -6) // For a 7-day trend
-            val startDate = dateFormat.format(calendar.time)
+
+            // Calculate the start date based on selected filter
+            val startDate = if (filter == SalesFilter.TODAY) {
+                endDate // Start and end are the same for "Today"
+            } else {
+                calendar.add(Calendar.DAY_OF_YEAR, -6) // Go back 6 days from today
+                dateFormat.format(calendar.time)
+            }
 
             when(val result = salesRepository.getTrend(startDate, endDate)) {
                 is Resource.Success -> {
