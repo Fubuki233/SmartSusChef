@@ -214,23 +214,37 @@ public class SalesService : ISalesService
 
     public async Task ImportAsync(List<CreateSalesDataRequest> salesData)
     {
-        var grouped = salesData
+        // 1. Group incoming data to handle duplicates within the import file itself
+        var groupedImport = salesData
             .GroupBy(s => new { Date = DateTime.Parse(s.Date).Date, RecipeId = Guid.Parse(s.RecipeId) })
-            .Select(g => new { g.Key.Date, g.Key.RecipeId, Quantity = g.Last().Quantity })
+            .Select(g => new { g.Key.Date, g.Key.RecipeId, Quantity = g.Sum(x => x.Quantity) }) // Sum quantities if multiple entries for same day/recipe
             .ToList();
 
-        foreach (var item in grouped)
+        if (!groupedImport.Any()) return;
+
+        // 2. Fetch existing records for the relevant dates and recipes to minimize DB queries
+        var dates = groupedImport.Select(x => x.Date).Distinct().ToList();
+        var recipeIds = groupedImport.Select(x => x.RecipeId).Distinct().ToList();
+
+        var existingRecords = await _context.SalesData
+            .Where(s => s.StoreId == CurrentStoreId && dates.Contains(s.Date) && recipeIds.Contains(s.RecipeId))
+            .ToListAsync();
+
+        // 3. Process Upsert Logic
+        foreach (var item in groupedImport)
         {
-            var existing = await _context.SalesData
-                .FirstOrDefaultAsync(s => s.StoreId == CurrentStoreId && s.Date == item.Date && s.RecipeId == item.RecipeId);
+            var existing = existingRecords
+                .FirstOrDefault(s => s.Date == item.Date && s.RecipeId == item.RecipeId);
 
             if (existing != null)
             {
-                existing.Quantity = item.Quantity;
+                // Update existing record
+                existing.Quantity = item.Quantity; // Overwrite with new value (or could be += if additive logic preferred)
                 existing.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
+                // Insert new record
                 _context.SalesData.Add(new SalesData
                 {
                     Id = Guid.NewGuid(),

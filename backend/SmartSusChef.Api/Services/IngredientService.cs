@@ -22,7 +22,6 @@ public partial class IngredientService : IIngredientService
     {
         // Filter by current user's StoreId for data isolation
         var ingredients = await _context.Ingredients
-            .AsNoTracking()
             .Where(i => i.StoreId == CurrentStoreId)
             .OrderBy(i => i.Name)
             .ToListAsync();
@@ -35,7 +34,6 @@ public partial class IngredientService : IIngredientService
     {
         // Use FirstOrDefaultAsync with StoreId filter instead of FindAsync
         var ingredient = await _context.Ingredients
-            .AsNoTracking()
             .FirstOrDefaultAsync(i => i.Id == id && i.StoreId == CurrentStoreId);
 
         return ingredient == null ? null : MapToDto(ingredient);
@@ -48,10 +46,15 @@ public partial class IngredientService : IIngredientService
         if (!allowedUnits.Contains(request.Unit))
             throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
 
+        // Refactor the duplicate check for high-reliability:
+        // Use .ToLower() to prevent "Tomato" vs "tomato" duplicates
         var duplicate = await _context.Ingredients
-            .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name == request.Name);
+            .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name.ToLower() == request.Name.ToLower());
+            
         if (duplicate)
-            throw new InvalidOperationException("Ingredient name already exists");
+        {
+            throw new InvalidOperationException($"Ingredient '{request.Name}' already exists.");
+        }
 
         var ingredient = new Ingredient
         {
@@ -82,14 +85,19 @@ public partial class IngredientService : IIngredientService
         if (!allowedUnits.Contains(request.Unit))
             throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
 
-        if (!string.IsNullOrWhiteSpace(request.Name) && request.Name != ingredient.Name)
+        // Check for duplicates if name is changing
+        if (request.Name.ToLower() != ingredient.Name.ToLower())
         {
             var duplicate = await _context.Ingredients
-                .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name == request.Name && i.Id != id);
+                .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name.ToLower() == request.Name.ToLower());
+                
             if (duplicate)
-                throw new InvalidOperationException("Ingredient name already exists");
-            ingredient.Name = request.Name;
+            {
+                throw new InvalidOperationException($"Ingredient '{request.Name}' already exists.");
+            }
         }
+
+        ingredient.Name = request.Name;
         ingredient.Unit = request.Unit;
         ingredient.CarbonFootprint = request.CarbonFootprint;
         ingredient.UpdatedAt = DateTime.UtcNow;
@@ -107,14 +115,6 @@ public partial class IngredientService : IIngredientService
 
         if (ingredient == null) return false;
 
-        var isUsed = await _context.RecipeIngredients
-            .AnyAsync(ri => ri.IngredientId == id);
-
-        if (isUsed)
-        {
-            throw new InvalidOperationException("Ingredient is used in recipes and cannot be deleted");
-        }
-
         _context.Ingredients.Remove(ingredient);
         await _context.SaveChangesAsync();
 
@@ -124,7 +124,6 @@ public partial class IngredientService : IIngredientService
     public async Task<decimal> GetTotalCarbonImpactAsync()
     {
         return await _context.Ingredients
-            .AsNoTracking()
             .Where(i => i.StoreId == CurrentStoreId)
             .SumAsync(i => i.CarbonFootprint);
     }
@@ -137,7 +136,6 @@ public partial class IngredientService : IIngredientService
 
         var ingredientIds = items.Select(x => x.Id).ToList();
         var ingredients = await _context.Ingredients
-            .AsNoTracking()
             .Where(i => i.StoreId == CurrentStoreId && ingredientIds.Contains(i.Id))
             .ToListAsync();
 

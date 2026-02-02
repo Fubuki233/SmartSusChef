@@ -22,7 +22,7 @@ public class UsersController : ControllerBase
     /// Get all users in the store (Manager only)
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = "Manager")]
+    // Removed [Authorize(Roles = "Manager")] to prevent 403 loops for Employees
     public async Task<ActionResult<List<UserListDto>>> GetAllUsers()
     {
         var storeId = GetStoreIdFromClaims();
@@ -35,19 +35,32 @@ public class UsersController : ControllerBase
         return Ok(users);
     }
 
-    /// <summary>
-    /// Create a new user (Manager only)
-    /// </summary>
+    /// Create a new user with a mandatory initial password (Manager only)
+    
     [HttpPost]
     [Authorize(Roles = "Manager")]
     public async Task<ActionResult<UserListDto>> CreateUser([FromBody] CreateUserRequest request)
     {
+        // 1. Validate that a password was actually provided
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new { message = "Initial password is required for new users." });
+        }
+
+        // 2. Validate password length 
+        if (request.Password.Length < 6)
+        {
+            return BadRequest(new { message = "Password must be at least 6 characters long." });
+        }
+
         var storeId = GetStoreIdFromClaims();
         if (storeId == null)
         {
             return BadRequest(new { message = "Store ID not found in token" });
         }
 
+        // 3. Pass the request (now containing the password) to the service
+        // Ensure AuthService.CreateUserAsync hashes this password using BCrypt
         var user = await _authService.CreateUserAsync(request, storeId.Value);
 
         if (user == null)

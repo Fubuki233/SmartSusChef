@@ -21,6 +21,15 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        /*
+        To add when we have fully implemented logout
+        if (viewModel.isUserLoggedIn()) {
+            navigateToDashboard()
+            return
+        }
+         */
+
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

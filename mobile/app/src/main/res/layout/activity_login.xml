@@ -34,7 +34,7 @@
                     android:layout_height="48dp"
                     android:layout_gravity="center"
                     android:src="@drawable/chef"
-                    app:tint="@android:color/white" />
+                    app:tint="@color/on_primary" />
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
@@ -76,7 +76,7 @@
                 <EditText
                     android:id="@+id/etUsername"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="56dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_input_field"
                     android:hint="Enter your username"
@@ -94,7 +94,6 @@
                         android:layout_height="wrap_content"
                         android:text="Password"
                         android:textColor="@color/foreground"
-                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -104,14 +103,13 @@
                         android:layout_alignParentEnd="true"
                         android:text="Forgot Password?"
                         android:textColor="@color/primary"
-                        android:textSize="12sp"
                         android:textStyle="bold" />
                 </RelativeLayout>
 
                 <EditText
                     android:id="@+id/etPassword"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="56dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_input_field"
                     android:hint="Enter your password"
@@ -124,11 +122,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
                     android:layout_marginTop="24dp"
-                    android:backgroundTint="@color/primary"
                     android:text="Sign In"
-                    android:textAllCaps="false"
-                    android:textColor="@android:color/white"
-                    app:cornerRadius="32dp" />
+                    android:textAllCaps="false" />
 
                 <ProgressBar
                     android:id="@+id/progressBar"
@@ -153,7 +148,7 @@
                     android:layout_marginTop="8dp"
                     android:text="Request Password Reset"
                     android:textColor="@color/muted_text"
-                    android:textSize="16sp" />
+                    android:textSize="14sp" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -167,7 +162,7 @@
                 <EditText
                     android:id="@+id/etResetEmail"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="56dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_input_field"
                     android:hint="Enter your registered email"
@@ -180,11 +175,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
                     android:layout_marginTop="24dp"
-                    android:backgroundTint="@color/primary"
                     android:text="Send Reset Link"
-                    android:textAllCaps="false"
-                    android:textColor="@android:color/white"
-                    app:cornerRadius="32dp" />
+                    android:textAllCaps="false" />
 
                 <LinearLayout
                     android:id="@+id/btnBackToLogin"
@@ -210,7 +202,8 @@
                         android:layout_marginStart="8dp"
                         android:text="Back to Login"
                         android:textColor="@color/muted_text"
-                        android:textSize="14sp" />
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
 

@@ -61,6 +61,40 @@ async function fetchWithAuth<T>(
   return response.json();
 }
 
+// Generic fetch wrapper for blob responses
+async function fetchBlobWithAuth(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Blob> {
+  const token = getAuthToken();
+
+  const headers: HeadersInit = {
+    ...options.headers,
+  };
+
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401) {
+    // Token expired or invalid
+    setAuthToken(null);
+    throw new Error('Unauthorized');
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new Error(error.message || `HTTP error ${response.status}`);
+  }
+
+  return response.blob();
+}
+
 // ==========================================
 // AUTH API
 // ==========================================
@@ -516,4 +550,28 @@ export const forecastApi = {
 
   getHolidays: (year: number): Promise<HolidayDto[]> =>
     fetchWithAuth(`/forecast/holidays/${year}`).catch(() => []),
+};
+
+// ==========================================
+// EXPORT API
+// ==========================================
+export const exportApi = {
+  getSalesCsv: (startDate?: string, endDate?: string): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return fetchBlobWithAuth(`/export/sales/csv${query}`);
+  },
+
+  getWastageCsv: (startDate?: string, endDate?: string): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return fetchBlobWithAuth(`/export/wastage/csv${query}`);
+  },
+
+  getForecastCsv: (days: number = 7): Promise<Blob> =>
+    fetchBlobWithAuth(`/export/forecast/csv?days=${days}`),
 };
