@@ -177,7 +177,7 @@ export function SalesManagement() {
                         <TableRow>
                           <TableHead>Recipe</TableHead>
                           <TableHead className="text-right">Quantity</TableHead>
-                          <TableHead className="text-right">Edit History</TableHead>
+                          <TableHead className="text-right">Last Edit</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -191,16 +191,10 @@ export function SalesManagement() {
                               {item.quantity} dishes
                             </TableCell>
                             <TableCell className="text-right">
-                              {item.editHistory && item.editHistory.length > 0 ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleViewHistory(item)}
-                                  className="gap-1 text-[#81A263] hover:text-[#6b9a4d]"
-                                >
-                                  <History className="w-4 h-4" />
-                                  {item.editHistory.length} edit{item.editHistory.length !== 1 ? 's' : ''}
-                                </Button>
+                              {item.modifiedAt ? (
+                                <div className="text-sm text-gray-600">
+                                  {format(new Date(item.modifiedAt), 'MMM d, yyyy HH:mm') + ' (UTC)'}
+                                </div>
                               ) : (
                                 <span className="text-gray-400 text-sm">No edits</span>
                               )}

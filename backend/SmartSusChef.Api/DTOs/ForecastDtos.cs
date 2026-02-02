@@ -5,7 +5,8 @@ public record ForecastDto(
     string RecipeId,
     string RecipeName,
     int Quantity,
-    List<ForecastIngredientDto> Ingredients
+    List<ForecastIngredientDto> Ingredients,
+    string Confidence = "Medium" // Added Confidence field
 );
 
 public record ForecastIngredientDto(
