@@ -56,12 +56,11 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 isGranularityEnabled = true
                 textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
                 axisLineColor = Color.TRANSPARENT
-                axisMinimum = -0.5f
-                axisMaximum = 6.5f
-                setLabelCount(7, true) // Show exactly 7 labels for 7 days
-                setAvoidFirstLastClipping(true) // Prevent first/last labels from being cut off
-
                 labelRotationAngle = -45f
+                textSize = 8f
+                // yOffset = 5f
+                setAvoidFirstLastClipping(false) // Allow the other thing to handle
+
             }
 
             axisLeft.apply {
@@ -103,57 +102,103 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 is Resource.Success -> {
                     binding.progressBar.gone()
                     val salesData = result.data ?: emptyList()
+
                     if (salesData.isNotEmpty()) {
-                        val avgSales = salesData.map { it.sales }.average().toInt()
-                        binding.tvSalesSubtitle.text = "Total dishes sold · Average: $avgSales per day"
-
-                        val barEntries = mutableListOf<BarEntry>()
-                        val lineEntries = mutableListOf<Entry>()
-                        val labels = mutableListOf<String>()
-
-                        val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                        val outputFormat = SimpleDateFormat("d MMM", Locale.getDefault())
-
-                        salesData.forEachIndexed { index, item ->
-                            barEntries.add(BarEntry(index.toFloat(), item.sales.toFloat()))
-                            lineEntries.add(Entry(index.toFloat(), item.sales.toFloat()))
-                            labels.add(inputFormat.parse(item.date)?.let { outputFormat.format(it) } ?: "")
-                        }
-
-                        val combinedData = CombinedData()
-
-                        val barDataSet = BarDataSet(barEntries, "Daily Sales").apply {
-                            color = ContextCompat.getColor(requireContext(), R.color.primary)
-                            setDrawValues(false)
-                        }
-                        combinedData.setData(BarData(barDataSet))
-
-                        val lineDataSet = LineDataSet(lineEntries, "Trend").apply {
-                            color = ContextCompat.getColor(requireContext(), R.color.destructive)
-                            setCircleColor(Color.RED)
-                            lineWidth = 2.5f
-                            circleRadius = 3f
-                            setDrawCircleHole(false)
-                            mode = LineDataSet.Mode.CUBIC_BEZIER
-                            setDrawValues(false)
-                        }
-                        combinedData.setData(LineData(lineDataSet))
-
-                        binding.salesCombinedChart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
-                        binding.salesCombinedChart.data = combinedData
-                        binding.salesCombinedChart.notifyDataSetChanged()
-                        binding.salesCombinedChart.invalidate()
+                        updateChart(salesData)
+                    } else {
+                        binding.salesCombinedChart.clear()
+                        requireContext().showToast("No sales data available")
                     }
                 }
                 is Resource.Error -> {
                     binding.progressBar.gone()
-                    requireContext().showToast(result.message ?: "Error")
+                    binding.salesCombinedChart.clear()
+                    requireContext().showToast(result.message ?: "Error loading sales data")
                 }
             }
         }
     }
 
-        private fun showFilterMenu(view: View) {
+    private fun updateChart(salesData: List<SalesTrendItem>) {
+        // Calculate average for subtitle
+        val avgSales = salesData.map { it.sales }.average().toInt()
+        binding.tvSalesSubtitle.text = "Total dishes sold · Average: $avgSales per day"
+
+        val barEntries = mutableListOf<BarEntry>()
+        val lineEntries = mutableListOf<Entry>()
+        val labels = mutableListOf<String>()
+
+        val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val outputFormat = SimpleDateFormat("d MMM", Locale.getDefault())
+
+        // Populate data
+        salesData.forEachIndexed { index, item ->
+            barEntries.add(BarEntry(index.toFloat(), item.sales.toFloat()))
+            lineEntries.add(Entry(index.toFloat(), item.sales.toFloat()))
+
+            // Format date label
+            val formattedLabel = try {
+                inputFormat.parse(item.date)?.let { outputFormat.format(it) } ?: item.date
+            } catch (e: Exception) {
+                item.date
+            }
+            labels.add(formattedLabel)
+        }
+
+        // Configure X-axis based on data size
+        binding.salesCombinedChart.xAxis.apply {
+            valueFormatter = IndexAxisValueFormatter(labels)
+
+            // Dynamic axis range based on number of data points
+            axisMinimum = -0.5f
+            axisMaximum = (salesData.size - 1).toFloat() + 0.5f
+            setLabelCount(salesData.size, false)
+        }
+
+        // Create combined data
+        val combinedData = CombinedData()
+
+        // Add bar chart data
+        val barDataSet = BarDataSet(barEntries, "Daily Sales").apply {
+            color = ContextCompat.getColor(requireContext(), R.color.primary)
+            setDrawValues(false)
+        }
+
+        val barData = BarData(barDataSet)
+
+        // Adjust bar width based on number of data points
+        if (salesData.size == 1) {
+            // Make bar wider for single day view (takes up more space)
+            barData.barWidth = 0.5f  // Wider bar for "Today"
+        } else {
+            // Default bar width for multi-day view
+            barData.barWidth = 0.8f
+        }
+
+        combinedData.setData(barData)
+
+        // Add line chart data (only if more than 1 data point)
+        if (salesData.size > 1) {
+            val lineDataSet = LineDataSet(lineEntries, "Trend").apply {
+                color = ContextCompat.getColor(requireContext(), R.color.destructive)
+                setCircleColor(Color.RED)
+                lineWidth = 2.5f
+                circleRadius = 4f
+                setDrawCircleHole(false)
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+                setDrawValues(false)
+            }
+            combinedData.setData(LineData(lineDataSet))
+        }
+
+        // Update chart
+        binding.salesCombinedChart.data = combinedData
+        binding.salesCombinedChart.notifyDataSetChanged()
+        binding.salesCombinedChart.invalidate()
+    }
+
+
+    private fun showFilterMenu(view: View) {
             val popup = PopupMenu(requireContext(), view)
             popup.menuInflater.inflate(R.menu.sales_filter_menu, popup.menu)
 
@@ -178,71 +223,7 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 binding.tvDateContext.text = if (filter == SalesFilter.TODAY) "Today" else "Last 7 Days"
             }
         }
-
-    /*
-    private fun observeViewModel() {
-        viewModel.salesTrend.observe(viewLifecycleOwner) { result ->
-            when (result) {
-                is Resource.Loading -> binding.progressBar.visible()
-                is Resource.Success -> {
-                    binding.progressBar.gone()
-                    val salesData = result.data ?: emptyList()
-                    if (salesData.isNotEmpty()) {
-
-                        // 1. Calculate Average for Subtitle
-                        val avgSales = salesData.map { it.sales }.average().toInt()
-                        binding.tvSalesSubtitle.text = "Total dishes sold · Average: $avgSales per day"
-
-                        val barEntries = mutableListOf<BarEntry>()
-                        val lineEntries = mutableListOf<Entry>()
-                        val labels = mutableListOf<String>()
-
-                        val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                        val outputFormat = SimpleDateFormat("d MMM", Locale.getDefault())
-
-                        salesData.forEachIndexed { index, item ->
-                            barEntries.add(BarEntry(index.toFloat(), item.sales.toFloat()))
-                            lineEntries.add(Entry(index.toFloat(), item.sales.toFloat()))
-                            labels.add(inputFormat.parse(item.date)?.let { outputFormat.format(it) } ?: "")
-                        }
-
-                        // 2. Build Combined Data
-                        val combinedData = CombinedData()
-
-                        // Add Bars
-                        val barDataSet = BarDataSet(barEntries, "Daily Sales").apply {
-                            color = ContextCompat.getColor(requireContext(), R.color.primary)
-                            valueTextColor = ContextCompat.getColor(requireContext(), R.color.foreground)
-                            setDrawValues(true) // toggle to view or hide values above bar
-                        }
-                        combinedData.setData(BarData(barDataSet))
-
-                        // Add Trend Line
-                        val lineDataSet = LineDataSet(lineEntries, "Trend").apply {
-                            color = ContextCompat.getColor(requireContext(), R.color.destructive)
-                            setCircleColor(Color.RED)
-                            lineWidth = 2.5f
-                            circleRadius = 3f
-                            setDrawCircleHole(false)
-                            mode = LineDataSet.Mode.CUBIC_BEZIER // Smooth curves
-                            setDrawValues(false)
-                        }
-                        combinedData.setData(LineData(lineDataSet))
-
-                        binding.salesCombinedChart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
-                        binding.salesCombinedChart.data = combinedData
-                        binding.salesCombinedChart.invalidate()
-                    }
-                }
-                is Resource.Error -> {
-                    binding.progressBar.gone()
-                    requireContext().showToast(result.message ?: "Error")
-                }
-            }
-        }
-    }
-     */
-
+    
     private fun setWeatherIcon(condition: String) {
         val drawableRes = when (condition.lowercase()) {
             "cloudy", "partly cloudy" -> R.drawable.cloud
