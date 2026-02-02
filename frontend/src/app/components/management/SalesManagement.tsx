@@ -193,8 +193,18 @@ export function SalesManagement() {
       }
       grouped[item.date].push(item);
     });
+
+    // Sort each day's recipes alphabetically by name
+    Object.keys(grouped).forEach(date => {
+      grouped[date].sort((a, b) => {
+        const nameA = getRecipeName(a.recipeId).toLowerCase();
+        const nameB = getRecipeName(b.recipeId).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    });
+
     return grouped;
-  }, [filteredSalesData]);
+  }, [filteredSalesData, recipes]); // Add recipes to dependencies
 
   return (
     <div className="space-y-6">
