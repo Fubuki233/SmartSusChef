@@ -8,13 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/app/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/app/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
-import { DollarSign, Edit, History, AlertTriangle } from 'lucide-react';
+import { DollarSign, Edit, History, AlertTriangle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { SalesData, EditHistory } from '@/app/types';
 import { format, differenceInDays } from 'date-fns';
 
 export function SalesManagement() {
-  const { user, salesData, recipes, updateSalesData, deleteSalesData } = useApp();
+  const { user, salesData, recipes, updateSalesData, deleteSalesData, addSalesData } = useApp();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingData, setEditingData] = useState<SalesData | null>(null);
@@ -23,6 +23,21 @@ export function SalesManagement() {
   const [dateFilter, setDateFilter] = useState('all');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingData, setDeletingData] = useState<SalesData | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newDate, setNewDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+  const [newRecipeId, setNewRecipeId] = useState<string>('');
+
+  // Calculate the allowed date range for editing (last 7 days)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Calculate the date 7 days ago
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  // Formatted as yyyy-MM-dd for date input
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const sevenDaysAgoStr = format(sevenDaysAgo, 'yyyy-MM-dd');
 
   // Filter sales data by date range
   const filteredSalesData = useMemo(() => {
@@ -115,6 +130,51 @@ export function SalesManagement() {
     }
   };
 
+  const handleCreateRecord = async () => {
+    if (!newDate || !newRecipeId || !newQuantity) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    const quantity = parseFloat(newQuantity);
+    if (isNaN(quantity) || quantity < 0) {
+      toast.error('Please enter a valid quantity');
+      return;
+    }
+
+    try {
+      // Check for duplicate record
+      const existingRecord = salesData.find(
+        item => item.date === newDate && item.recipeId === newRecipeId
+      );
+
+      if (existingRecord) {
+        toast.error(`A record already exists for ${format(new Date(newDate), 'd MMM yyyy')} and ${getRecipeName(newRecipeId)}`);
+        return;
+      }
+
+      // Add new sales record
+      await addSalesData({
+        date: newDate,
+        recipeId: newRecipeId,
+        quantity: quantity,
+      });
+
+      toast.success('New sales record added successfully');
+      handleCloseCreateDialog();
+    } catch (error) {
+      console.error('Failed to create sales data:', error);
+      toast.error('Failed to add new sales record');
+    }
+  };
+
+  const handleCloseCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    setNewDate(format(new Date(), 'yyyy-MM-dd'));
+    setNewRecipeId('');
+    setNewQuantity('');
+  };
+
   const handleViewHistory = (data: SalesData) => {
     if (!data.editHistory || data.editHistory.length === 0) {
       toast.info('No edit history available for this record');
@@ -146,18 +206,27 @@ export function SalesManagement() {
           </h1>
           <p className="text-gray-600 mt-1">View and edit sales data with audit trail</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-sm text-gray-600">Filter:</Label>
-          <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="7days">Last 7 Days</SelectItem>
-              <SelectItem value="30days">Last 30 Days</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-4">
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            className="bg-[#81A263] hover:bg-[#6b9a4d] flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add New Record
+          </Button>
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-gray-600">Filter:</Label>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="7days">Last 7 Days</SelectItem>
+                <SelectItem value="30days">Last 30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -367,6 +436,83 @@ export function SalesManagement() {
                 className="bg-red-600 hover:bg-red-700"
               >
                 Yes, Delete Record
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create New Record Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-[#81A263]" />
+              Add New Sales Record
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-date">Date *</Label>
+              <Input
+                id="new-date"
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                min={sevenDaysAgoStr}
+                max={todayStr}
+                className="w-full"
+              />
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <AlertTriangle className="w-4 h-4" />
+                <span>You can only add records for the last 7 days ({format(sevenDaysAgo, 'd MMM yyyy')} to {format(today, 'd MMM yyyy')})</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-recipe">Recipe *</Label>
+              <Select value={newRecipeId} onValueChange={setNewRecipeId}>
+                <SelectTrigger id="new-recipe">
+                  <SelectValue placeholder="Select a recipe..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Only display the main dishes that are available for sale */}
+                  {recipes
+                    .filter(recipe => !recipe.isSubRecipe && recipe.isSellable)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(recipe => (
+                      <SelectItem key={recipe.id} value={recipe.id}>
+                        {recipe.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-quantity-create">Quantity *</Label>
+              <Input
+                id="new-quantity-create"
+                type="number"
+                min="0"
+                step="1"
+                value={newQuantity}
+                onChange={(e) => setNewQuantity(e.target.value)}
+                placeholder="Enter quantity"
+              />
+              <p className="text-xs text-gray-500">Number of dishes sold</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={handleCloseCreateDialog}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateRecord}
+                className="bg-[#81A263] hover:bg-[#6b9a4d]"
+                disabled={!newDate || !newRecipeId || !newQuantity}
+              >
+                Save Record
               </Button>
             </div>
           </div>
