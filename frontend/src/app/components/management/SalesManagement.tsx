@@ -177,7 +177,7 @@ export function SalesManagement() {
                         <TableRow>
                           <TableHead>Recipe</TableHead>
                           <TableHead className="text-right">Quantity</TableHead>
-                          <TableHead className="text-right">Edit History</TableHead>
+                          <TableHead className="text-right">Last Edit</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -193,7 +193,7 @@ export function SalesManagement() {
                             <TableCell className="text-right">
                               {item.modifiedAt ? (
                                 <div className="text-sm text-gray-600">
-                                  {format(new Date(item.modifiedAt), 'MMM d, yyyy HH:mm')}
+                                  {format(new Date(item.modifiedAt), 'MMM d, yyyy HH:mm') + ' (UTC)'}
                                 </div>
                               ) : (
                                 <span className="text-gray-400 text-sm">No edits</span>

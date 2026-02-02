@@ -268,9 +268,9 @@ public class SalesService : ISalesService
             salesData.RecipeId.ToString(),
             salesData.Recipe.Name,
             salesData.Quantity,
-            salesData.UpdatedAt,
-            salesData.CreatedAt,
-            salesData.UpdatedAt
+            salesData.UpdatedAt.ToUniversalTime(),
+            salesData.CreatedAt.ToUniversalTime(),
+            salesData.UpdatedAt.ToUniversalTime()
         );
     }
 }
