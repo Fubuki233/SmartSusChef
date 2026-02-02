@@ -362,6 +362,8 @@ export interface SalesDataDto {
   recipeId: string;
   recipeName: string;
   quantity: number;
+  createdAt?: string;
+  modifiedAt?: string;
 }
 
 export interface CreateSalesDataRequest {

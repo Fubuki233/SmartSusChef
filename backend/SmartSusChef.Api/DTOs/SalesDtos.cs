@@ -5,7 +5,9 @@ public record SalesDataDto(
     string Date,
     string RecipeId,
     string RecipeName,
-    int Quantity
+    int Quantity,
+    DateTime UpdatedAt,
+    DateTime? ModifiedAt = null
 );
 
 public record CreateSalesDataRequest(

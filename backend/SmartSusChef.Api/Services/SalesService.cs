@@ -268,7 +268,9 @@ public class SalesService : ISalesService
             salesData.Date.ToString("yyyy-MM-dd"),
             salesData.RecipeId.ToString(),
             salesData.Recipe.Name,
-            salesData.Quantity
+            salesData.Quantity,
+            salesData.UpdatedAt,
+            salesData.UpdatedAt
         );
     }
 }

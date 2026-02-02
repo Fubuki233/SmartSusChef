@@ -136,6 +136,8 @@ const mapSalesDataDto = (dto: SalesDataDto): SalesData => ({
   date: dto.date,
   recipeId: dto.recipeId,
   quantity: dto.quantity,
+  createdAt: dto.createdAt,
+  modifiedAt: dto.modifiedAt,
 });
 
 const mapWastageDataDto = (dto: WastageDataDto): WastageData => ({
@@ -655,7 +657,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       let blob: Blob;
       let filename = '';
-  
+
       if (type === 'sales') {
         blob = await exportApi.getSalesCsv();
         filename = 'sales_data.csv';
@@ -668,7 +670,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } else {
         throw new Error('Invalid export type');
       }
-  
+
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
