@@ -30,14 +30,14 @@ public class ExportController : ControllerBase
     public async Task<IActionResult> ExportSalesCsv([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
     {
         var data = await _salesService.GetAllAsync(startDate, endDate);
-        
+
         using var memoryStream = new MemoryStream();
         using var writer = new StreamWriter(memoryStream, Encoding.UTF8);
         using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-        
+
         csv.WriteRecords(data);
         await writer.FlushAsync();
-        
+
         return File(memoryStream.ToArray(), "text/csv", $"sales_export_{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 
@@ -45,14 +45,14 @@ public class ExportController : ControllerBase
     public async Task<IActionResult> ExportWastageCsv([FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
     {
         var data = await _wastageService.GetAllAsync(startDate, endDate);
-        
+
         using var memoryStream = new MemoryStream();
         using var writer = new StreamWriter(memoryStream, Encoding.UTF8);
         using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-        
+
         csv.WriteRecords(data);
         await writer.FlushAsync();
-        
+
         return File(memoryStream.ToArray(), "text/csv", $"wastage_export_{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 
@@ -60,25 +60,25 @@ public class ExportController : ControllerBase
     public async Task<IActionResult> ExportForecastCsv([FromQuery] int days = 7)
     {
         var data = await _forecastService.GetForecastAsync(days);
-        
+
         using var memoryStream = new MemoryStream();
         using var writer = new StreamWriter(memoryStream, Encoding.UTF8);
         using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
-        
+
         csv.WriteRecords(data);
         await writer.FlushAsync();
-        
+
         return File(memoryStream.ToArray(), "text/csv", $"forecast_export_{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 
     [HttpGet("sales/pdf")]
-    public async Task<IActionResult> ExportSalesPdf([FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
+    public IActionResult ExportSalesPdf([FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
     {
         // Placeholder for PDF generation
         // In a real app, use a library like PdfSharp or QuestPDF
         var content = $"Sales Report\nPeriod: {startDate:d} - {endDate:d}\n\n(PDF generation not implemented)";
         var bytes = Encoding.UTF8.GetBytes(content);
-        
+
         return File(bytes, "application/pdf", $"sales_report_{DateTime.UtcNow:yyyyMMdd}.pdf");
     }
 }

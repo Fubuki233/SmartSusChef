@@ -76,8 +76,7 @@ public class SalesService : ISalesService
 
         if (salesData == null) return null;
 
-        salesData.Date = DateTime.Parse(request.Date).Date;
-        salesData.RecipeId = Guid.Parse(request.RecipeId);
+        // Only allow quantity modification
         salesData.Quantity = request.Quantity;
         salesData.UpdatedAt = DateTime.UtcNow;
 

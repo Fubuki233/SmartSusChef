@@ -82,9 +82,8 @@ export function SalesInputForm() {
 
     try {
       if (editingId) {
-        // Update existing entry
+        // Update existing entry - only quantity can be modified
         await updateSalesData(editingId, {
-          recipeId: selectedRecipe,
           quantity: qty,
         });
         toast.success('Sales data updated successfully!');

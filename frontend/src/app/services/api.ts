@@ -371,8 +371,6 @@ export interface CreateSalesDataRequest {
 }
 
 export interface UpdateSalesDataRequest {
-  date: string;
-  recipeId: string;
   quantity: number;
 }
 

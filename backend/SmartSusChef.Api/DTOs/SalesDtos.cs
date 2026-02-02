@@ -15,8 +15,6 @@ public record CreateSalesDataRequest(
 );
 
 public record UpdateSalesDataRequest(
-    string Date,
-    string RecipeId,
     int Quantity
 );
 
