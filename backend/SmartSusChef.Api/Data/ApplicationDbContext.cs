@@ -120,6 +120,9 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Recipe)
                   .WithMany(r => r.SalesRecords)
                   .HasForeignKey(e => e.RecipeId);
+            modelBuilder.Entity<SalesData>()
+                        .HasIndex(s => new { s.StoreId, s.Date, s.RecipeId })
+                        .IsUnique();
         });
 
         // WastageData Configuration (Either/Or Logic)
