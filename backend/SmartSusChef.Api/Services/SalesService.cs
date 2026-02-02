@@ -269,6 +269,7 @@ public class SalesService : ISalesService
             salesData.Recipe.Name,
             salesData.Quantity,
             salesData.UpdatedAt,
+            salesData.CreatedAt,
             salesData.UpdatedAt
         );
     }
