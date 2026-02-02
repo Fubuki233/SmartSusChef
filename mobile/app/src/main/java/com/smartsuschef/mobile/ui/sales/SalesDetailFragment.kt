@@ -18,6 +18,7 @@ import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
 import com.github.mikephil.charting.formatter.LargeValueFormatter
+import com.github.mikephil.charting.components.Legend
 
 @AndroidEntryPoint
 class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
@@ -52,44 +53,61 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
             description.isEnabled = false
             isDrawHoleEnabled = true
             setHoleColor(Color.TRANSPARENT)
-            setEntryLabelColor(Color.BLACK)
-            legend.isEnabled = true
+            setDrawEntryLabels(false)
             animateY(1000)
 
+            legend.apply {
+                isEnabled = true
+                isWordWrapEnabled = true
+                horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
+                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+                orientation = Legend.LegendOrientation.HORIZONTAL
+                setDrawInside(false)
+                xEntrySpace = 10f
+                yEntrySpace = 5f
+                form = Legend.LegendForm.SQUARE
+                textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
+            }
+
             val chartPalette = listOf(
-                ContextCompat.getColor(requireContext(), R.color.chart_1_sage),
-                ContextCompat.getColor(requireContext(), R.color.chart_2_orange),
-                ContextCompat.getColor(requireContext(), R.color.chart_3_azure),
-                ContextCompat.getColor(requireContext(), R.color.chart_4_olive),
-                ContextCompat.getColor(requireContext(), R.color.chart_5_gold),
-                ContextCompat.getColor(requireContext(), R.color.chart_6_teal),
-                ContextCompat.getColor(requireContext(), R.color.chart_7_darkorange),
-                ContextCompat.getColor(requireContext(), R.color.chart_8_lightorange),
-                ContextCompat.getColor(requireContext(), R.color.chart_9_lavender),
-                ContextCompat.getColor(requireContext(), R.color.chart_10_grey)
+                ContextCompat.getColor(requireContext(), R.color.chart_1),
+                ContextCompat.getColor(requireContext(), R.color.chart_2),
+                ContextCompat.getColor(requireContext(), R.color.chart_3),
+                ContextCompat.getColor(requireContext(), R.color.chart_4),
+                ContextCompat.getColor(requireContext(), R.color.chart_5),
+                ContextCompat.getColor(requireContext(), R.color.chart_6),
+                ContextCompat.getColor(requireContext(), R.color.chart_7),
+                ContextCompat.getColor(requireContext(), R.color.chart_8),
+                ContextCompat.getColor(requireContext(), R.color.chart_9),
+                ContextCompat.getColor(requireContext(), R.color.chart_10)
                 )
 
             // Mock Data for Distribution
-            val entries = listOf(
+            val rawEntries = listOf(
                 PieEntry(10f, "Hainese Chicken Rice"),
                 PieEntry(5f, "Laksa"),
                 PieEntry(20f, "Beef Rendang"),
                 PieEntry(5f, "Nasi Lemak"),
                 PieEntry(30f, "Mala Xiang Guo"),
                 PieEntry(12f, "Carrot Cake"),
-                PieEntry(18f, "Char Kway Teow"),
+                PieEntry(8f, "Char Kway Teow"),
+                PieEntry(10f, "Fish Porridge")
                 )
 
-            val dataSet = PieDataSet(entries, "").apply {
+            val finalEntries = if (rawEntries.size > 10) {
+                val topNine = rawEntries.take(9)
+                val othersSum = rawEntries.drop(9).sumOf { it.value.toDouble() }.toFloat()
+                topNine + PieEntry(othersSum, "Others")
+            } else {
+                rawEntries
+            }
+
+            val dataSet = PieDataSet(finalEntries, "").apply {
                 colors = chartPalette // Use the full list, it will cycle if needed
                 valueTextSize = 11f
                 valueTextColor = Color.WHITE
                 valueFormatter = LargeValueFormatter()
             }
-
-            // Use the Legend instead of labels on the chart for a cleaner look
-            legend.isEnabled = true
-            setDrawEntryLabels(false)
 
             data = PieData(dataSet)
             invalidate()
