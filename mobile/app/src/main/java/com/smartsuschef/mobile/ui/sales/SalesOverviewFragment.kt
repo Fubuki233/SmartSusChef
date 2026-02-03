@@ -223,7 +223,7 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 binding.tvDateContext.text = if (filter == SalesFilter.TODAY) "Today" else "Last 7 Days"
             }
         }
-    
+
     private fun setWeatherIcon(condition: String) {
         val drawableRes = when (condition.lowercase()) {
             "cloudy", "partly cloudy" -> R.drawable.cloud
