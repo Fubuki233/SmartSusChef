@@ -26,83 +26,92 @@ export function RecipeManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   
-  // Form States
-  const [recipeName, setRecipeName] = useState('');
-  const [isSubRecipe, setIsSubRecipe] = useState(false);
-  const [recipeUnit, setRecipeUnit] = useState<string>('plate'); // Default unit
-  const [formRows, setFormRows] = useState<FormRow[]>([
-    { type: 'ingredient', id: '', quantity: 0 }
-  ]);
+  interface RecipeFormState {
+    name: string;
+    isSubRecipe: boolean;
+    unit: string;
+    formRows: FormRow[];
+  }
+
+  const initialFormState: RecipeFormState = {
+    name: '',
+    isSubRecipe: false,
+    unit: 'plate',
+    formRows: [{ type: 'ingredient', id: '', quantity: 0 }],
+  };
+  
+  const [recipeForm, setRecipeForm] = useState<RecipeFormState>(initialFormState);
+  const { name: recipeName, isSubRecipe, unit: recipeUnit, formRows } = recipeForm;
+
 
   // --- Handlers ---
 
   const handleOpenDialog = (recipe?: Recipe) => {
     if (recipe) {
       setEditingRecipe(recipe);
-      setRecipeName(recipe.name);
-      setIsSubRecipe(recipe.isSubRecipe || false);
-      setRecipeUnit(recipe.unit || (recipe.isSubRecipe ? 'L' : 'plate')); // Use stored unit or default
-      
       const mappedRows: FormRow[] = recipe.ingredients.map(comp => ({
         type: comp.childRecipeId ? 'recipe' : 'ingredient',
         id: comp.childRecipeId || comp.ingredientId || '',
         quantity: comp.quantity
       }));
-      
-      setFormRows(mappedRows.length > 0 ? mappedRows : [{ type: 'ingredient', id: '', quantity: 0 }]);
+      setRecipeForm({
+        name: recipe.name,
+        isSubRecipe: recipe.isSubRecipe || false,
+        unit: recipe.unit || (recipe.isSubRecipe ? 'L' : 'plate'),
+        formRows: mappedRows.length > 0 ? mappedRows : [{ type: 'ingredient', id: '', quantity: 0 }]
+      });
     } else {
       setEditingRecipe(null);
-      setRecipeName('');
-      setIsSubRecipe(false);
-      setRecipeUnit('plate'); // Default to plate for new recipes
-      setFormRows([{ type: 'ingredient', id: '', quantity: 0 }]);
+      setRecipeForm(initialFormState);
     }
     setIsDialogOpen(true);
   };
 
   const handleSubRecipeToggle = (checked: boolean) => {
-    setIsSubRecipe(checked);
-    
-    // Set default unit based on recipe type
-    if (checked) {
-      setRecipeUnit('L'); // Default to liters for sub-recipes
-      // Flat Rule: If setting as Sub-Recipe, ensure only ingredients are kept
-      const sanitizedRows = formRows.map(row => {
-        if (row.type === 'recipe') {
-           return { type: 'ingredient' as const, id: '', quantity: row.quantity };
-        }
-        return row;
-      });
-      setFormRows(sanitizedRows);
-    } else {
-      setRecipeUnit('plate'); // Default to plate for main dishes
-    }
+    setRecipeForm(prev => {
+      const newUnit = checked ? 'L' : 'plate';
+      let newRows = prev.formRows;
+      if (checked) {
+        newRows = prev.formRows.map(row => {
+          if (row.type === 'recipe') {
+             return { type: 'ingredient' as const, id: '', quantity: row.quantity };
+          }
+          return row;
+        });
+      }
+      return { ...prev, isSubRecipe: checked, unit: newUnit, formRows: newRows };
+    });
   };
 
   const handleAddRow = () => {
-    setFormRows([...formRows, { type: 'ingredient', id: '', quantity: 0 }]);
+    setRecipeForm(prev => ({
+      ...prev,
+      formRows: [...prev.formRows, { type: 'ingredient', id: '', quantity: 0 }]
+    }));
   };
 
   const handleRemoveRow = (index: number) => {
-    setFormRows(formRows.filter((_, i) => i !== index));
+    setRecipeForm(prev => ({
+      ...prev,
+      formRows: prev.formRows.filter((_, i) => i !== index)
+    }));
   };
 
   const handleQuantityChange = (index: number, value: string) => {
-    const updated = [...formRows];
-    updated[index].quantity = parseFloat(value) || 0;
-    setFormRows(updated);
+    const updatedRows = [...formRows];
+    updatedRows[index].quantity = parseFloat(value) || 0;
+    setRecipeForm(prev => ({ ...prev, formRows: updatedRows }));
   };
 
-  // Special handler to parse "type|id" from the combined dropdown
   const handleItemSelection = (index: number, value: string) => {
     const [type, id] = value.split('|');
-    const updated = [...formRows];
-    updated[index] = {
-      ...updated[index],
+    const updatedRows = [...formRows];
+    updatedRows[index] = {
+      ...updatedRows[index],
       type: type as 'ingredient' | 'recipe',
       id: id
     };
-    setFormRows(updated);
+    setRecipeForm(prev => ({ ...prev, formRows: updatedRows }));
   };
 
   const handleSubmit = async () => {
@@ -283,7 +292,7 @@ export function RecipeManagement() {
                   id="recipe-name"
                   placeholder="e.g. Mala Xiang Guo"
                   value={recipeName}
-                  onChange={(e) => setRecipeName(e.target.value)}
+                  onChange={(e) => setRecipeForm(prev => ({ ...prev, name: e.target.value}))}
                   className="rounded-[8px] border-gray-300 h-10"
                 />
               </div>
@@ -306,7 +315,7 @@ export function RecipeManagement() {
                   <Label htmlFor="recipe-unit" className="text-sm font-medium text-gray-700">
                     Unit of Measurement
                   </Label>
-                  <Select value={recipeUnit} onValueChange={setRecipeUnit}>
+                  <Select value={recipeUnit} onValueChange={(unit) => setRecipeForm(prev => ({...prev, unit}))}>
                     <SelectTrigger id="recipe-unit" className="rounded-[8px] border-gray-300 h-10">
                       <SelectValue placeholder="Select unit..." />
                     </SelectTrigger>
