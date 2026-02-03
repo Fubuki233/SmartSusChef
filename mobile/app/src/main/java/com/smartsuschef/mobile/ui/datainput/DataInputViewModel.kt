@@ -12,6 +12,10 @@ import com.smartsuschef.mobile.network.dto.CreateSalesDataRequest
 import com.smartsuschef.mobile.network.dto.CreateWastageDataRequest
 import com.smartsuschef.mobile.network.dto.IngredientDto
 import com.smartsuschef.mobile.network.dto.RecipeDto
+import com.smartsuschef.mobile.network.dto.SalesDataDto
+import com.smartsuschef.mobile.network.dto.UpdateSalesDataRequest
+import com.smartsuschef.mobile.network.dto.UpdateWastageDataRequest
+import com.smartsuschef.mobile.network.dto.WastageDataDto
 import com.smartsuschef.mobile.ui.datainput.RecentEntry
 import com.smartsuschef.mobile.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -93,61 +97,126 @@ class DataInputViewModel @Inject constructor(
         _selectedItemName.value = itemName
     }
 
-    fun submitData(quantity: Double) {
+    fun findExistingEntry(itemName: String): RecentEntry? {
+        val currentMode = _isSalesMode.value ?: true
+        return submittedEntries.find { it.name == itemName && it.isSales == currentMode }
+    }
+
+    fun submitData(quantity: Double, existingEntryId: String? = null) {
         viewModelScope.launch {
-            _submitStatus.value = Resource.Loading()
+            _submitStatus.value = Resource.Loading<Unit>()
             val id = _selectedItemId.value
             val name = _selectedItemName.value
+            val isSalesMode = _isSalesMode.value ?: true
+            val unit = if (isSalesMode) "plates" else "units"
+
             if (id == null || name == null) {
-                _submitStatus.value = Resource.Error("No item selected.")
+                _submitStatus.value = Resource.Error<Unit>("No item selected.")
                 return@launch
             }
 
             val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val currentTimeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
-            val result = if (_isSalesMode.value == true) {
-                salesRepository.create(CreateSalesDataRequest(date = todayStr, recipeId = id, quantity = quantity.toInt()))
-            } else {
+            val result: Resource<out Any> = if (isSalesMode) {
+                if (existingEntryId != null) {
+                    salesRepository.update(existingEntryId, UpdateSalesDataRequest(date = todayStr, recipeId = id, quantity = quantity.toInt()))
+                } else {
+                    salesRepository.create(CreateSalesDataRequest(date = todayStr, recipeId = id, quantity = quantity.toInt()))
+                }
+            } else { // Wastage mode
                 val wastageRequest = when (_wastageType.value) {
                     WastageType.MAIN_DISH, WastageType.SUB_RECIPE -> CreateWastageDataRequest(date = todayStr, recipeId = id, quantity = quantity)
                     WastageType.INGREDIENT -> CreateWastageDataRequest(date = todayStr, ingredientId = id, quantity = quantity)
-                    else -> null // Should not happen
+                    else -> null // This case implies an invalid or unhandled wastageType
                 }
-                if (wastageRequest != null) {
-                    wastageRepository.create(wastageRequest)
-                } else {
-                    Resource.Error("Invalid wastage type.")
+
+                if (existingEntryId != null) {
+                    wastageRepository.update(existingEntryId, UpdateWastageDataRequest(date = todayStr, ingredientId = if (_wastageType.value == WastageType.INGREDIENT) id else null, recipeId = if (_wastageType.value != WastageType.INGREDIENT) id else null, quantity = quantity))
+                } else { // If no existingEntryId, then it's a creation or an error
+                    if (wastageRequest != null) {
+                        wastageRepository.create(wastageRequest)
+                    } else {
+                        // This else corresponds to when wastageRequest is null (i.e., invalid wastage type)
+                        Resource.Error<WastageDataDto>("Invalid wastage type selected or request could not be formed.")
+                    }
                 }
             }
 
+
             when (result) {
                 is Resource.Success -> {
-                    // Add the new entry to our in-memory list
-                    val newEntry = RecentEntry(name, quantity, if (_isSalesMode.value == true) "plates" else "units")
-                    submittedEntries.add(0, newEntry) // Add to the top of the list
+                    val newEntryId = when (result.data) {
+                        is SalesDataDto -> result.data.id
+                        is WastageDataDto -> result.data.id
+                        else -> existingEntryId // For updates, use existing ID
+                    } ?: return@launch // Should not happen for successful creation/update
 
-                    _submitStatus.value = Resource.Success(Unit)
+                    val newEntry = RecentEntry(
+                        id = newEntryId,
+                        name = name,
+                        quantity = quantity,
+                        unit = unit,
+                        date = todayStr, // Or result.data.date if available and different
+                        time = currentTimeStr, // Added time
+                        isSales = isSalesMode
+                    )
+
+                    // Update or add the entry
+                    val existingIndex = submittedEntries.indexOfFirst { it.id == newEntry.id }
+                    if (existingIndex != -1) {
+                        submittedEntries[existingIndex] = newEntry
+                    } else {
+                        submittedEntries.add(0, newEntry)
+                    }
+
+                    _submitStatus.value = Resource.Success<Unit>(Unit, "Entry saved successfully!")
                     loadRecentEntries() // Refresh after successful submission
                 }
                 is Resource.Error -> {
-                    _submitStatus.value = Resource.Error(result.message ?: "Unknown error")
+                    _submitStatus.value = Resource.Error<Unit>(result.message ?: "Unknown error")
                 }
                 is Resource.Loading -> { /* Do nothing */ }
             }
         }
     }
 
+    fun deleteEntry(entry: RecentEntry) {
+        viewModelScope.launch {
+            _submitStatus.value = Resource.Loading<Unit>()
+            val result = if (entry.isSales) {
+                salesRepository.delete(entry.id)
+            } else {
+                wastageRepository.delete(entry.id)
+            }
+
+            when (result) {
+                is Resource.Success -> {
+                    submittedEntries.remove(entry)
+                    _submitStatus.value = Resource.Success<Unit>(Unit, "Entry deleted successfully!")
+                    loadRecentEntries()
+                }
+                is Resource.Error -> {
+                    _submitStatus.value = Resource.Error<Unit>(result.message ?: "Failed to delete entry.")
+                }
+                is Resource.Loading -> { /* Do nothing */ }
+            }
+        }
+    }
+
+    // Existing functions...
+
     private fun fetchIngredients() {
         viewModelScope.launch {
-            _ingredients.value = Resource.Loading()
+            _ingredients.value = Resource.Loading<List<IngredientDto>>()
             _ingredients.value = ingredientsRepository.getAll()
         }
     }
 
     private fun fetchRecipes() {
         viewModelScope.launch {
-             _mainRecipes.value = Resource.Loading()
-             _subRecipes.value = Resource.Loading()
+             _mainRecipes.value = Resource.Loading<List<RecipeDto>>()
+             _subRecipes.value = Resource.Loading<List<RecipeDto>>()
             when(val result = recipesRepository.getAll()) {
                 is Resource.Success -> {
                     val allRecipes = result.data ?: emptyList()
@@ -159,13 +228,13 @@ class DataInputViewModel @Inject constructor(
                     _mainRecipes.value = error
                     _subRecipes.value = error
                 }
-                else -> { /* Loading */ }
+                is Resource.Loading -> { /* Loading */ }
             }
         }
     }
 
     private fun loadRecentEntries() {
-        // Update the LiveData with the current list of submitted entries
-        _recentEntries.value = submittedEntries.toList()
+        val currentMode = _isSalesMode.value ?: true
+        _recentEntries.value = submittedEntries.filter { it.isSales == currentMode }.toList()
     }
 }

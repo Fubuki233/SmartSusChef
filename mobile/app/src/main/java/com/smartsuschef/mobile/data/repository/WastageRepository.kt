@@ -3,6 +3,7 @@ package com.smartsuschef.mobile.data.repository
 import com.smartsuschef.mobile.network.api.WastageApiService
 import com.smartsuschef.mobile.network.dto.CreateWastageDataRequest
 import com.smartsuschef.mobile.network.dto.ItemWastageDto
+import com.smartsuschef.mobile.network.dto.UpdateWastageDataRequest
 import com.smartsuschef.mobile.network.dto.WastageDataDto
 import com.smartsuschef.mobile.network.dto.WastageTrendDto
 import com.smartsuschef.mobile.util.Resource
@@ -102,6 +103,26 @@ class WastageRepository @Inject constructor(
             carbonFootprint = request.quantity * 1.5
         )
         return Resource.Success(fakeDto)
+    }
+
+    suspend fun update(id: String, request: UpdateWastageDataRequest): Resource<WastageDataDto> {
+        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
+        val fakeDto = WastageDataDto(
+            id = id,
+            date = request.date,
+            ingredientId = request.ingredientId,
+            recipeId = request.recipeId,
+            displayName = "Mocked Item",
+            unit = "unit",
+            quantity = request.quantity,
+            carbonFootprint = request.quantity * 1.5
+        )
+        return Resource.Success(fakeDto)
+    }
+
+    suspend fun delete(id: String): Resource<Unit> {
+        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
+        return Resource.Success(Unit)
     }
 }
         /*
