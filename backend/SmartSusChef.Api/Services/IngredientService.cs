@@ -115,6 +115,14 @@ public partial class IngredientService : IIngredientService
 
         if (ingredient == null) return false;
 
+        var isUsedInRecipe = await _context.RecipeIngredients
+            .AnyAsync(ri => ri.IngredientId == id);
+
+        if (isUsedInRecipe)
+        {
+            throw new InvalidOperationException("This ingredient cannot be deleted because it is currently used in one or more recipes.");
+        }
+
         _context.Ingredients.Remove(ingredient);
         await _context.SaveChangesAsync();
 

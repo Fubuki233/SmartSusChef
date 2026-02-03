@@ -101,7 +101,7 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Ingredient)
                   .WithMany(i => i.RecipeIngredients)
                   .HasForeignKey(e => e.IngredientId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.Restrict);
 
             // Optional link to Child Sub-Recipe
             entity.HasOne(e => e.ChildRecipe)
