@@ -246,7 +246,8 @@ public class WastageService : IWastageService
             wastageData.Ingredient?.Name ?? wastageData.Recipe?.Name ?? "Unknown",
             wastageData.Ingredient?.Unit ?? "unit",
             wastageData.Quantity,
-            await GetTotalImpactAsync(wastageData)
+            await GetTotalImpactAsync(wastageData),
+            wastageData.UpdatedAt
         );
     }
 }
