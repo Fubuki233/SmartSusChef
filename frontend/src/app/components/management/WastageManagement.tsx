@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/app/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/app/components/ui/sheet';
 import { Badge } from '@/app/components/ui/badge';
-import { Trash2, Edit, History, AlertTriangle } from 'lucide-react';
+import { Trash2, Edit, History, AlertTriangle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, differenceInDays, subDays } from 'date-fns';
 import { WastageData, EditHistory } from '@/app/types/index';
@@ -17,13 +17,27 @@ import { getRecipeUnit, calculateRecipeCarbon } from '@/app/utils/recipeCalculat
 import { getStandardizedQuantity } from '@/app/utils/unitConversion';
 
 export function WastageManagement() {
-  const { user, wastageData, ingredients, recipes, updateWastageData } = useApp();
+  const { user, wastageData, ingredients, recipes, updateWastageData, deleteWastageData, addWastageData } = useApp();
   const [selectedType, setSelectedType] = useState<string>('all');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingData, setEditingData] = useState<WastageData | null>(null);
   const [newQuantity, setNewQuantity] = useState<string>('');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<WastageData | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingData, setDeletingData] = useState<WastageData | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newDate, setNewDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+  const [newItemType, setNewItemType] = useState<'ingredient' | 'recipe'>('ingredient');
+  const [newItemId, setNewItemId] = useState<string>('');
+
+  // Calculate the allowed date range for creating new records (last 7 days)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const sevenDaysAgoStr = format(sevenDaysAgo, 'yyyy-MM-dd');
 
   // --- LOGIC: Check both recipeId and ingredientId ---
   const getItemInfo = (recipeId?: string | null, ingredientId?: string | null) => {
@@ -162,14 +176,95 @@ export function WastageManagement() {
     setIsHistoryOpen(true);
   };
 
+  const handleDeleteRecord = async () => {
+    if (!deletingData) return;
+
+    try {
+      await deleteWastageData(deletingData.id);
+
+      toast.success('Wastage record deleted successfully');
+
+      setIsDeleteDialogOpen(false);
+      setIsEditDialogOpen(false);
+      setEditingData(null);
+      setDeletingData(null);
+
+    } catch (error) {
+      console.error('Failed to delete wastage data:', error);
+      toast.error('Failed to delete wastage record');
+    }
+  };
+
+  const handleCreateRecord = async () => {
+    if (!newDate || !newItemId || !newQuantity) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    const quantity = parseFloat(newQuantity);
+    if (isNaN(quantity) || quantity < 0) {
+      toast.error('Please enter a valid quantity');
+      return;
+    }
+
+    try {
+      // Check for duplicate record
+      const existingRecord = wastageData.find(
+        item => item.date === newDate &&
+          ((newItemType === 'ingredient' && item.ingredientId === newItemId) ||
+            (newItemType === 'recipe' && item.recipeId === newItemId))
+      );
+
+      if (existingRecord) {
+        const itemInfo = getItemInfo(
+          newItemType === 'recipe' ? newItemId : null,
+          newItemType === 'ingredient' ? newItemId : null
+        );
+        toast.error(`A record already exists for ${format(new Date(newDate), 'd MMM yyyy')} and ${itemInfo.name}`);
+        return;
+      }
+
+      // Add new wastage record
+      await addWastageData({
+        date: newDate,
+        ingredientId: newItemType === 'ingredient' ? newItemId : undefined,
+        recipeId: newItemType === 'recipe' ? newItemId : undefined,
+        quantity: quantity,
+      });
+
+      toast.success('New wastage record added successfully');
+      handleCloseCreateDialog();
+    } catch (error) {
+      console.error('Failed to create wastage data:', error);
+      toast.error('Failed to add new wastage record');
+    }
+  };
+
+  const handleCloseCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    setNewDate(format(new Date(), 'yyyy-MM-dd'));
+    setNewItemType('ingredient');
+    setNewItemId('');
+    setNewQuantity('');
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold flex items-center gap-2 text-[#1A1C18] md:text-3xl lg:text-3xl">
-          <Trash2 className="w-6 h-6 text-[#E74C3C]" />
-          Wastage Data Management
-        </h1>
-        <p className="text-gray-600 mt-1">Audit log and data controls for store management</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold flex items-center gap-2 text-[#1A1C18] md:text-3xl lg:text-3xl">
+            <Trash2 className="w-6 h-6 text-[#E74C3C]" />
+            Wastage Data Management
+          </h1>
+          <p className="text-gray-600 mt-1">Audit log and data controls for store management</p>
+        </div>
+        <Button
+          onClick={() => setIsCreateDialogOpen(true)}
+          className="bg-[#4F6F52] hover:bg-[#3D563F] text-white flex items-center gap-2 rounded-[32px] px-6"
+        >
+          <Plus className="w-4 h-4" />
+          Add New Record
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -241,7 +336,7 @@ export function WastageManagement() {
                     <TableHead>Unit</TableHead>
                     <TableHead>Quantity</TableHead>
                     <TableHead className="text-center">Editable</TableHead>
-                    <TableHead className="text-right">History</TableHead>
+                    <TableHead className="text-right">Last Edit (UTC)</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -268,11 +363,10 @@ export function WastageManagement() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {waste.editHistory && waste.editHistory.length > 0 ? (
-                            <Button variant="ghost" size="sm" onClick={() => handleViewHistory(waste)} className="gap-1 text-[#4F6F52] hover:text-[#3D563F] hover:bg-gray-100">
-                              <History className="w-4 h-4" />
-                              {waste.editHistory.length}
-                            </Button>
+                          {waste.updatedAt ? (
+                            <span className="text-sm text-gray-700">
+                              {format(new Date(waste.updatedAt), 'd MMM yyyy, h:mm a')}
+                            </span>
                           ) : (
                             <span className="text-gray-400 text-sm px-4">-</span>
                           )}
@@ -324,12 +418,193 @@ export function WastageManagement() {
                 <Label htmlFor="new-quantity" className="text-sm font-semibold">New Quantity *</Label>
                 <Input id="new-quantity" type="number" step="0.1" value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} className="rounded-[8px]" />
               </div>
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button variant="outline" onClick={handleCloseEditDialog} className="rounded-[32px] px-6">Cancel</Button>
-                <Button onClick={handleSubmitEdit} className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-6">Update Record</Button>
-              </DialogFooter>
+              <div className="flex justify-between pt-4">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setDeletingData(editingData);
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  className="bg-red-600 hover:bg-red-700 rounded-[32px] px-6"
+                >
+                  Delete Record
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleCloseEditDialog} className="rounded-[32px] px-6">Cancel</Button>
+                  <Button onClick={handleSubmitEdit} className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-6">Update Record</Button>
+                </div>
+              </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md rounded-[12px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Confirm Deletion
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-gray-700">
+                Are you sure you want to delete this wastage record?
+              </p>
+              {deletingData && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="text-gray-600">Date:</div>
+                    <div className="font-medium">
+                      {format(new Date(deletingData.date), 'd MMM yyyy')}
+                    </div>
+                    <div className="text-gray-600">Item:</div>
+                    <div className="font-medium">
+                      {getItemInfo(deletingData.recipeId, deletingData.ingredientId).name}
+                    </div>
+                    <div className="text-gray-600">Type:</div>
+                    <div className="font-medium">
+                      {getItemInfo(deletingData.recipeId, deletingData.ingredientId).type}
+                    </div>
+                    <div className="text-gray-600">Quantity:</div>
+                    <div className="font-medium">
+                      {deletingData.quantity.toFixed(2)} {getItemInfo(deletingData.recipeId, deletingData.ingredientId).unit}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm text-red-600 font-medium">
+                Warning: This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+                className="rounded-[32px] px-6 hover:bg-gray-100"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteRecord}
+                className="bg-red-600 hover:bg-red-700 rounded-[32px] px-6"
+              >
+                Yes, Delete Record
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create New Record Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-md rounded-[12px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#4F6F52]">
+              <Plus className="w-5 h-5" />
+              Add New Wastage Record
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-date">Date *</Label>
+              <Input
+                id="new-date"
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                min={sevenDaysAgoStr}
+                max={format(new Date(), 'yyyy-MM-dd')}
+                className="rounded-[8px]"
+              />
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <AlertTriangle className="w-4 h-4" />
+                <span>You can only add records for the last 7 days ({format(sevenDaysAgo, 'd MMM yyyy')} to {format(today, 'd MMM yyyy')})</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="item-type">Item Type *</Label>
+              <Select value={newItemType} onValueChange={(value: 'ingredient' | 'recipe') => {
+                setNewItemType(value);
+                setNewItemId('');
+              }}>
+                <SelectTrigger id="item-type" className="rounded-[8px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ingredient">Raw Ingredient</SelectItem>
+                  <SelectItem value="recipe">Recipe / Sub-Recipe</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-item">{newItemType === 'ingredient' ? 'Ingredient' : 'Recipe'} *</Label>
+              <Select value={newItemId} onValueChange={setNewItemId}>
+                <SelectTrigger id="new-item" className="rounded-[8px]">
+                  <SelectValue placeholder={`Select a ${newItemType}...`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {newItemType === 'ingredient' ? (
+                    ingredients
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map(ingredient => (
+                        <SelectItem key={ingredient.id} value={ingredient.id}>
+                          {ingredient.name}
+                        </SelectItem>
+                      ))
+                  ) : (
+                    recipes
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map(recipe => (
+                        <SelectItem key={recipe.id} value={recipe.id}>
+                          {recipe.name} {recipe.isSubRecipe ? '(Sub-Recipe)' : '(Dish)'}
+                        </SelectItem>
+                      ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-quantity-create">Quantity *</Label>
+              <Input
+                id="new-quantity-create"
+                type="number"
+                min="0"
+                step="0.1"
+                value={newQuantity}
+                onChange={(e) => setNewQuantity(e.target.value)}
+                placeholder="Enter quantity"
+                className="rounded-[8px]"
+              />
+              {newItemId && (
+                <p className="text-xs text-gray-500">
+                  Unit: {getItemInfo(
+                    newItemType === 'recipe' ? newItemId : null,
+                    newItemType === 'ingredient' ? newItemId : null
+                  ).unit}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={handleCloseCreateDialog} className="rounded-[32px] px-6">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateRecord}
+                className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-6"
+                disabled={!newDate || !newItemId || !newQuantity}
+              >
+                Save Record
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

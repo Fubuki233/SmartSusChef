@@ -146,6 +146,7 @@ const mapWastageDataDto = (dto: WastageDataDto): WastageData => ({
   ingredientId: dto.ingredientId,
   recipeId: dto.recipeId,
   quantity: dto.quantity,
+  updatedAt: dto.updatedAt,
 });
 
 const mapForecastDto = (dto: ForecastDto): ForecastData => ({

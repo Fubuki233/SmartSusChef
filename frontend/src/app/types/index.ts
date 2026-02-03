@@ -67,6 +67,7 @@ export interface WastageData {
   quantity: number;
   createdAt?: string; // ISO timestamp
   modifiedAt?: string; // ISO timestamp
+  updatedAt?: string; // ISO timestamp from backend
   editHistory?: EditHistory[]; // Added for audit trail
 }
 
