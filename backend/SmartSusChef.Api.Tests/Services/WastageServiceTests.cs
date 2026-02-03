@@ -76,4 +76,46 @@ public class WastageServiceTests
         // Expected: 54 + 17.5 = 71.5
         Assert.Equal(71.5m, totalImpact);
     }
+
+    [Fact]
+    public async Task CreateAsync_ShouldSaveWastageEntry_WithValidIngredientId()
+    {
+        // 1. Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var ingredientId = Guid.NewGuid();
+
+        // Seed a valid ingredient
+        context.Ingredients.Add(new Ingredient { Id = ingredientId, Name = "Tomatoes", StoreId = storeId, Unit = "kg", CarbonFootprint = 1.1m});
+        await context.SaveChangesAsync();
+        
+        // Mock dependencies
+        var mockRecipeService = new Mock<IRecipeService>();
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+
+        var service = new WastageService(context, mockRecipeService.Object, mockCurrentUserService.Object);
+
+        var request = new DTOs.CreateWastageDataRequest(
+            Date: DateTime.UtcNow.ToString("o"),
+            IngredientId: ingredientId.ToString(),
+            RecipeId: null,
+            Quantity: 5.5m
+        );
+        
+        // 2. Act
+        var resultDto = await service.CreateAsync(request);
+
+        // 3. Assert
+        Assert.NotNull(resultDto);
+        Assert.Equal(5.5m, resultDto.Quantity);
+        Assert.Equal(ingredientId.ToString(), resultDto.IngredientId);
+
+        var savedEntry = await context.WastageData.FirstOrDefaultAsync(w => w.Id.ToString() == resultDto.Id);
+        Assert.NotNull(savedEntry);
+        Assert.Equal(5.5m, savedEntry.Quantity);
+        Assert.Equal(ingredientId, savedEntry.IngredientId);
+        Assert.Null(savedEntry.RecipeId);
+        Assert.Equal(storeId, savedEntry.StoreId);
+    }
 }

@@ -115,21 +115,13 @@ public class RecipeService : IRecipeService
         recipe.IsSubRecipe = request.IsSubRecipe;
         recipe.UpdatedAt = DateTime.UtcNow;
 
-        // Get existing ingredient IDs to delete them directly from database
-        var existingIngredientIds = recipe.RecipeIngredients.Select(ri => ri.Id).ToList();
-
-        // Delete existing recipe ingredients directly
-        if (existingIngredientIds.Any())
+        // Remove existing ingredients. This approach is compatible with the in-memory provider.
+        if (recipe.RecipeIngredients.Any())
         {
-            await _context.RecipeIngredients
-                .Where(ri => existingIngredientIds.Contains(ri.Id))
-                .ExecuteDeleteAsync();
+            _context.RecipeIngredients.RemoveRange(recipe.RecipeIngredients);
         }
-
-        // Clear the collection from the tracked entity
-        recipe.RecipeIngredients.Clear();
-
-        // Save the recipe changes first
+        
+        // Save changes to the recipe details and remove the old ingredients
         await _context.SaveChangesAsync();
 
         // Aggregate duplicate ingredients
