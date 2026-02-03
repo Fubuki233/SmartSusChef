@@ -31,7 +31,9 @@ class WastageDetailFragment : Fragment(R.layout.fragment_wastage_detail) {
 
         setupUI()
         setupRecyclerView()
-        viewModel.fetchWastageBreakdownForDate(args.date)
+        args.itemBreakdown?.let {
+            viewModel.setWastageBreakdown(it.toList())
+        }
         observeData()
     }
 
@@ -41,10 +43,10 @@ class WastageDetailFragment : Fragment(R.layout.fragment_wastage_detail) {
 
     private fun setupPieChart(data: List<WastageBreakdownItem>) {
         val breakdown = data.groupBy { it.type }
-            .mapValues { entry -> entry.value.sumOf { it.quantity } }
+            .mapValues { entry -> entry.value.sumOf { it.carbonFootprint } }
 
-        val entries = breakdown.map { (type, quantity) ->
-            PieEntry(quantity.toFloat(), type)
+        val entries = breakdown.map { (type, carbonFootprint) ->
+            PieEntry(carbonFootprint.toFloat(), type)
         }
 
         val dataSet = PieDataSet(entries, "").apply {

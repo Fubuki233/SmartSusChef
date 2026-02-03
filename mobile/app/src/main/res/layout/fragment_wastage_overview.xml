@@ -1,73 +1,100 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
+    android:background="@color/background">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true">
 
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp">
-            <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-                <RelativeLayout
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+
+                <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                    android:layout_height="wrap_content"
+                    android:padding="16dp">
 
                     <TextView
+                        android:id="@+id/tvWastageTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Wastage Trend"
                         android:textColor="@color/foreground"
-                        android:textStyle="bold" />
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
 
                     <TextView
                         android:id="@+id/tvDateContext"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_alignParentEnd="true"
-                        android:drawableEnd="@drawable/chevron_down"
-                        android:drawablePadding="4dp"
                         android:text="Last 7 Days"
-                        android:textColor="@color/primary"
-                        android:textStyle="bold" />
-                </RelativeLayout>
-                <TextView
-                    android:id="@+id/tvWastageSubtitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Total wastage"
-                    android:textColor="@color/muted_text"
-                    android:textSize="12sp" />
+                        android:textColor="@color/foreground"
+                        android:textSize="12sp"
+                        android:drawablePadding="4dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        app:drawableEndCompat="@drawable/chevron_down"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintTop_toTopOf="@id/tvWastageTitle" />
 
-                <com.github.mikephil.charting.charts.CombinedChart
-                    android:id="@+id/wastageCombinedChart"
-                    android:layout_width="match_parent"
-                    android:layout_height="250dp"
-                    android:layout_marginTop="8dp" />
+                    <TextView
+                        android:id="@+id/tvWastageSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Total wastage · Average: 0 kg per day"
+                        android:textColor="@color/muted_text"
+                        android:textSize="12sp"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/tvWastageTitle" />
 
-                <ProgressBar
-                    android:id="@+id/progressBar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:visibility="gone" />
+                    <TextView
+                        android:id="@+id/tvClickHint"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Click on any bar to view details"
+                        android:textColor="@color/wastage_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/tvWastageSubtitle" />
 
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+                    <com.github.mikephil.charting.charts.CombinedChart
+                        android:id="@+id/wastageCombinedChart"
+                        android:layout_width="match_parent"
+                        android:layout_height="250dp"
+                        android:layout_marginTop="16dp"
+                        app:layout_constraintTop_toBottomOf="@id/tvClickHint"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent" />
 
-    </LinearLayout>
-</ScrollView>
+                </androidx.constraintlayout.widget.ConstraintLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+</FrameLayout>

@@ -16,6 +16,7 @@ import com.github.mikephil.charting.highlight.*
 import com.github.mikephil.charting.listener.*
 import com.smartsuschef.mobile.R
 import com.smartsuschef.mobile.databinding.FragmentWastageOverviewBinding
+import com.smartsuschef.mobile.network.dto.WastageTrendDto
 import com.smartsuschef.mobile.util.*
 import dagger.hilt.android.AndroidEntryPoint
 import java.text.SimpleDateFormat
@@ -72,13 +73,16 @@ class WastageOverviewFragment : Fragment(R.layout.fragment_wastage_overview) {
             setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
                 override fun onValueSelected(e: Entry?, h: Highlight?) {
                     val selectedDateIndex = e?.x?.toInt() ?: return
-                    val fullDate = (viewModel.wastageTrend.value as? Resource.Success)?.data?.getOrNull(selectedDateIndex)?.date
+                    val trendItem = (viewModel.wastageTrend.value as? Resource.Success)?.data?.getOrNull(selectedDateIndex)
 
-                    if (fullDate != null) {
-                        val action = WastageOverviewFragmentDirections.actionNavWastageToWastageDetailFragment(date = fullDate)
+                    if (trendItem != null) {
+                        val action = WastageOverviewFragmentDirections.actionNavWastageToWastageDetailFragment(
+                            date = trendItem.date,
+                            itemBreakdown = trendItem.itemBreakdown.toTypedArray()
+                        )
                         findNavController().navigate(action)
                     } else {
-                        requireContext().showToast("Could not retrieve full date for selected entry.")
+                        requireContext().showToast("Could not retrieve details for selected entry.")
                     }
                 }
                 override fun onNothingSelected() {}
@@ -110,9 +114,9 @@ class WastageOverviewFragment : Fragment(R.layout.fragment_wastage_overview) {
         }
     }
 
-    private fun updateChart(wastageData: List<WastageTrendItem>) {
-        val avgWastage = wastageData.map { it.totalQuantity }.average()
-        binding.tvWastageSubtitle.text = "Total wastage · Average: %.2f kg per day".format(avgWastage)
+    private fun updateChart(wastageData: List<WastageTrendDto>) {
+        val totalCarbonFootprint = wastageData.sumOf { it.totalCarbonFootprint }
+        binding.tvWastageSubtitle.text = "Total Carbon Footprint: %.2f kg".format(totalCarbonFootprint)
 
         val barEntries = mutableListOf<BarEntry>()
         val lineEntries = mutableListOf<Entry>()
@@ -123,7 +127,7 @@ class WastageOverviewFragment : Fragment(R.layout.fragment_wastage_overview) {
 
         wastageData.forEachIndexed { index, item ->
             barEntries.add(BarEntry(index.toFloat(), item.totalQuantity.toFloat()))
-            lineEntries.add(Entry(index.toFloat(), item.totalQuantity.toFloat()))
+            lineEntries.add(Entry(index.toFloat(), item.totalCarbonFootprint.toFloat()))
 
             val formattedLabel = try {
                 inputFormat.parse(item.date)?.let { outputFormat.format(it) } ?: item.date
@@ -152,7 +156,7 @@ class WastageOverviewFragment : Fragment(R.layout.fragment_wastage_overview) {
         combinedData.setData(barData)
 
         if (wastageData.size > 1) {
-            val lineDataSet = LineDataSet(lineEntries, "Trend").apply {
+            val lineDataSet = LineDataSet(lineEntries, "Carbon Footprint (kg CO2)").apply {
                 color = ContextCompat.getColor(requireContext(), R.color.primary)
                 setCircleColor(ContextCompat.getColor(requireContext(), R.color.primary))
                 lineWidth = 2.5f

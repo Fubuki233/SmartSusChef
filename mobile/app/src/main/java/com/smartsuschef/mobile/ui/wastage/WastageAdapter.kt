@@ -12,7 +12,9 @@ class WastageAdapter(private var wastedItems: List<WastageBreakdownItem>) :
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val name: TextView = view.findViewById(R.id.tvWastedItemName)
+        val type: TextView = view.findViewById(R.id.tvWastedItemType)
         val quantity: TextView = view.findViewById(R.id.tvWastedQuantity)
+        val co2: TextView = view.findViewById(R.id.tvWastedCo2)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -24,7 +26,9 @@ class WastageAdapter(private var wastedItems: List<WastageBreakdownItem>) :
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = wastedItems[position]
         holder.name.text = item.name
-        holder.quantity.text = "${item.quantity} ${item.unit}"
+        holder.type.text = "Type: ${item.type}"
+        holder.quantity.text = "Quantity: ${item.quantity} ${item.unit}"
+        holder.co2.text = "CO2: %.2f kg".format(item.carbonFootprint)
     }
 
     override fun getItemCount() = wastedItems.size
