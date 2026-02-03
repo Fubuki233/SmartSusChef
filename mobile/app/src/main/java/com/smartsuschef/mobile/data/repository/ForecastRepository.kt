@@ -9,37 +9,46 @@ import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
+import kotlin.random.Random
 
 class ForecastRepository @Inject constructor(
     private val forecastApiService: ForecastApiService
 ) {
     suspend fun getForecast(days: Int): Resource<List<ForecastDto>> {
-        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
+        // --- MOCK IMPLEMENTATION FOR 7-DAY DASHBOARD ---
         val today = java.time.LocalDate.now()
-        val mockForecasts = listOf(
-            ForecastDto(
-                date = today.toString(),
-                recipeId = "recipe-chicken-rice",
-                recipeName = "Chicken Rice",
-                quantity = 50,
-                ingredients = listOf(
-                    ForecastIngredientDto(ingredientId = "ing-chicken", ingredientName = "Chicken", unit = "kg", quantity = 10.0),
-                    ForecastIngredientDto(ingredientId = "ing-rice", ingredientName = "Rice", unit = "kg", quantity = 5.0)
-                )
-            ),
-            ForecastDto(
-                date = today.plusDays(1).toString(),
-                recipeId = "recipe-laksa",
-                recipeName = "Laksa",
-                quantity = 30,
-                ingredients = listOf(
-                    ForecastIngredientDto(ingredientId = "ing-noodles", ingredientName = "Noodles", unit = "kg", quantity = 6.0),
-                    ForecastIngredientDto(ingredientId = "ing-prawns", ingredientName = "Prawns", unit = "kg", quantity = 3.0)
-                )
-            )
-        )
-        return Resource.Success(mockForecasts)
+        val mockForecasts = mutableListOf<ForecastDto>()
 
+        // Define a consistent set of dishes and ingredients to populate the table and stacks
+        val dishes = listOf("Hainanese Chicken Rice", "Laksa", "Beef Rendang")
+
+        for (i in 0 until days) {
+            val forecastDate = today.plusDays(i.toLong()).toString()
+
+            dishes.forEach { dishName ->
+                mockForecasts.add(
+                    ForecastDto(
+                        date = forecastDate,
+                        recipeId = "recipe-${dishName.lowercase().replace(" ", "-")}",
+                        recipeName = dishName,
+                        quantity = (20..60).random(), // Varied quantities for stacked bar segments
+                        ingredients = listOf(
+                            ForecastIngredientDto("ing-1", "Beef", "kg", Random.nextDouble(1.0, 5.1)), // Correct way for Double
+                            ForecastIngredientDto("ing-2", "Coconut Milk", "L", Random.nextDouble(2.0, 8.1)),
+                            ForecastIngredientDto("ing-3", "Shrimp Paste", "kg", Random.nextDouble(0.5, 2.1)),
+                            ForecastIngredientDto("ing-4", "Chicken", "kg", Random.nextDouble(1.5, 7.1)),
+                            ForecastIngredientDto("ing-6", "Lemongrass", "kg", Random.nextDouble(0.5, 2.1)),
+                            ForecastIngredientDto("ing-7", "Ginger", "kg", Random.nextDouble(0.5, 2.1)),
+                            ForecastIngredientDto("ing-8", "Garlic", "kg", Random.nextDouble(0.5, 2.1)),
+                            ForecastIngredientDto("ing-9", "Cooking Oil", "L", Random.nextDouble(0.5, 2.1))
+                        )
+                    )
+                )
+            }
+        }
+        return Resource.Success(mockForecasts)
+    }
+}
         /*
         // --- ORIGINAL IMPLEMENTATION ---
         return withContext(Dispatchers.IO) {
@@ -57,5 +66,3 @@ class ForecastRepository @Inject constructor(
             }
         }
         */
-    }
-}
