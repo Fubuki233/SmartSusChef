@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -17,7 +18,7 @@ import com.smartsuschef.mobile.util.showToast
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class DataInputFragment : Fragment(R.layout.fragment_data_input) {
+class DataInputFragment : Fragment(R.layout.fragment_data_input), RecentEntryActions {
 
     private var _binding: FragmentDataInputBinding? = null
     private val binding get() = _binding!!
@@ -27,6 +28,8 @@ class DataInputFragment : Fragment(R.layout.fragment_data_input) {
     private lateinit var ingredientsAdapter: ArrayAdapter<String>
     private lateinit var mainRecipesAdapter: ArrayAdapter<String>
     private lateinit var subRecipesAdapter: ArrayAdapter<String>
+
+    private var currentEditedEntry: RecentEntry? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -91,6 +94,7 @@ class DataInputFragment : Fragment(R.layout.fragment_data_input) {
             if (isChecked) {
                 val isSales = checkedId == R.id.btnSalesTab
                 viewModel.setMode(isSales)
+                resetForm()
             }
         }
 
@@ -102,6 +106,7 @@ class DataInputFragment : Fragment(R.layout.fragment_data_input) {
                     else -> WastageType.INGREDIENT
                 }
                 viewModel.setWastageType(type)
+                resetForm()
             }
         }
     }
@@ -121,7 +126,7 @@ class DataInputFragment : Fragment(R.layout.fragment_data_input) {
     }
 
     private fun setupRecyclerView() {
-        recentEntriesAdapter = RecentEntriesAdapter()
+        recentEntriesAdapter = RecentEntriesAdapter(this) // Pass this as listener
         binding.rvRecentEntries.apply {
             adapter = recentEntriesAdapter
             layoutManager = LinearLayoutManager(requireContext())
@@ -159,9 +164,8 @@ class DataInputFragment : Fragment(R.layout.fragment_data_input) {
         viewModel.submitStatus.observe(viewLifecycleOwner) { resource ->
             when (resource) {
                 is Resource.Success -> {
-                    requireContext().showToast("Entry saved successfully!")
-                    binding.etQuantity.text.clear()
-                    binding.itemSpinner.setSelection(0)
+                    requireContext().showToast(resource.message ?: "Entry saved successfully!")
+                    resetForm()
                 }
                 is Resource.Error -> requireContext().showToast("Error saving entry: ${resource.message}")
                 is Resource.Loading -> { /* Optionally show a loading dialog/spinner */ }
@@ -176,12 +180,76 @@ class DataInputFragment : Fragment(R.layout.fragment_data_input) {
                 requireContext().showToast("Please enter a valid quantity")
                 return@setOnClickListener
             }
-            if (viewModel.selectedItemId.value.isNullOrEmpty()) {
+            val selectedItemId = viewModel.selectedItemId.value
+            val selectedItemName = viewModel.selectedItemName.value
+
+            if (selectedItemId.isNullOrEmpty() || selectedItemName.isNullOrEmpty()) {
                 requireContext().showToast("Please select an item first.")
                 return@setOnClickListener
             }
-            viewModel.submitData(qty)
+
+            // If we are currently editing an entry, just submit the update
+            if (currentEditedEntry != null) {
+                viewModel.submitData(qty, currentEditedEntry!!.id)
+                return@setOnClickListener
+            }
+
+            // Check for existing entry if not in edit mode
+            val existingEntry = viewModel.findExistingEntry(selectedItemName)
+            if (existingEntry != null) {
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Entry Already Exists")
+                    .setMessage("You have already entered data for ${existingEntry.name}. Do you want to overwrite the existing quantity?")
+                    .setPositiveButton("Overwrite Entry") { dialog, _ ->
+                        viewModel.submitData(qty, existingEntry.id)
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton("Cancel") { dialog, _ ->
+                        dialog.dismiss()
+                    }
+                    .show()
+            } else {
+                viewModel.submitData(qty)
+            }
         }
+    }
+
+    private fun resetForm() {
+        binding.etQuantity.text.clear()
+        binding.itemSpinner.setSelection(0)
+        binding.itemSpinner.isEnabled = true // Enable spinner
+        binding.btnSaveData.text = "Save" // Reset button text
+        currentEditedEntry = null // Clear edited entry
+    }
+
+    override fun onEditClick(entry: RecentEntry) {
+        currentEditedEntry = entry
+        // Populate form fields
+        binding.etQuantity.setText(entry.quantity.toString())
+
+        // Set spinner selection
+        val adapter = binding.itemSpinner.adapter as ArrayAdapter<String>
+        val position = adapter.getPosition(entry.name)
+        if (position != -1) {
+            binding.itemSpinner.setSelection(position)
+        }
+        binding.itemSpinner.isEnabled = false // Lock item selection
+
+        binding.btnSaveData.text = "Update" // Change button text
+    }
+
+    override fun onDeleteClick(entry: RecentEntry) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Delete Entry")
+            .setMessage("Are you sure you want to delete the entry for ${entry.name}? This action cannot be undone.")
+            .setPositiveButton("Delete") { dialog, _ ->
+                viewModel.deleteEntry(entry)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun <T> handleResource(resource: Resource<List<T>>, adapter: ArrayAdapter<String>, hint: String) {

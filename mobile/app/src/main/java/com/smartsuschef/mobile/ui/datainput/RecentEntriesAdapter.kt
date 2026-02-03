@@ -6,12 +6,16 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.smartsuschef.mobile.databinding.ItemRecentEntryBinding
-import com.smartsuschef.mobile.ui.datainput.RecentEntry
+
+interface RecentEntryActions {
+    fun onEditClick(entry: RecentEntry)
+    fun onDeleteClick(entry: RecentEntry)
+}
 
 /**
  * Adapter to display today's submitted sales or wastage entries.
  */
-class RecentEntriesAdapter : ListAdapter<RecentEntry, RecentEntriesAdapter.RecentViewHolder>(DiffCallback) {
+class RecentEntriesAdapter(private val actions: RecentEntryActions) : ListAdapter<RecentEntry, RecentEntriesAdapter.RecentViewHolder>(DiffCallback) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecentViewHolder {
         val binding = ItemRecentEntryBinding.inflate(
@@ -23,22 +27,25 @@ class RecentEntriesAdapter : ListAdapter<RecentEntry, RecentEntriesAdapter.Recen
     }
 
     override fun onBindViewHolder(holder: RecentViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        holder.bind(getItem(position), actions)
     }
 
     class RecentViewHolder(private val binding: ItemRecentEntryBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(item: RecentEntry) {
+        fun bind(item: RecentEntry, actions: RecentEntryActions) {
             binding.tvItemName.text = item.name
-            // Displays quantity and unit (e.g., "95 plate" or "1.74 kg")
             binding.tvQuantity.text = "${item.quantity} ${item.unit}"
+            binding.tvEntryTime.text = item.time // Display only the time
+            // Assuming your layout has these buttons
+            binding.btnEdit.setOnClickListener { actions.onEditClick(item) }
+            binding.btnDelete.setOnClickListener { actions.onDeleteClick(item) }
         }
     }
 
     companion object DiffCallback : DiffUtil.ItemCallback<RecentEntry>() {
         override fun areItemsTheSame(oldItem: RecentEntry, newItem: RecentEntry) =
-            oldItem.name == newItem.name
+            oldItem.id == newItem.id // Compare by ID now
 
         override fun areContentsTheSame(oldItem: RecentEntry, newItem: RecentEntry) =
             oldItem == newItem
