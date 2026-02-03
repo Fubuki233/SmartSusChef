@@ -77,7 +77,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Recipe>(entity =>
         {
             entity.HasKey(e => e.Id);
-            
+
             // Unique index for (StoreId, Name)
             entity.HasIndex(e => new { e.StoreId, e.Name }).IsUnique();
 
@@ -120,6 +120,9 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Recipe)
                   .WithMany(r => r.SalesRecords)
                   .HasForeignKey(e => e.RecipeId);
+            modelBuilder.Entity<SalesData>()
+                        .HasIndex(s => new { s.StoreId, s.Date, s.RecipeId })
+                        .IsUnique();
         });
 
         // WastageData Configuration (Either/Or Logic)

@@ -77,7 +77,7 @@ public class ForecastController : ControllerBase
         var store = await _storeService.GetStoreAsync();
         string countryCode;
 
-        if (store == null || (store.Latitude == 0 && store.Longitude == 0))
+        if (store == null)
         {
             return Ok(new List<HolidayDto>());
         }
@@ -88,6 +88,10 @@ public class ForecastController : ControllerBase
         }
         else
         {
+            if (store.Latitude == 0 && store.Longitude == 0)
+            {
+                return Ok(new List<HolidayDto>());
+            }
             countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
         }
         if (string.IsNullOrWhiteSpace(countryCode))
@@ -113,13 +117,22 @@ public class ForecastController : ControllerBase
         string? countryCode = null;
 
         var store = await _storeService.GetStoreAsync();
-        if (store != null && !(store.Latitude == 0 && store.Longitude == 0))
+        if (store != null)
         {
-            latitude = store.Latitude;
-            longitude = store.Longitude;
-            countryCode = !string.IsNullOrWhiteSpace(store.CountryCode)
-                ? store.CountryCode
-                : await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+            if (!string.IsNullOrWhiteSpace(store.CountryCode))
+            {
+                countryCode = store.CountryCode;
+            }
+            else if (!(store.Latitude == 0 && store.Longitude == 0))
+            {
+                countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+            }
+
+            if (!(store.Latitude == 0 && store.Longitude == 0))
+            {
+                latitude = store.Latitude;
+                longitude = store.Longitude;
+            }
         }
 
         WeatherForecastDto? weather = null;
@@ -153,13 +166,22 @@ public class ForecastController : ControllerBase
         string? countryCode = null;
 
         var store = await _storeService.GetStoreAsync();
-        if (store != null && !(store.Latitude == 0 && store.Longitude == 0))
+        if (store != null)
         {
-            latitude = store.Latitude;
-            longitude = store.Longitude;
-            countryCode = !string.IsNullOrWhiteSpace(store.CountryCode)
-                ? store.CountryCode
-                : await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+            if (!string.IsNullOrWhiteSpace(store.CountryCode))
+            {
+                countryCode = store.CountryCode;
+            }
+            else if (!(store.Latitude == 0 && store.Longitude == 0))
+            {
+                countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+            }
+
+            if (!(store.Latitude == 0 && store.Longitude == 0))
+            {
+                latitude = store.Latitude;
+                longitude = store.Longitude;
+            }
         }
 
         var calendar = await GetCalendarDayAsync(targetDate, countryCode, latitude, longitude);
@@ -199,13 +221,22 @@ public class ForecastController : ControllerBase
         string? countryCode = null;
 
         var store = await _storeService.GetStoreAsync();
-        if (store != null && !(store.Latitude == 0 && store.Longitude == 0))
+        if (store != null)
         {
-            latitude = store.Latitude;
-            longitude = store.Longitude;
-            countryCode = !string.IsNullOrWhiteSpace(store.CountryCode)
-                ? store.CountryCode
-                : await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+            if (!string.IsNullOrWhiteSpace(store.CountryCode))
+            {
+                countryCode = store.CountryCode;
+            }
+            else if (!(store.Latitude == 0 && store.Longitude == 0))
+            {
+                countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
+            }
+
+            if (!(store.Latitude == 0 && store.Longitude == 0))
+            {
+                latitude = store.Latitude;
+                longitude = store.Longitude;
+            }
         }
 
         var result = new List<CalendarDayDto>();

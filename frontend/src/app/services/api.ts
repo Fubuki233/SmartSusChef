@@ -362,6 +362,8 @@ export interface SalesDataDto {
   recipeId: string;
   recipeName: string;
   quantity: number;
+  createdAt?: string;
+  modifiedAt?: string;
 }
 
 export interface CreateSalesDataRequest {
@@ -371,8 +373,6 @@ export interface CreateSalesDataRequest {
 }
 
 export interface UpdateSalesDataRequest {
-  date: string;
-  recipeId: string;
   quantity: number;
 }
 
@@ -546,10 +546,10 @@ export const forecastApi = {
     fetchWithAuth(`/forecast/summary?days=${days}`),
 
   getWeather: (): Promise<WeatherDto | null> =>
-    fetchWithAuth('/forecast/weather').catch(() => null),
+    (fetchWithAuth<WeatherDto>('/forecast/weather').catch(() => null)),
 
   getHolidays: (year: number): Promise<HolidayDto[]> =>
-    fetchWithAuth(`/forecast/holidays/${year}`).catch(() => []),
+    (fetchWithAuth<HolidayDto[]>(`/forecast/holidays/${year}`).catch(() => [])),
 };
 
 // ==========================================

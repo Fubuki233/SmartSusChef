@@ -39,19 +39,22 @@ class SalesRepository @Inject constructor(
             val calendar = java.util.Calendar.getInstance()
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
 
-            // Start from 7 days ago
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
-
-            for (i in 0..6) {
-                val date = dateFormat.format(calendar.time)
-                trend.add(
-                    SalesTrendDto(
-                        date = date,
-                        totalQuantity = (80..150).random(), // Random sales data
-                        recipeBreakdown = emptyList()
+            if (startDate == endDate) {
+                trend.add(SalesTrendDto(endDate, (80..150).random(), emptyList()))
+            } else {
+                // Start from 7 days ago
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
+                for (i in 0..6) {
+                    val date = dateFormat.format(calendar.time)
+                    trend.add(
+                        SalesTrendDto(
+                            date = date,
+                            totalQuantity = (80..150).random(), // Random sales data
+                            recipeBreakdown = emptyList()
+                        )
                     )
-                )
-                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                    calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                }
             }
             Resource.Success(trend)
         }
