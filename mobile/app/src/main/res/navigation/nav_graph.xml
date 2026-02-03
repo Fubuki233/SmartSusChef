@@ -31,9 +31,21 @@
         tools:layout="@layout/fragment_forecast" />
     <fragment
         android:id="@+id/nav_wastage"
-        android:name="com.smartsuschef.mobile.ui.wastage.WastageFragment"
+        android:name="com.smartsuschef.mobile.ui.wastage.WastageOverviewFragment"
         android:label="Wastage"
-        tools:layout="@layout/fragment_wastage" />
+        tools:layout="@layout/fragment_wastage_overview">
+        <action
+            android:id="@+id/action_nav_wastage_to_wastageDetailFragment"
+            app:destination="@id/wastageDetailFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/wastageDetailFragment"
+        android:name="com.smartsuschef.mobile.ui.wastage.WastageDetailFragment"
+        android:label="Wastage Details">
+        <argument
+            android:name="date"
+            app:argType="string" />
+    </fragment>
     <fragment
         android:id="@+id/nav_input"
         android:name="com.smartsuschef.mobile.ui.datainput.DataInputFragment"

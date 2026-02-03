@@ -58,9 +58,7 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
                 axisLineColor = Color.TRANSPARENT
                 labelRotationAngle = -45f
                 textSize = 8f
-                // yOffset = 5f
-                setAvoidFirstLastClipping(false) // Allow the other thing to handle
-
+                setAvoidFirstLastClipping(false) // Allow MPAndroidChart to handle spacing naturally without facing labels inward
             }
 
             axisLeft.apply {
@@ -200,7 +198,7 @@ class SalesOverviewFragment : Fragment(R.layout.fragment_sales_overview) {
 
     private fun showFilterMenu(view: View) {
             val popup = PopupMenu(requireContext(), view)
-            popup.menuInflater.inflate(R.menu.sales_filter_menu, popup.menu)
+            popup.menuInflater.inflate(R.menu.date_filter_menu, popup.menu)
 
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {

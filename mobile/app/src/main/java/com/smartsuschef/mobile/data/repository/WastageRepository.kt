@@ -16,44 +16,37 @@ class WastageRepository @Inject constructor(
     private val wastageApiService: WastageApiService) {
     suspend fun getTrend(startDate: String, endDate: String): Resource<List<WastageTrendDto>> {
         // --- MOCK IMPLEMENTATION FOR UI TESTING ---
-        val mockWastageTrend = listOf(
-            WastageTrendDto(
-                date = "2024-01-01",
-                totalQuantity = 5.2,
-                totalCarbonFootprint = 12.5,
-                itemBreakdown = listOf(
-                    ItemWastageDto(
-                        ingredientId = "ing-tomato",
-                        displayName = "Tomato",
-                        unit = "kg",
-                        quantity = 2.0,
-                        carbonFootprint = 3.0
-                    ),
-                    ItemWastageDto(
-                        recipeId = "rec-fried-rice",
-                        displayName = "Fried Rice",
-                        unit = "plate",
-                        quantity = 1.0,
-                        carbonFootprint = 5.0
-                    )
-                )
-            ),
-            WastageTrendDto(
-                date = "2024-01-02",
-                totalQuantity = 3.8,
-                totalCarbonFootprint = 8.1,
-                itemBreakdown = listOf(
-                    ItemWastageDto(
-                        ingredientId = "ing-lettuce",
-                        displayName = "Lettuce",
-                        unit = "kg",
-                        quantity = 1.5,
-                        carbonFootprint = 2.1
-                    )
+        val mockWastageTrend = (0..6).map { day ->
+            val date = java.time.LocalDate.now().minusDays(day.toLong()).toString()
+            val totalQuantity = (1..10).random().toDouble()
+            val totalCarbonFootprint = totalQuantity * (1..5).random()
+
+            val itemBreakdown = listOf(
+                ItemWastageDto(
+                    ingredientId = "ing-tomato",
+                    displayName = "Tomato",
+                    unit = "kg",
+                    quantity = (1..5).random().toDouble(),
+                    carbonFootprint = (1..5).random().toDouble()
+                ),
+                ItemWastageDto(
+                    recipeId = "sub-recipe-1",
+                    displayName = "Chicken Stock",
+                    unit = "litre",
+                    quantity = (1..5).random().toDouble(),
+                    carbonFootprint = (1..5).random().toDouble()
+                ),
+                ItemWastageDto(
+                    recipeId = "recipe-1",
+                    displayName = "Hainanese Chicken Rice",
+                    unit = "plate",
+                    quantity = (1..5).random().toDouble(),
+                    carbonFootprint = (1..5).random().toDouble()
                 )
             )
-        )
-        return Resource.Success(mockWastageTrend)
+            WastageTrendDto(date, totalQuantity, totalCarbonFootprint, itemBreakdown)
+        }
+        return Resource.Success(mockWastageTrend.reversed())
 
         /*
         // --- ORIGINAL IMPLEMENTATION ---
