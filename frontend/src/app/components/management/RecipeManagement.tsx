@@ -29,19 +29,17 @@ export function RecipeManagement() {
   interface RecipeFormState {
     name: string;
     isSubRecipe: boolean;
-    unit: string;
     formRows: FormRow[];
   }
 
   const initialFormState: RecipeFormState = {
     name: '',
     isSubRecipe: false,
-    unit: 'plate',
     formRows: [{ type: 'ingredient', id: '', quantity: 0 }],
   };
   
   const [recipeForm, setRecipeForm] = useState<RecipeFormState>(initialFormState);
-  const { name: recipeName, isSubRecipe, unit: recipeUnit, formRows } = recipeForm;
+  const { name: recipeName, isSubRecipe, formRows } = recipeForm;
 
 
   // --- Handlers ---
@@ -57,7 +55,6 @@ export function RecipeManagement() {
       setRecipeForm({
         name: recipe.name,
         isSubRecipe: recipe.isSubRecipe || false,
-        unit: recipe.unit || (recipe.isSubRecipe ? 'L' : 'plate'),
         formRows: mappedRows.length > 0 ? mappedRows : [{ type: 'ingredient', id: '', quantity: 0 }]
       });
     } else {
@@ -69,7 +66,6 @@ export function RecipeManagement() {
 
   const handleSubRecipeToggle = (checked: boolean) => {
     setRecipeForm(prev => {
-      const newUnit = checked ? 'L' : 'plate';
       let newRows = prev.formRows;
       if (checked) {
         newRows = prev.formRows.map(row => {
@@ -79,7 +75,7 @@ export function RecipeManagement() {
           return row;
         });
       }
-      return { ...prev, isSubRecipe: checked, unit: newUnit, formRows: newRows };
+      return { ...prev, isSubRecipe: checked, formRows: newRows };
     });
   };
 
@@ -136,7 +132,6 @@ export function RecipeManagement() {
     const recipeData = {
       name: recipeName,
       isSubRecipe,
-      unit: recipeUnit, // Include the unit
       ingredients: formattedIngredients,
     };
 
@@ -309,31 +304,6 @@ export function RecipeManagement() {
                 </Label>
               </div>
 
-              {/* Unit Selector - Show for Sub-Recipes */}
-              {isSubRecipe && (
-                <div className="space-y-2 pl-6 border-l-2 border-[#4F6F52]/20">
-                  <Label htmlFor="recipe-unit" className="text-sm font-medium text-gray-700">
-                    Unit of Measurement
-                  </Label>
-                  <Select value={recipeUnit} onValueChange={(unit) => setRecipeForm(prev => ({...prev, unit}))}>
-                    <SelectTrigger id="recipe-unit" className="rounded-[8px] border-gray-300 h-10">
-                      <SelectValue placeholder="Select unit..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="L">Liters (L)</SelectItem>
-                      <SelectItem value="ml">Milliliters (ml)</SelectItem>
-                      <SelectItem value="kg">Kilograms (kg)</SelectItem>
-                      <SelectItem value="g">Grams (g)</SelectItem>
-                      <SelectItem value="bottle">Bottle</SelectItem>
-                      <SelectItem value="jar">Jar</SelectItem>
-                      <SelectItem value="batch">Batch</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    Choose how this sub-recipe should be measured when used in other recipes
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* 2. Recipe Components Section */}
