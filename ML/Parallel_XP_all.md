@@ -1,6 +1,6 @@
 # 批量菜品销量预测脚本说明（`Parallel(XP_all).py`）
 
-该脚本用于**对 `food_sales.csv` 中出现的所有菜品逐一建模并预测未来销量**：每道菜训练一个 XGBoost 回归模型，融合**滞后/滚动统计特征 + 日期特征 + 天气特征 + 假期特征**，并以递归方式预测未来 `HORIZON_DAYS` 天的销量。
+该脚本用于**对 `food_sales.csv` 中出现的所有菜品逐一建模并预测未来销量**：每道菜使用 **Prophet + XGBoost 残差堆叠模型**，融合**滞后/滚动统计特征 + 日期特征 + 天气特征 + 假期特征**，并以递归方式预测未来 `HORIZON_DAYS` 天的销量。
 
 ---
 
@@ -13,10 +13,9 @@
 3. 生成假期特征 `is_holiday`（日期落在任意假期窗口内则为 1）。
 4. 生成日期特征：`dow/month/day/dayofyear/is_weekend`。
 5. 生成滞后与滚动统计特征（例如 `y_lag_1`, `y_roll_mean_7` 等），并使用 `shift(1)` 防止泄漏。
-6. 训练 XGBoost 模型：
-   - 数据足够：用“末尾 `HORIZON_DAYS` 天”做一个简单验证并输出 `val_mae`。
-   - 数据不足：不做验证，仍然训练一个模型用于未来预测。
-7. 未来预测使用**递归预测**：未来第 1 天先预测 `yhat`，再把该预测值作为后续天的 lag/rolling 计算依据，直到完成 `HORIZON_DAYS` 天。
+6. 训练 **Prophet**：捕捉趋势/季节性/假期，并引入天气回归变量。
+7. 训练 **XGBoost**：学习残差 `resid = y - prophet_yhat`（特征包含日期/天气/假期/lag/rolling + `prophet_yhat`）。
+8. 未来预测使用**递归预测**：Prophet 给出未来趋势，XGBoost 递归预测残差并叠加。
 
 ---
 
@@ -100,6 +99,37 @@
 - `DATA_FOOD/DATA_WEATHER/DATA_HOLIDAY/DATA_WEATHER_FUTURE`
 - `OUT_DIR/OUT_FORECASTS_DIR`
 
+### 4.1 固定参数组合（当前脚本内置）
+
+脚本内已固定使用以下组合：
+
+**Prophet**
+
+```python
+{
+  "changepoint_prior_scale": 0.5,
+  "daily_seasonality": False,
+  "holidays_prior_scale": 10.0,
+  "seasonality_mode": "additive",
+  "seasonality_prior_scale": 10.0,
+  "weekly_seasonality": True,
+  "yearly_seasonality": False
+}
+```
+
+**XGBoost**
+
+```python
+{
+  "colsample_bytree": 0.9,
+  "learning_rate": 0.05,
+  "max_depth": 6,
+  "n_estimators": 600,
+  "reg_lambda": 1.0,
+  "subsample": 0.9
+}
+```
+
 ---
 
 ## 5. 运行方式
@@ -117,6 +147,7 @@ python3 "Parallel(XP_all).py"
 - `scikit-learn`
 - `xgboost`
 - `matplotlib`
+- `prophet`
 - `seaborn`（可选；缺失也能运行）
 
 ---
@@ -127,6 +158,7 @@ python3 "Parallel(XP_all).py"
 - **天气缺失如何处理**：按列前向填充（`ffill`）→ 均值填充 → 仍缺则填 0。
 - **假期特征**：只生成一个 `is_holiday`（0/1），只要日期落在任意假期窗口区间内即为 1。
 - **滚动特征防泄漏**：滚动统计基于 `y.shift(1)` 计算，避免用到当天真实销量。
+- **残差堆叠**：先用 Prophet 预测趋势，再由 XGBoost 预测残差，最终 `yhat = prophet_yhat + resid_hat`。
 - **递归预测**：未来第 t 天的 lag/rolling 使用历史 + 已预测 `yhat` 迭代得到，所以未来误差会逐步累积（这是带自回归特征时的常见做法）。
 - **验证方式**：当数据量足够时，用末尾 `HORIZON_DAYS` 天做简单验证，输出 `val_mae`；否则 `val_mae=None`。
 
@@ -146,4 +178,3 @@ python3 "Parallel(XP_all).py"
 - 用更可靠的时间序列验证方式（滚动验证/多折验证）替代单次“末尾切分”。
 - 引入价格、促销、节令、店铺营业等更多外生特征。
 - 未来天气使用真实预报/规划数据，避免“平推”导致特征不变。
-

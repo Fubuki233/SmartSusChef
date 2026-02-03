@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-对所有菜品做销量预测（批量）。
+批量菜品销量预测（Prophet + XGBoost 残差堆叠）。
 
-为什么要改：
-原来的脚本把 `dish_name = "麻辣味黔鱼"` 写死了，只能一次预测一道菜。
-现在改成：
-1) 自动遍历 `food_sales.csv` 中出现的所有 `菜品`
-2) 每道菜单独训练一个 XGBoost（带滞后/滚动特征 + 天气 + 假期）
-3) 统一输出预测结果（CSV）并生成可视化图（PNG）
+流程简述：
+1) 遍历 `food_sales.csv` 中的所有菜品
+2) 每道菜用 Prophet 建模趋势/季节性，XGBoost 学习残差并递归预测
+3) 输出明细预测与汇总结果，并生成可视化图表
 
 输出目录：
 - outputs/summary.csv：每道菜的校验 MAE、未来 horizon 天预测汇总
@@ -26,6 +24,11 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
 from xgboost import XGBRegressor
+
+try:
+    from prophet import Prophet  # type: ignore
+except Exception:
+    Prophet = None  # type: ignore
 
 
 try:
@@ -49,6 +52,25 @@ HISTORY_PLOT_DAYS = 90  # 可视化中每道菜回看多少天历史
 REG_COLS = ["rain_mm", "avg_temp_c", "avg_humidity_pct"]
 LAGS = (1, 7, 14)
 ROLL_WINDOWS = (7, 14, 28)
+
+# 固定模型参数（按你的组合）
+PROPHET_PARAMS = {
+    "changepoint_prior_scale": 0.5,
+    "daily_seasonality": False,
+    "holidays_prior_scale": 10.0,
+    "seasonality_mode": "additive",
+    "seasonality_prior_scale": 10.0,
+    "weekly_seasonality": True,
+    "yearly_seasonality": False,
+}
+XGB_PARAMS = {
+    "colsample_bytree": 0.9,
+    "learning_rate": 0.05,
+    "max_depth": 6,
+    "n_estimators": 600,
+    "reg_lambda": 1.0,
+    "subsample": 0.9,
+}
 
 DATA_FOOD = Path("food_sales.csv")
 DATA_WEATHER = Path("df_weather.csv")
@@ -209,51 +231,77 @@ def _add_lag_roll_features(df_all: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _train_xgb(df_feat: pd.DataFrame) -> tuple[XGBRegressor, list[str], float | None]:
-    """训练 XGBoost 模型；数据足够则用末尾 HORIZON 做简单验证并返回 MAE。"""
+def _fit_prophet_and_predict(
+    train_df: pd.DataFrame, val_df: pd.DataFrame, holidays: pd.DataFrame
+) -> tuple[np.ndarray, np.ndarray]:
+    """训练 Prophet 并返回 train/val 的 yhat。"""
+    if Prophet is None:
+        raise ImportError("缺少依赖：prophet。请安装：pip install prophet")
+
+    model = Prophet(holidays=holidays, **PROPHET_PARAMS)  # type: ignore[misc]
+    for c in REG_COLS:
+        model.add_regressor(c)  # type: ignore[no-untyped-call]
+
+    model.fit(train_df[["ds", "y"] + REG_COLS])  # type: ignore[no-untyped-call]
+    pred_train = model.predict(train_df[["ds"] + REG_COLS])  # type: ignore[no-untyped-call]
+    pred_val = model.predict(val_df[["ds"] + REG_COLS])  # type: ignore[no-untyped-call]
+    return pred_train["yhat"].astype(float).to_numpy(), pred_val["yhat"].astype(float).to_numpy()
+
+
+def _train_xgb_on_residuals(
+    train_feat: pd.DataFrame, prophet_yhat_train: np.ndarray
+) -> tuple[XGBRegressor, list[str]]:
+    """训练残差模型：target = y - prophet_yhat。"""
+    df = train_feat.copy()
+    df["prophet_yhat"] = prophet_yhat_train
+    df["resid"] = df["y"].astype(float) - df["prophet_yhat"].astype(float)
+
+    feature_cols = [c for c in df.columns if c not in {"ds", "y", "resid"}]
+    df = df.dropna(subset=feature_cols + ["resid"]).copy()
+
+    model = XGBRegressor(
+        **XGB_PARAMS,
+        objective="reg:squarederror",
+        random_state=42,
+    )
+    model.fit(df[feature_cols], df["resid"].astype(float))
+    return model, feature_cols
+
+
+def _train_hybrid(df_feat: pd.DataFrame, holidays: pd.DataFrame) -> tuple[XGBRegressor, list[str], float | None]:
+    """训练 Prophet + XGB 残差模型；数据足够则做末尾 HORIZON 验证。"""
     df_feat = df_feat.dropna().copy()
     if len(df_feat) < max(120, HORIZON_DAYS * 3):
-        # 数据太短时：不做严格验证，仍然训练一个模型供预测
-        feature_cols = [c for c in df_feat.columns if c not in {"ds", "y"}]
-        model = XGBRegressor(
-            n_estimators=600,
-            learning_rate=0.05,
-            max_depth=6,
-            subsample=0.9,
-            colsample_bytree=0.9,
-            reg_lambda=1.0,
-            objective="reg:squarederror",
-            random_state=42,
+        prophet_yhat_train, _ = _fit_prophet_and_predict(
+            train_df=df_feat[["ds", "y"] + REG_COLS],
+            val_df=df_feat[["ds", "y"] + REG_COLS],
+            holidays=holidays,
         )
-        model.fit(df_feat[feature_cols], df_feat["y"])
+        model, feature_cols = _train_xgb_on_residuals(df_feat, prophet_yhat_train)
         return model, feature_cols, None
 
     split = len(df_feat) - HORIZON_DAYS
     train_df = df_feat.iloc[:split].copy()
     val_df = df_feat.iloc[split:].copy()
 
-    feature_cols = [c for c in df_feat.columns if c not in {"ds", "y"}]
-    X_train, y_train = train_df[feature_cols], train_df["y"]
-    X_val, y_val = val_df[feature_cols], val_df["y"]
-
-    model = XGBRegressor(
-        n_estimators=1200,
-        learning_rate=0.03,
-        max_depth=6,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        reg_lambda=1.0,
-        objective="reg:squarederror",
-        random_state=42,
+    prophet_yhat_train, prophet_yhat_val = _fit_prophet_and_predict(
+        train_df=train_df[["ds", "y"] + REG_COLS],
+        val_df=val_df[["ds", "y"] + REG_COLS],
+        holidays=holidays,
     )
-    model.fit(X_train, y_train)
+    xgb_model, feature_cols = _train_xgb_on_residuals(train_df, prophet_yhat_train)
 
-    pred_val = model.predict(X_val)
-    val_mae = float(mean_absolute_error(y_val, pred_val))
+    future_exog = val_df[["ds", "is_holiday"] + REG_COLS].copy()
+    pred_val = _recursive_hybrid_forecast(
+        hist_df=train_df[["ds", "y"]],
+        future_exog=future_exog,
+        prophet_yhat_future=prophet_yhat_val,
+        xgb_model=xgb_model,
+        feature_cols=feature_cols,
+    )
+    val_mae = float(mean_absolute_error(val_df["y"].astype(float), pred_val["yhat"].astype(float)))
 
-    # 用全量再训练一遍（用于未来预测）
-    model.fit(df_feat[feature_cols], df_feat["y"])
-    return model, feature_cols, val_mae
+    return xgb_model, feature_cols, val_mae
 
 
 def _prepare_future_weather(
@@ -283,40 +331,34 @@ def _prepare_future_weather(
     return out
 
 
-def _recursive_forecast(
-    model: XGBRegressor,
-    feature_cols: list[str],
+def _recursive_hybrid_forecast(
     hist_df: pd.DataFrame,
-    future_weather: pd.DataFrame,
-    holidays: pd.DataFrame,
+    future_exog: pd.DataFrame,
+    prophet_yhat_future: np.ndarray,
+    xgb_model: XGBRegressor,
+    feature_cols: list[str],
 ) -> pd.DataFrame:
-    """
-    递归方式预测未来销量（用前序真实/预测值构造 lag 与 rolling 特征）。
-
-    用递归方式做未来预测：因为 lag/rolling 特征需要前一天的 y（未来部分只能用预测值迭代）。
-    """
+    """递归预测：Prophet 给趋势，XGB 预测残差。"""
     hist_df = hist_df.sort_values("ds").copy()
     y_hist = hist_df["y"].astype(float).tolist()
 
     rows = []
-    for i, row in future_weather.sort_values("ds").reset_index(drop=True).iterrows():
+    for i, row in future_exog.sort_values("ds").reset_index(drop=True).iterrows():
         ds = pd.to_datetime(row["ds"])
         feat = {
-            "ds": ds,
-            "is_holiday": int(_add_holiday_flag(pd.Series([ds]), holidays).iloc[0]),
+            "is_holiday": int(row.get("is_holiday", 0)),
             "dow": int(ds.dayofweek),
             "month": int(ds.month),
             "day": int(ds.day),
             "dayofyear": int(ds.dayofyear),
             "is_weekend": int(ds.dayofweek >= 5),
+            "prophet_yhat": float(prophet_yhat_future[i]),
         }
         for c in REG_COLS:
             feat[c] = float(row.get(c, 0.0))
 
-        # lag
         for lag in LAGS:
             feat[f"y_lag_{lag}"] = float(y_hist[-lag]) if len(y_hist) >= lag else 0.0
-        # rolling（用历史+已预测序列）
         for w in ROLL_WINDOWS:
             window = y_hist[-w:] if len(y_hist) >= w else y_hist[:]
             if window:
@@ -326,9 +368,10 @@ def _recursive_forecast(
                 feat[f"y_roll_mean_{w}"] = 0.0
                 feat[f"y_roll_std_{w}"] = 0.0
 
-        X_one = pd.DataFrame([{k: feat.get(k) for k in feature_cols}])
-        yhat = float(model.predict(X_one)[0])
-        yhat = max(0.0, yhat)  # 销量不为负
+        X_one = pd.DataFrame([{k: feat.get(k, 0.0) for k in feature_cols}])
+        resid_hat = float(xgb_model.predict(X_one)[0])
+        yhat = float(feat["prophet_yhat"]) + resid_hat
+        yhat = max(0.0, yhat)
 
         rows.append({"ds": ds, "yhat": yhat})
         y_hist.append(yhat)
@@ -345,11 +388,28 @@ def forecast_one_dish(
     df_all = _add_date_features(df_all)
     df_feat = _add_lag_roll_features(df_all)
 
-    model, feature_cols, val_mae = _train_xgb(df_feat)
+    model, feature_cols, val_mae = _train_hybrid(df_feat, holidays)
 
     future_ds = pd.date_range(df_all["ds"].max() + pd.Timedelta(days=1), periods=HORIZON_DAYS, freq="D")
     future_weather = _prepare_future_weather(weather, future_ds)
-    pred_future = _recursive_forecast(model, feature_cols, df_all[["ds", "y"]], future_weather, holidays)
+    future_exog = future_weather.copy()
+    future_exog["is_holiday"] = _add_holiday_flag(future_exog["ds"], holidays)
+
+    # Prophet 未来趋势（用全量训练）
+    prophet_yhat_full, prophet_yhat_future = _fit_prophet_and_predict(
+        train_df=df_feat[["ds", "y"] + REG_COLS],
+        val_df=future_exog[["ds"] + REG_COLS],
+        holidays=holidays,
+    )
+    # 用全量训练残差模型
+    model, feature_cols = _train_xgb_on_residuals(df_feat, prophet_yhat_full)
+    pred_future = _recursive_hybrid_forecast(
+        hist_df=df_all[["ds", "y"]],
+        future_exog=future_exog,
+        prophet_yhat_future=prophet_yhat_future,
+        xgb_model=model,
+        feature_cols=feature_cols,
+    )
 
     history_tail = df_all[["ds", "y"]].tail(HISTORY_PLOT_DAYS).copy()
     return DishForecast(dish=dish, val_mae=val_mae, pred_future=pred_future, history_tail=history_tail)
