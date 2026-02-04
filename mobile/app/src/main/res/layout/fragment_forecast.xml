@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
@@ -29,21 +30,60 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/tvSummaryTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Prediction Summary"
+                            android:textColor="@color/foreground"
+                            android:textStyle="bold"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <TextView
+                            android:id="@+id/tvTotalWeeklyDishes"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/foreground"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toTopOf="parent"
+                            tools:text="1612" />
+
+                        <TextView
+                            android:id="@+id/tvTrendPercentage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/primary"
+                            android:textSize="12sp"
+                            app:drawableStartCompat="@drawable/trending_up"
+                            app:drawableTint="@color/primary"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintTop_toBottomOf="@id/tvTotalWeeklyDishes"
+                            tools:text="4.4% vs last week" />
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Prediction Summary"
-                        android:textColor="@color/foreground"
-                        android:textStyle="bold" />
+                        android:text="Forecasted dish sales for next 7 days"
+                        android:textColor="@color/muted_text"
+                        android:textSize="12sp" />
 
                     <com.github.mikephil.charting.charts.CombinedChart
                         android:id="@+id/summaryCombinedChart"
                         android:layout_width="match_parent"
                         android:layout_height="250dp"
-                        android:layout_marginTop="8dp" />
+                        android:layout_marginTop="16dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- DISHES FORECAST CARD - FIXED -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -64,34 +104,94 @@
                         android:textColor="@color/foreground"
                         android:textStyle="bold" />
 
+                    <TextView
+                        android:id="@+id/tvDishesSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AI-predicted main dishes breakdown for next 7 days · Avg: 267 dishes/day"
+                        android:textColor="@color/muted_text"
+                        android:textSize="12sp" />
+
+                    <!-- REMOVED ConstraintLayout wrapper and tvYAxisLabel -->
+                    <!-- Chart now takes full width without squashing -->
                     <com.github.mikephil.charting.charts.BarChart
                         android:id="@+id/dishForecastStackedChart"
                         android:layout_width="match_parent"
                         android:layout_height="250dp"
-                        android:layout_marginTop="8dp" />
+                        android:layout_marginTop="16dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:text="Ingredient Forecast Details"
-                android:textColor="@color/foreground"
-                android:textStyle="bold" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="2dp">
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvIngredientForecast"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    android:padding="8dp" />
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Ingredients Forecast"
+                        android:textColor="@color/foreground"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Ingredient requirements for next 7 days (including sub-recipes)"
+                        android:textColor="@color/muted_text"
+                        android:textSize="12sp" />
+
+                    <!-- Header is now handled by the adapter, not here -->
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvIngredientForecast"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:nestedScrollingEnabled="false" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Comparison of Past Prediction versus Actual"
+                        android:textColor="@color/foreground"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Comparing predicted versus actual sales for main dishes in the last 7 days"
+                        android:textColor="@color/muted_text"
+                        android:textSize="12sp" />
+
+                    <com.github.mikephil.charting.charts.BarChart
+                        android:id="@+id/comparisonBarChart"
+                        android:layout_width="match_parent"
+                        android:layout_height="250dp"
+                        android:layout_marginTop="16dp" />
+                </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>

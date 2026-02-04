@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/marker_background"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/tvMarkerDate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Date"
+        android:textSize="10sp"
+        android:textColor="@color/muted_text"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvMarkerQuantity"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Dishes: 0"
+        android:textSize="12sp"
+        android:textColor="@color/foreground" />
+
+    <TextView
+        android:id="@+id/tvMarkerDetails"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="10sp"
+        android:textColor="@color/muted_text"
+        android:visibility="gone" />
+
+</LinearLayout>

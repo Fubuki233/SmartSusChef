@@ -16,7 +16,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="2"
             android:textColor="@color/foreground"
-            android:textSize="13sp"
+            android:textSize="10sp"
             android:textStyle="bold"
             android:text="Tomato" />
 
@@ -27,13 +27,13 @@
             android:layout_weight="5"
             android:orientation="horizontal"
             android:baselineAligned="false" >
-            <TextView android:id="@+id/day1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="12sp" />
-            <TextView android:id="@+id/day2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="12sp" />
-            <TextView android:id="@+id/day3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="12sp" />
-            <TextView android:id="@+id/day4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="12sp" />
-            <TextView android:id="@+id/day5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="12sp" />
-            <TextView android:id="@+id/day6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="12sp" />
-            <TextView android:id="@+id/day7" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="12sp" />
+            <TextView android:id="@+id/day1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="10sp" />
+            <TextView android:id="@+id/day2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="10sp" />
+            <TextView android:id="@+id/day3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="10sp" />
+            <TextView android:id="@+id/day4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="10sp" />
+            <TextView android:id="@+id/day5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="10sp" />
+            <TextView android:id="@+id/day6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="10sp" />
+            <TextView android:id="@+id/day7" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textSize="10sp" />
         </LinearLayout>
     </LinearLayout>
 
