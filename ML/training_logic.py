@@ -24,6 +24,9 @@ from prophet import Prophet
 from catboost import CatBoostRegressor
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_absolute_error
+from geopy.geocoders import Nominatim
+import openmeteo_requests
+from retry_requests import retry
 
 warnings.filterwarnings('ignore')
 
@@ -50,7 +53,8 @@ class PipelineConfig:
     model_dir: str = "models"
     tree_features: List[str] = field(default_factory=lambda: [
         'day_of_week', 'month', 'is_public_holiday',
-        'rain_lunch_vol', 'temperature',
+        'temperature_2m_max', 'temperature_2m_min',
+        'relative_humidity_2m_mean', 'precipitation_sum',
         'lag_1', 'lag_7', 'lag_14', 'lag_21', 'lag_28',
         'rolling_mean_7', 'rolling_mean_14',
         'rolling_std_7', 'rolling_std_14',
@@ -63,7 +67,8 @@ class PipelineConfig:
     feature_groups: Dict[str, List[str]] = field(default_factory=lambda: {
         "Seasonality": ["day_of_week", "month"],
         "Holiday": ["is_public_holiday"],
-        "Weather": ["rain_lunch_vol", "temperature"],
+        "Weather": ["temperature_2m_max", "temperature_2m_min",
+                    "relative_humidity_2m_mean", "precipitation_sum"],
         "Lags/Trend": [
             "lag_1", "lag_7", "lag_14", "lag_21", "lag_28",
             "rolling_mean_7", "rolling_mean_14",
@@ -76,6 +81,9 @@ class PipelineConfig:
 
 CFG = PipelineConfig()
 
+WEATHER_COLS = ['temperature_2m_max', 'temperature_2m_min',
+                'relative_humidity_2m_mean', 'precipitation_sum']
+
 
 def safe_filename(name):
     """Sanitize dish name for use as a filename."""
@@ -83,66 +91,120 @@ def safe_filename(name):
 
 
 # ---------------------------------------------------------------------------
-# Context Awareness (Location Logic)
+# Context Awareness (Location + Weather)
 # ---------------------------------------------------------------------------
-def get_country_code(lat, lon):
+def get_location_details(address):
     """
-    Simple Bounding Box Logic.
-    If the coordinates are inside Singapore box, return 'SG'. Else, default to 'CN'.
+    Convert an address or postal code to (latitude, longitude, country_code)
+    using the Nominatim geocoding service (OpenStreetMap).
     """
-    if (1.1 <= lat <= 1.5) and (103.5 <= lon <= 104.1):
-        return 'SG'
-    return 'CN'
+    try:
+        geolocator = Nominatim(user_agent="smartsus_chef_v3")
+        location = geolocator.geocode(address, addressdetails=True)
+        if location is None:
+            print(f"WARNING: Could not geocode address: '{address}'")
+            return None, None, None
+        lat = location.latitude
+        lon = location.longitude
+        country_code = location.raw.get('address', {}).get('country_code', '').upper()
+        print(f"Geocoded '{address}' -> Lat: {lat:.4f}, Lon: {lon:.4f}, Country: {country_code}")
+        return lat, lon, country_code
+    except Exception as e:
+        print(f"WARNING: Geocoding failed for '{address}': {e}")
+        return None, None, None
 
 
-def estimate_temperature(date, country_code):
+def get_historical_weather(latitude, longitude, start_date, end_date):
     """
-    Simulate temperature for a given date and country.
-    Uses date-based seed so each date gets a unique but reproducible value.
+    Fetch historical daily weather data from the Open-Meteo Archive API.
+    Returns a DataFrame with columns: date, temperature_2m_max, temperature_2m_min,
+    relative_humidity_2m_mean, precipitation_sum.
     """
-    rng = np.random.default_rng(CFG.random_seed + date.toordinal())
-    m = date.month
-    if country_code == 'SG':
-        return rng.uniform(25, 34)
-    else:
-        if m in [12, 1, 2]:
-            return rng.uniform(2, 10)
-        elif m in [3, 4, 5]:
-            return rng.uniform(12, 25)
-        elif m in [6, 7, 8]:
-            return rng.uniform(26, 38)
-        else:
-            return rng.uniform(12, 25)
+    try:
+        session = retry(retries=3, backoff_factor=0.5)
+        om = openmeteo_requests.Client(session=session)
+
+        url = "https://archive-api.open-meteo.com/v1/archive"
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "start_date": start_date.strftime('%Y-%m-%d'),
+            "end_date": end_date.strftime('%Y-%m-%d'),
+            "daily": ["temperature_2m_max", "temperature_2m_min",
+                      "relative_humidity_2m_mean", "precipitation_sum"],
+            "timezone": "auto"
+        }
+
+        responses = om.weather_api(url, params=params)
+        response = responses[0]
+        daily = response.Daily()
+
+        dates = pd.date_range(
+            start=pd.to_datetime(daily.Time(), unit="s", utc=True),
+            end=pd.to_datetime(daily.TimeEnd(), unit="s", utc=True),
+            freq=pd.Timedelta(seconds=daily.Interval()),
+            inclusive="left"
+        )
+
+        weather_df = pd.DataFrame({
+            "date": dates,
+            "temperature_2m_max": daily.Variables(0).ValuesAsNumpy(),
+            "temperature_2m_min": daily.Variables(1).ValuesAsNumpy(),
+            "relative_humidity_2m_mean": daily.Variables(2).ValuesAsNumpy(),
+            "precipitation_sum": daily.Variables(3).ValuesAsNumpy(),
+        })
+        weather_df['date'] = weather_df['date'].dt.tz_localize(None).dt.normalize()
+
+        print(f"Fetched {len(weather_df)} days of historical weather data.")
+        return weather_df
+    except Exception as e:
+        print(f"WARNING: Failed to fetch historical weather: {e}")
+        return None
 
 
-def add_local_context(df, lat, lon):
-    """Enriches the sales data with local context features (Holidays + Weather)."""
-    country_code = get_country_code(lat, lon)
-    print(f"Detected Location: {country_code} (Lat: {lat}, Lon: {lon})")
+def add_local_context(df, address):
+    """
+    Enriches the sales data with local context features (Holidays + Weather).
+    Uses geocoding to detect location and Open-Meteo for real weather data.
+    Raises ValueError if historical weather data cannot be fetched.
+    """
+    lat, lon, country_code = get_location_details(address)
+
+    # Fallback if geocoding fails
+    if lat is None:
+        print("WARNING: Geocoding failed. Falling back to default location (Shanghai).")
+        country_code = 'CN'
+        lat, lon = 31.23, 121.47
+
+    # Ensure valid country code for holidays
+    if not country_code or country_code not in holidays.list_supported_countries():
+        print(f"WARNING: Country '{country_code}' not supported for holidays. Defaulting to 'CN'.")
+        country_code = 'CN'
+
+    print(f"Location: {country_code} (Lat: {lat:.4f}, Lon: {lon:.4f})")
 
     df['day_of_week'] = df['date'].dt.dayofweek
     df['month'] = df['date'].dt.month
 
-    if country_code == 'SG':
-        local_holidays = holidays.SG(years=CFG.holiday_years)
-    else:
-        local_holidays = holidays.CN(years=CFG.holiday_years)
-
+    local_holidays = holidays.country_holidays(country_code, years=CFG.holiday_years)
     df['is_public_holiday'] = df['date'].apply(lambda x: 1 if x in local_holidays else 0)
 
-    rng = np.random.default_rng(CFG.random_seed)
+    # Try to fetch real historical weather data
+    weather_df = get_historical_weather(lat, lon, df['date'].min(), df['date'].max())
 
-    def estimate_rain(row):
-        m = row['month']
-        if country_code == 'SG':
-            return rng.uniform(15, 60) if m in [11, 12, 1] else rng.uniform(5, 30)
-        else:
-            return rng.uniform(20, 80) if m in [6, 7, 8] else rng.uniform(5, 25)
+    if weather_df is not None and len(weather_df) > 0:
+        df = df.merge(weather_df, on='date', how='left')
+        df = df.set_index('date')
+        for col in WEATHER_COLS:
+            df[col] = df[col].interpolate(method='time').bfill().ffill().fillna(0)
+        df = df.reset_index()
+    else:
+        raise ValueError(
+            "Training cannot proceed: failed to fetch historical weather data from Open-Meteo. "
+            "Please check your internet connection and try again."
+        )
 
-    df['rain_lunch_vol'] = df.apply(estimate_rain, axis=1)
-    df['temperature'] = df['date'].apply(lambda d: estimate_temperature(d, country_code))
-
-    return df, country_code
+    return df, country_code, lat, lon
 
 
 # ---------------------------------------------------------------------------
@@ -196,20 +258,16 @@ def sanitize_sparse_data(df, country_code):
     if 'dish' in df.columns:
         df['dish'] = df['dish'].dropna().iloc[0] if not df['dish'].dropna().empty else "Unknown"
 
-    if 'rain_lunch_vol' in df.columns:
-        df['rain_lunch_vol'] = df['rain_lunch_vol'].interpolate(method='time').bfill().ffill()
-    else:
-        df['rain_lunch_vol'] = 0.0
+    for col in WEATHER_COLS:
+        if col in df.columns:
+            df[col] = df[col].interpolate(method='time').bfill().ffill()
+        else:
+            df[col] = 0.0
 
-    if 'temperature' in df.columns:
-        df['temperature'] = df['temperature'].interpolate(method='time').bfill().ffill()
+    if country_code and country_code in holidays.list_supported_countries():
+        local_holidays = holidays.country_holidays(country_code, years=CFG.holiday_years)
     else:
-        df['temperature'] = 0.0
-
-    if country_code == 'SG':
-        local_holidays = holidays.SG(years=CFG.holiday_years)
-    else:
-        local_holidays = holidays.CN(years=CFG.holiday_years)
+        local_holidays = holidays.country_holidays('CN', years=CFG.holiday_years)
 
     df['is_public_holiday'] = df.index.to_series().apply(lambda x: 1 if x in local_holidays else 0)
     df['day_of_week'] = df.index.dayofweek
@@ -391,26 +449,24 @@ def _optimize_prophet(df, config, country_code):
         last_preds = None
 
         for train, test in _generate_cv_folds(df, config):
-            p_train = train[['date', 'sales', 'rain_lunch_vol', 'temperature']].rename(
+            p_train = train[['date', 'sales'] + WEATHER_COLS].rename(
                 columns={'date': 'ds', 'sales': 'y'})
             p_train = p_train.sort_values(by='ds')
             m = Prophet(daily_seasonality=False,
                         changepoint_prior_scale=changepoint_prior,
                         seasonality_prior_scale=seasonality_prior)
             try:
-                import holidays
                 if country_code and country_code in holidays.list_supported_countries():
                     m.add_country_holidays(country_name=country_code)
                 else:
                     print(f"WARNING: Skipping country holidays for invalid or empty country_code: {country_code}")
             except Exception as e:
                 print(f"WARNING: Error adding country holidays for {country_code}: {e}")
-            m.add_regressor('rain_lunch_vol')
-            m.add_regressor('temperature')
-            # Fit the Prophet model. This is where Prophet uses cmdstanpy for optimization.
+            for col in WEATHER_COLS:
+                m.add_regressor(col)
             m.fit(p_train)
 
-            p_test = test[['date', 'rain_lunch_vol', 'temperature']].rename(columns={'date': 'ds'})
+            p_test = test[['date'] + WEATHER_COLS].rename(columns={'date': 'ds'})
             forecast = m.predict(p_test)
             preds = np.maximum(forecast['yhat'].values, 0)
             fold_maes.append(mean_absolute_error(test['sales'], preds))
@@ -505,15 +561,15 @@ def process_dish(dish_name, shared_df, country_code, config):
         # Production training on 100% data with best params
 
         # Prophet
-        p_df = dish_data[['date', 'sales', 'rain_lunch_vol', 'temperature']].rename(
+        p_df = dish_data[['date', 'sales'] + WEATHER_COLS].rename(
             columns={'date': 'ds', 'sales': 'y'})
         mp = Prophet(daily_seasonality=False, **p_params)
         try:
             mp.add_country_holidays(country_name=country_code)
         except Exception:
             pass
-        mp.add_regressor('rain_lunch_vol')
-        mp.add_regressor('temperature')
+        for col in WEATHER_COLS:
+            mp.add_regressor(col)
         mp.fit(p_df)
         with open(f'{config.model_dir}/prophet_{safe_name}.pkl', 'wb') as f:
             pickle.dump(mp, f)
