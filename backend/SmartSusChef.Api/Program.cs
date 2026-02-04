@@ -113,6 +113,21 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try
     {
+        // Check if Users table exists, if not, ensure database is created fresh
+        var connection = dbContext.Database.GetDbConnection();
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users'";
+        var tableExists = Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
+        await connection.CloseAsync();
+        
+        if (!tableExists)
+        {
+            Console.WriteLine("Users table not found, recreating database schema...");
+            // Delete migration history to force re-apply
+            await dbContext.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `__EFMigrationsHistory`");
+        }
+        
         dbContext.Database.Migrate();
         Console.WriteLine("Database migrations applied successfully.");
     }
