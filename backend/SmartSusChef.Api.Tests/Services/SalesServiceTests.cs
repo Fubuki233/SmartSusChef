@@ -99,4 +99,39 @@ public class SalesServiceTests
         Assert.NotNull(todayEntry);
         Assert.Equal(10, todayEntry.TotalQuantity);
     }
+
+    [Fact]
+    public async Task CreateAsync_ShouldSaveNewSalesEntry_WithValidRecipeId()
+    {
+        // 1. Arrange
+        var context = GetDbContext();
+        var recipeId = Guid.NewGuid();
+        var storeId = 1;
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = storeId });
+        await context.SaveChangesAsync();
+        
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        var request = new DTOs.CreateSalesDataRequest(
+            Date: DateTime.UtcNow.ToString("o"),
+            RecipeId: recipeId.ToString(),
+            Quantity: 15
+        );
+
+        // 2. Act
+        var resultDto = await service.CreateAsync(request);
+
+        // 3. Assert
+        Assert.NotNull(resultDto);
+        Assert.Equal(15, resultDto.Quantity);
+
+        var savedEntry = await context.SalesData.FirstOrDefaultAsync(s => s.Id.ToString() == resultDto.Id);
+        Assert.NotNull(savedEntry);
+        Assert.Equal(15, savedEntry.Quantity);
+        Assert.Equal(recipeId, savedEntry.RecipeId);
+        Assert.Equal(storeId, savedEntry.StoreId);
+    }
 }

@@ -19,6 +19,11 @@ class ForecastViewModel @Inject constructor(
     private val _dishForecasts = MutableLiveData<Resource<List<DailyDishForecast>>>()
     val dishForecasts: LiveData<Resource<List<DailyDishForecast>>> = _dishForecasts
 
+    // Past week's data trend
+    private val _summaryTrend = MutableLiveData<Resource<List<ForecastDto>>>()
+    val summaryTrend: LiveData<Resource<List<ForecastDto>>> = _summaryTrend
+
+
     // Ingredient needs for next 7 days
     private val _ingredientForecast = MutableLiveData<Resource<List<IngredientForecast>>>()
     val ingredientForecast: LiveData<Resource<List<IngredientForecast>>> = _ingredientForecast
@@ -31,12 +36,16 @@ class ForecastViewModel @Inject constructor(
         viewModelScope.launch {
             _dishForecasts.value = Resource.Loading()
             _ingredientForecast.value = Resource.Loading()
+            _summaryTrend.value = Resource.Loading()
 
             when (val result = forecastRepository.getForecast(7)) {
                 is Resource.Success -> {
                     val forecastData = result.data ?: emptyList()
-                    
-                    // Process for Dish Forecasts (Group by date)
+
+                    // 1. Update the Summary Trend (the raw list of ForecastDto)
+                    _summaryTrend.value = Resource.Success(forecastData)
+
+                    // 2. Process for Dish Forecasts (Group by date)
                     val dishData = forecastData
                         .groupBy { it.date }
                         .map { (date, forecasts) ->
@@ -46,16 +55,23 @@ class ForecastViewModel @Inject constructor(
                         .sortedBy { it.date } // Sort by date
                     _dishForecasts.value = Resource.Success(dishData)
 
-                    // TODO: This is a simplified transformation. A full implementation would aggregate
-                    // all ingredient quantities across all predicted dishes for each day.
+                    // 3. Process for Ingredient Forecast Table
+                    val dates = forecastData.map { it.date }.distinct().sorted()
                     val ingredientData = forecastData
-                        .flatMap { it.ingredients }
-                        .groupBy { it.ingredientName }
-                        .map { (name, ingredients) ->
+                        .flatMap { it.ingredients.map { ing -> it.date to ing } }
+                        .groupBy { it.second.ingredientName }
+                        .map { (name, pairs) ->
+                            // Create a map of date -> quantity for this specific ingredient
+                            val dateMap = pairs.groupBy { it.first }
+                                .mapValues { entry -> entry.value.sumOf { it.second.quantity } }
+
+                            // Map quantities to the specific sorted dates to ensure 7 columns align
+                            val dailyQuantities = dates.map { date -> dateMap[date] ?: 0.0 }
+
                             IngredientForecast(
                                 name = name,
-                                unit = ingredients.first().unit,
-                                totalQuantity = ingredients.sumOf { it.quantity }
+                                unit = pairs.first().second.unit,
+                                totalQuantity = dailyQuantities
                             )
                         }
                     _ingredientForecast.value = Resource.Success(ingredientData)
@@ -87,5 +103,5 @@ data class DishForecast(
 data class IngredientForecast(
     val name: String,
     val unit: String,
-    val totalQuantity: Double
+    val totalQuantity: List<Double>
 )

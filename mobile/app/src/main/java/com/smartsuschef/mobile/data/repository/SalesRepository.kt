@@ -5,6 +5,7 @@ import com.smartsuschef.mobile.network.dto.CreateSalesDataRequest
 import com.smartsuschef.mobile.network.dto.SalesDataDto
 import com.smartsuschef.mobile.network.dto.SalesTrendDto
 import com.smartsuschef.mobile.network.dto.IngredientUsageDto
+import com.smartsuschef.mobile.network.dto.UpdateSalesDataRequest
 import com.smartsuschef.mobile.util.Resource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,19 +40,22 @@ class SalesRepository @Inject constructor(
             val calendar = java.util.Calendar.getInstance()
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
 
-            // Start from 7 days ago
-            calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
-
-            for (i in 0..6) {
-                val date = dateFormat.format(calendar.time)
-                trend.add(
-                    SalesTrendDto(
-                        date = date,
-                        totalQuantity = (80..150).random(), // Random sales data
-                        recipeBreakdown = emptyList()
+            if (startDate == endDate) {
+                trend.add(SalesTrendDto(endDate, (80..150).random(), emptyList()))
+            } else {
+                // Start from 7 days ago
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, -6)
+                for (i in 0..6) {
+                    val date = dateFormat.format(calendar.time)
+                    trend.add(
+                        SalesTrendDto(
+                            date = date,
+                            totalQuantity = (80..150).random(), // Random sales data
+                            recipeBreakdown = emptyList()
+                        )
                     )
-                )
-                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                    calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                }
             }
             Resource.Success(trend)
         }
@@ -128,6 +132,59 @@ class SalesRepository @Inject constructor(
                     Resource.Success(response.body()!!)
                 } else {
                     Resource.Error("Failed to add sale: ${response.message()}")
+                }
+            } catch (e: HttpException) {
+                Resource.Error("An unexpected error occurred: ${e.message()}")
+            } catch (e: IOException) {
+                Resource.Error("Couldn't reach the server. Check your internet connection.")
+            }
+        }
+        */
+    }
+
+    suspend fun update(id: String, request: UpdateSalesDataRequest): Resource<SalesDataDto> {
+        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
+        val fakeDto = SalesDataDto(
+            id = id,
+            date = "2023-01-01", // Mock date
+            recipeId = "mock-recipe",
+            recipeName = "Mocked Updated Recipe",
+            quantity = request.quantity
+        )
+        return Resource.Success(fakeDto)
+
+        /*
+        // --- ORIGINAL IMPLEMENTATION ---
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = salesApiService.update(id, request)
+                if (response.isSuccessful) {
+                    Resource.Success(response.body()!!)
+                } else {
+                    Resource.Error("Failed to update sale: ${response.message()}")
+                }
+            } catch (e: HttpException) {
+                Resource.Error("An unexpected error occurred: ${e.message()}")
+            } catch (e: IOException) {
+                Resource.Error("Couldn't reach the server. Check your internet connection.")
+            }
+        }
+        */
+    }
+
+    suspend fun delete(id: String): Resource<Unit> {
+        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
+        return Resource.Success(Unit)
+
+        /*
+        // --- ORIGINAL IMPLEMENTATION ---
+        return withWithContext(Dispatchers.IO) {
+            try {
+                val response = salesApiService.delete(id)
+                if (response.isSuccessful) {
+                    Resource.Success(Unit)
+                } else {
+                    Resource.Error("Failed to delete sale: ${response.message()}")
                 }
             } catch (e: HttpException) {
                 Resource.Error("An unexpected error occurred: ${e.message()}")

@@ -1,0 +1,43 @@
+# .github/workflows/security-scan.yml
+
+name: Security Scan (CodeQL)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '30 1 * * 0' # Weekly scan on Sunday at 01:30 UTC
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # Required to upload results to GitHub security tab
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'csharp', 'javascript', 'python' ] # Scan for all languages in your project
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # If you have custom query packs or configuration, add them here.
+
+      - name: Autobuild (attempt)
+        uses: github/codeql-action/autobuild@v3
+        # This step attempts to build your project. For .NET and Python,
+        # it might need specific build commands if autobuild fails.
+        # For C#, it typically works well with a solution file.
+        # For JavaScript/TypeScript, it generally doesn't require a build step for analysis.
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3

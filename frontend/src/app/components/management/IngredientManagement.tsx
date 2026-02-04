@@ -17,6 +17,8 @@ export function IngredientManagement() {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [carbonFootprint, setCarbonFootprint] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingIngredient, setDeletingIngredient] = useState<{ id: string; name: string } | null>(null);
 
   const handleOpenDialog = (ingredient?: Ingredient) => {
     if (ingredient) {
@@ -73,14 +75,21 @@ export function IngredientManagement() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete "${name}"?`)) {
-      try {
-        await deleteIngredient(id);
-        toast.success('Ingredient deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete ingredient');
-      }
+  const handleOpenDeleteDialog = (id: string, name: string) => {
+    setDeletingIngredient({ id, name });
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingIngredient) return;
+
+    try {
+      await deleteIngredient(deletingIngredient.id);
+      toast.success('Ingredient deleted successfully');
+      setIsDeleteDialogOpen(false);
+      setDeletingIngredient(null);
+    } catch (error) {
+      toast.error('Failed to delete ingredient');
     }
   };
 
@@ -195,7 +204,7 @@ export function IngredientManagement() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(ingredient.id, ingredient.name)}
+                          onClick={() => handleOpenDeleteDialog(ingredient.id, ingredient.name)}
                         >
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>
@@ -208,6 +217,54 @@ export function IngredientManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md rounded-[12px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="w-5 h-5" />
+              Confirm Deletion
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-gray-700">
+                Are you sure you want to delete this ingredient?
+              </p>
+              {deletingIngredient && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="text-sm">
+                    <div className="text-gray-600">Ingredient Name:</div>
+                    <div className="font-medium text-gray-900 mt-1">
+                      {deletingIngredient.name}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm text-red-600 font-medium">
+                Warning: This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+                className="rounded-[32px] px-6 hover:bg-gray-100"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                className="bg-red-600 hover:bg-red-700 rounded-[32px] px-6"
+              >
+                Yes, Delete Ingredient
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -60,6 +60,31 @@ public class WastageService : IWastageService
 
     public async Task<WastageDataDto> CreateAsync(CreateWastageDataRequest request)
     {
+        if (request.Quantity < 0)
+        {
+            throw new ArgumentException("Quantity cannot be negative.");
+        }
+
+        if (!string.IsNullOrEmpty(request.IngredientId))
+        {
+            var ingredientExists = await _context.Ingredients
+                .AnyAsync(i => i.Id == Guid.Parse(request.IngredientId) && i.StoreId == CurrentStoreId);
+            if (!ingredientExists)
+            {
+                throw new DbUpdateException("Ingredient does not exist.");
+            }
+        }
+
+        if (!string.IsNullOrEmpty(request.RecipeId))
+        {
+            var recipeExists = await _context.Recipes
+                .AnyAsync(r => r.Id == Guid.Parse(request.RecipeId) && r.StoreId == CurrentStoreId);
+            if (!recipeExists)
+            {
+                throw new DbUpdateException("Recipe does not exist.");
+            }
+        }
+
         var wastageData = new WastageData
         {
             Id = Guid.NewGuid(),
@@ -86,6 +111,31 @@ public class WastageService : IWastageService
             .FirstOrDefaultAsync(w => w.Id == id && w.StoreId == CurrentStoreId);
 
         if (wastageData == null) return null;
+
+        if (request.Quantity < 0)
+        {
+            throw new ArgumentException("Quantity cannot be negative.");
+        }
+
+        if (!string.IsNullOrEmpty(request.IngredientId))
+        {
+            var ingredientExists = await _context.Ingredients
+                .AnyAsync(i => i.Id == Guid.Parse(request.IngredientId) && i.StoreId == CurrentStoreId);
+            if (!ingredientExists)
+            {
+                throw new DbUpdateException("Ingredient does not exist.");
+            }
+        }
+
+        if (!string.IsNullOrEmpty(request.RecipeId))
+        {
+            var recipeExists = await _context.Recipes
+                .AnyAsync(r => r.Id == Guid.Parse(request.RecipeId) && r.StoreId == CurrentStoreId);
+            if (!recipeExists)
+            {
+                throw new DbUpdateException("Recipe does not exist.");
+            }
+        }
 
         wastageData.Date = DateTime.Parse(request.Date).Date;
         wastageData.IngredientId = string.IsNullOrEmpty(request.IngredientId) ? null : Guid.Parse(request.IngredientId);
@@ -196,7 +246,8 @@ public class WastageService : IWastageService
             wastageData.Ingredient?.Name ?? wastageData.Recipe?.Name ?? "Unknown",
             wastageData.Ingredient?.Unit ?? "unit",
             wastageData.Quantity,
-            await GetTotalImpactAsync(wastageData)
+            await GetTotalImpactAsync(wastageData),
+            wastageData.UpdatedAt
         );
     }
 }

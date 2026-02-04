@@ -51,12 +51,33 @@ public class SalesService : ISalesService
 
     public async Task<SalesDataDto> CreateAsync(CreateSalesDataRequest request)
     {
+        var date = DateTime.Parse(request.Date).Date;
+        var recipeId = Guid.Parse(request.RecipeId);
+
+        // Check if the same record already exists
+        var existingRecord = await _context.SalesData
+            .FirstOrDefaultAsync(s => s.StoreId == CurrentStoreId
+                && s.Date == date
+                && s.RecipeId == recipeId);
+
+        if (existingRecord != null)
+        {
+            // Update existing records
+            existingRecord.Quantity = request.Quantity;
+            existingRecord.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return await GetByIdAsync(existingRecord.Id)
+                ?? throw new Exception("Failed to retrieve updated sales data");
+        }
+
+        // Create a new record
         var salesData = new SalesData
         {
             Id = Guid.NewGuid(),
-            StoreId = CurrentStoreId, // Assign current store
-            Date = DateTime.Parse(request.Date).Date,
-            RecipeId = Guid.Parse(request.RecipeId),
+            StoreId = CurrentStoreId,
+            Date = date,
+            RecipeId = recipeId,
             Quantity = request.Quantity,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -65,7 +86,8 @@ public class SalesService : ISalesService
         _context.SalesData.Add(salesData);
         await _context.SaveChangesAsync();
 
-        return await GetByIdAsync(salesData.Id) ?? throw new Exception("Failed to retrieve created sales data");
+        return await GetByIdAsync(salesData.Id)
+            ?? throw new Exception("Failed to retrieve created sales data");
     }
 
     public async Task<SalesDataDto?> UpdateAsync(Guid id, UpdateSalesDataRequest request)
@@ -213,53 +235,89 @@ public class SalesService : ISalesService
 
     public async Task ImportAsync(List<CreateSalesDataRequest> salesData)
     {
-        // 1. Group incoming data to handle duplicates within the import file itself
+        if (!salesData.Any()) return;
+
+        // Group and process imported data
         var groupedImport = salesData
-            .GroupBy(s => new { Date = DateTime.Parse(s.Date).Date, RecipeId = Guid.Parse(s.RecipeId) })
-            .Select(g => new { g.Key.Date, g.Key.RecipeId, Quantity = g.Sum(x => x.Quantity) }) // Sum quantities if multiple entries for same day/recipe
+            .Select(s => new
+            {
+                Date = DateTime.Parse(s.Date).Date,
+                RecipeId = Guid.Parse(s.RecipeId),
+                Quantity = s.Quantity
+            })
+            .GroupBy(s => new { s.Date, s.RecipeId })
+            .Select(g => new
+            {
+                g.Key.Date,
+                g.Key.RecipeId,
+                Quantity = g.Last().Quantity  // Take the last one in case of duplicates
+            })
             .ToList();
 
-        if (!groupedImport.Any()) return;
-
-        // 2. Fetch existing records for the relevant dates and recipes to minimize DB queries
+        // Retrieve existing records of relevant dates and dishes
         var dates = groupedImport.Select(x => x.Date).Distinct().ToList();
         var recipeIds = groupedImport.Select(x => x.RecipeId).Distinct().ToList();
 
         var existingRecords = await _context.SalesData
-            .Where(s => s.StoreId == CurrentStoreId && dates.Contains(s.Date) && recipeIds.Contains(s.RecipeId))
+            .Where(s => s.StoreId == CurrentStoreId
+                && dates.Contains(s.Date)
+                && recipeIds.Contains(s.RecipeId))
             .ToListAsync();
 
-        // 3. Process Upsert Logic
-        foreach (var item in groupedImport)
+        // Use transactions to ensure data consistency
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
         {
-            var existing = existingRecords
-                .FirstOrDefault(s => s.Date == item.Date && s.RecipeId == item.RecipeId);
+            foreach (var item in groupedImport)
+            {
+                var existing = existingRecords
+                    .FirstOrDefault(s => s.Date == item.Date && s.RecipeId == item.RecipeId);
 
-            if (existing != null)
-            {
-                // Update existing record
-                existing.Quantity = item.Quantity; // Overwrite with new value (or could be += if additive logic preferred)
-                existing.UpdatedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                // Insert new record
-                _context.SalesData.Add(new SalesData
+                if (existing != null)
                 {
-                    Id = Guid.NewGuid(),
-                    StoreId = CurrentStoreId,
-                    Date = item.Date,
-                    RecipeId = item.RecipeId,
-                    Quantity = item.Quantity,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                });
+                    // Update existing records
+                    existing.Quantity = item.Quantity;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    // Insert new record
+                    _context.SalesData.Add(new SalesData
+                    {
+                        Id = Guid.NewGuid(),
+                        StoreId = CurrentStoreId,
+                        Date = item.Date,
+                        RecipeId = item.RecipeId,
+                        Quantity = item.Quantity,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
             }
-        }
 
-        await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateException ex) when (IsDuplicateKeyException(ex))
+        {
+            await transaction.RollbackAsync();
+            throw new InvalidOperationException(
+                "Duplicate records detected. This should not happen with proper validation.");
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
+    private static bool IsDuplicateKeyException(DbUpdateException ex)
+    {
+        // Check if the uniqueness constraint is violated
+        return ex.InnerException?.Message?.Contains("violates unique constraint") == true
+            || ex.InnerException?.Message?.Contains("duplicate key") == true;
+    }
     private static SalesDataDto MapToDto(SalesData salesData)
     {
         return new SalesDataDto(
@@ -267,7 +325,10 @@ public class SalesService : ISalesService
             salesData.Date.ToString("yyyy-MM-dd"),
             salesData.RecipeId.ToString(),
             salesData.Recipe.Name,
-            salesData.Quantity
+            salesData.Quantity,
+            salesData.UpdatedAt.ToUniversalTime(),
+            salesData.CreatedAt.ToUniversalTime(),
+            salesData.UpdatedAt.ToUniversalTime()
         );
     }
 }

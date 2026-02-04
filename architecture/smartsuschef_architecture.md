@@ -61,7 +61,7 @@
 
 #### 3-Layer Monolith for Backend, Frontend and Mobile
 - Easiest to develop and deploy within a tight timeline, most suitable for Minimum Viable Product
-- Single codebase for backend logic, with one database connection to manage
+- Single codebase for backend logic, with one database connection pool to manage
 - Lower infrastructure costs
 - Built-in transactions across all features
 - Easier to debug as everything is in one place

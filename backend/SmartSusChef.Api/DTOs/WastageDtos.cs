@@ -8,7 +8,8 @@ public record WastageDataDto(
     string DisplayName, // Ingredient Name or Recipe Name
     string Unit,
     decimal Quantity,
-    decimal CarbonFootprint
+    decimal CarbonFootprint,
+    DateTime UpdatedAt
 );
 
 public record CreateWastageDataRequest(

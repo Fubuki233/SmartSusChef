@@ -1,11 +1,14 @@
 package com.smartsuschef.mobile.network.dto
 
+import android.os.Parcelable
 import com.google.gson.annotations.SerializedName
+import kotlinx.parcelize.Parcelize
 
 /**
  * Wastage Data DTO
  * Maps to: WastageDataDto in WastageDtos.cs
  */
+@Parcelize
 data class WastageDataDto(
     @SerializedName("id")
     val id: String,
@@ -30,7 +33,7 @@ data class WastageDataDto(
 
     @SerializedName("carbonFootprint")
     val carbonFootprint: Double // decimal in C#
-)
+) : Parcelable
 
 /**
  * Create Wastage Data Request
@@ -72,6 +75,7 @@ data class UpdateWastageDataRequest(
  * Wastage Trend DTO (for charts/dashboard)
  * Maps to: WastageTrendDto in WastageDtos.cs
  */
+@Parcelize
 data class WastageTrendDto(
     @SerializedName("date")
     val date: String,
@@ -84,12 +88,13 @@ data class WastageTrendDto(
 
     @SerializedName("itemBreakdown")
     val itemBreakdown: List<ItemWastageDto>
-)
+) : Parcelable
 
 /**
  * Item Wastage DTO (nested in WastageTrendDto)
  * Maps to: ItemWastageDto in WastageDtos.cs
  */
+@Parcelize
 data class ItemWastageDto(
     @SerializedName("ingredientId")
     val ingredientId: String? = null,
@@ -108,4 +113,4 @@ data class ItemWastageDto(
 
     @SerializedName("carbonFootprint")
     val carbonFootprint: Double // decimal in C#
-)
+) : Parcelable

@@ -25,8 +25,10 @@ export function SalesTrendChart({
 
   const chartData = useMemo(() => {
     const today = new Date();
+    today.setHours(23, 59, 59, 999); // Set to end of today
     const daysToShow = dateRange === 'today' ? 1 : Math.min(maxDays, dateRange === '7days' ? 7 : 30);
     const startDate = subDays(today, daysToShow - 1);
+    startDate.setHours(0, 0, 0, 0); // Set to start of the first day
 
     // Filter to ensure we only count Main Dishes (exclude sub-recipes)
     const mainRecipeIds = new Set(recipes.filter(r => !r.isSubRecipe).map(r => r.id));

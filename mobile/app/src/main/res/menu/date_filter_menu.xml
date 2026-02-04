@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/filter_today"
+        android:title="Today" />
+    <item
+        android:id="@+id/filter_7_days"
+        android:title="Last 7 Days" />
+</menu>
