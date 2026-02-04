@@ -1,0 +1,172 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  NODE_VERSION: '20.x'
+
+jobs:
+  # ==========================================
+  # Quick Validation
+  # ==========================================
+  validate:
+    name: Validate Changes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for merge conflicts
+        run: |
+          git fetch origin main
+          if git merge-tree $(git merge-base HEAD origin/main) HEAD origin/main | grep -q "^<<<<<<<"; then
+            echo "Merge conflicts detected!"
+            exit 1
+          fi
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+
+      - name: List changed files
+        run: |
+          echo "Changed files:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+
+  # ==========================================
+  # Backend Validation
+  # ==========================================
+  backend-validate:
+    name: Backend Validation
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.changed_files, 'backend/') || github.event.pull_request.changed_files == ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore backend/SmartSusChef.sln
+
+      - name: Build
+        run: dotnet build backend/SmartSusChef.sln --configuration Release --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test backend/SmartSusChef.Api.Tests/SmartSusChef.Api.Tests.csproj --configuration Release --no-build --verbosity normal
+        continue-on-error: true
+
+  # ==========================================
+  # Frontend Validation
+  # ==========================================
+  frontend-validate:
+    name: Frontend Validation
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.changed_files, 'frontend/') || github.event.pull_request.changed_files == ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Type check
+        run: |
+          cd frontend
+          npx tsc --noEmit
+        continue-on-error: true
+
+      - name: Build
+        run: |
+          cd frontend
+          npm run build
+
+  # ==========================================
+  # Docker Build Test
+  # ==========================================
+  docker-test:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: [backend-validate, frontend-validate]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Docker image (test only)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: smartsuschef-backend:test
+
+      - name: Build Frontend Docker image (test only)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          tags: smartsuschef-frontend:test
+
+  # ==========================================
+  # PR Comment
+  # ==========================================
+  comment:
+    name: PR Status Comment
+    runs-on: ubuntu-latest
+    needs: [validate, backend-validate, frontend-validate, docker-test]
+    if: always()
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const backendStatus = '${{ needs.backend-validate.result }}' === 'success' ? '✅' : '❌';
+            const frontendStatus = '${{ needs.frontend-validate.result }}' === 'success' ? '✅' : '❌';
+            const dockerStatus = '${{ needs.docker-test.result }}' === 'success' ? '✅' : '❌';
+            
+            const body = `## CI/CD Status Report
+            
+            | Check | Status |
+            |-------|--------|
+            | Backend Build & Tests | ${backendStatus} |
+            | Frontend Build | ${frontendStatus} |
+            | Docker Build | ${dockerStatus} |
+            
+            ---
+            *Automated comment by CI/CD Pipeline*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

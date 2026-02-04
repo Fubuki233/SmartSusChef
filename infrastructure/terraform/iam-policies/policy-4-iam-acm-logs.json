@@ -1,0 +1,23 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:*Role*",
+                "iam:*Policy*",
+                "iam:PassRole"
+            ],
+            "Resource": "arn:aws:iam::730878889035:role/smartsuschef-*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "acm:*",
+                "logs:*",
+                "sts:GetCallerIdentity"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

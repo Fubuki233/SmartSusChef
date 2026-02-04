@@ -158,10 +158,14 @@ export function SalesInputForm() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="dish-select">Select Dish</Label>
-              <Select value={selectedRecipe} onValueChange={handleRecipeSelect}>
+              <Select
+                value={selectedRecipe}
+                onValueChange={handleRecipeSelect}
+                disabled={!!editingId}
+              >
                 <SelectTrigger
                   id="dish-select"
-                  className="rounded-[8px] border border-gray-300 focus:ring-[#4F6F52] focus:border-[#4F6F52]"
+                  className={`rounded-[8px] border border-gray-300 focus:ring-[#4F6F52] focus:border-[#4F6F52] ${editingId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 >
                   <SelectValue placeholder="Choose a dish..." />
                 </SelectTrigger>
@@ -173,6 +177,9 @@ export function SalesInputForm() {
                   ))}
                 </SelectContent>
               </Select>
+              {editingId && (
+                <p className="text-xs text-gray-500">Dish cannot be changed when editing</p>
+              )}
             </div>
 
             <div className="space-y-2">
