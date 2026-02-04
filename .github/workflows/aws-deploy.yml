@@ -241,10 +241,10 @@ jobs:
     name: Deploy to UAT
     runs-on: ubuntu-latest
     needs: [docker-build-push]
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     environment:
       name: uat
-      url: https://uat.smartsuschef.com
+      url: http://smartsuschef-uat-alb-374711244.ap-southeast-1.elb.amazonaws.com
 
     steps:
       - name: Checkout code
