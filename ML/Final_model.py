@@ -19,6 +19,8 @@ Final Prophet + Tree Residual Stacking Pipeline (Optuna)
 
 from __future__ import annotations
 
+import os
+import logging
 import pickle
 import warnings
 from pathlib import Path
@@ -32,6 +34,10 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error
 import matplotlib.pyplot as plt
 import holidays
+try:
+    from tqdm import tqdm
+except Exception:  # pragma: no cover
+    tqdm = None  # type: ignore
 
 from training_logic import (
     PipelineConfig,
@@ -78,6 +84,18 @@ except Exception:  # pragma: no cover
 
 warnings.filterwarnings("ignore")
 optuna.logging.set_verbosity(optuna.logging.WARNING)
+os.environ.setdefault("CMDSTANPY_LOG_LEVEL", "WARNING")
+logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+logging.getLogger("prophet").setLevel(logging.WARNING)
+logging.getLogger("stan").setLevel(logging.WARNING)
+logging.getLogger("pystan").setLevel(logging.WARNING)
+
+
+def _log(msg: str) -> None:
+    if tqdm is not None:
+        tqdm.write(msg)
+    else:
+        print(msg)
 
 
 # ==========================
@@ -262,7 +280,7 @@ def _eval_hybrid_mae(
                 n_jobs=-1,
                 **trial_params,
             )
-            model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
+            model.fit(X_train, y_train, eval_set=[(X_test, y_test)])
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
@@ -391,7 +409,7 @@ def process_dish(dish_name: str, shared_df: pd.DataFrame, country_code: str, con
         model = lgb.LGBMRegressor(
             n_estimators=1000, random_state=RANDOM_SEED, n_jobs=-1, **params_map[champion]
         )
-        model.fit(X_full, y_full, verbose=False)
+        model.fit(X_full, y_full)
 
     _save_models(dish_name, pm, model, config, champion)
 
@@ -634,7 +652,7 @@ def main() -> None:
     enriched_df, country, _, _ = add_local_context(raw_df, ADDRESS_INPUT)
 
     dishes = enriched_df["dish"].unique().tolist()
-    print(f"STARTING HYBRID OPTUNA SEARCH | dishes={len(dishes)} | trials={CFG.n_optuna_trials}")
+    _log(f"STARTING HYBRID OPTUNA SEARCH | dishes={len(dishes)} | trials={CFG.n_optuna_trials}")
 
     results: list[DishResult] = []
     with ProcessPoolExecutor(max_workers=CFG.max_workers) as executor:
@@ -642,18 +660,23 @@ def main() -> None:
             executor.submit(process_dish, dish, enriched_df, country, CFG): dish
             for dish in dishes
         }
-        for future in as_completed(futures):
+        iterator = as_completed(futures)
+        if tqdm is not None:
+            iterator = tqdm(iterator, total=len(futures), desc="Dishes", unit="dish")
+        for future in iterator:
             dish = futures[future]
             try:
                 r = future.result()
                 results.append(r)
-                print(f"{dish:<30} | X={r.mae['xgboost']:<7} C={r.mae['catboost']:<7} "
-                      f"L={r.mae['lightgbm']:<7} -> {r.champion.upper()}")
+                _log(
+                    f"{dish:<30} | X={r.mae['xgboost']:<7} C={r.mae['catboost']:<7} "
+                    f"L={r.mae['lightgbm']:<7} -> {r.champion.upper()}"
+                )
             except Exception as e:
-                print(f"{dish:<30} | FAILED: {e}")
+                _log(f"{dish:<30} | FAILED: {e}")
 
     if not results:
-        print("没有生成任何结果（请检查数据/列名/依赖包）。")
+        _log("没有生成任何结果（请检查数据/列名/依赖包）。")
         return
 
     # 保存注册表
@@ -693,10 +716,10 @@ def main() -> None:
             out_path = OUT_FORECASTS_DIR / f"{safe_filename(r.dish)}.csv"
             fc.pred_future.to_csv(out_path, index=False, encoding="utf-8-sig")
         except Exception as e:
-            print(f"{r.dish:<30} | FORECAST FAILED: {e}")
+            _log(f"{r.dish:<30} | FORECAST FAILED: {e}")
 
     if not forecasts:
-        print("预测失败：未生成任何预测结果。")
+        _log("预测失败：未生成任何预测结果。")
         return
 
     summary_rows = []
@@ -715,7 +738,7 @@ def main() -> None:
     summary.to_csv(OUT_DIR / "summary.csv", index=False, encoding="utf-8-sig")
 
     plot_results(forecasts, summary, top_n=TOP_N_PLOT)
-    print("Done.")
+    _log("Done.")
 
 
 if __name__ == "__main__":
