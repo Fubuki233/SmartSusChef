@@ -20,7 +20,7 @@ import warnings
 from dataclasses import dataclass, field
 from typing import List, Dict
 from sqlalchemy import create_engine
-from prophet import Prophet
+import lightgbm as lgb
 from catboost import CatBoostRegressor
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_absolute_error
@@ -32,8 +32,6 @@ warnings.filterwarnings('ignore')
 
 # Suppress verbose output
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-logging.getLogger('prophet').setLevel(logging.WARNING)
-logging.getLogger('cmdstanpy').setLevel(logging.WARNING)
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +160,37 @@ def get_historical_weather(latitude, longitude, start_date, end_date):
         return None
 
 
+def fetch_weather_from_db(start_date, end_date):
+    """
+    Attempt to fetch historical weather data from the local MySQL Weather table.
+    Returns a DataFrame with columns: date + WEATHER_COLS, or None if unavailable.
+    """
+    DB_URL = "mysql+pymysql://root:password123@localhost:3306/SmartSusChef"
+    try:
+        engine = create_engine(DB_URL)
+        query = """
+        SELECT Date as date, TemperatureMax as temperature_2m_max,
+               TemperatureMin as temperature_2m_min,
+               HumidityMean as relative_humidity_2m_mean,
+               PrecipitationSum as precipitation_sum
+        FROM Weather
+        WHERE Date BETWEEN %s AND %s
+        ORDER BY Date ASC
+        """
+        df = pd.read_sql(query, engine, params=[
+            start_date.strftime('%Y-%m-%d'),
+            end_date.strftime('%Y-%m-%d')
+        ])
+        if len(df) == 0:
+            return None
+        df['date'] = pd.to_datetime(df['date']).dt.normalize()
+        print(f"Fetched {len(df)} days of weather data from database.")
+        return df
+    except Exception as e:
+        print(f"Weather DB lookup failed: {e}")
+        return None
+
+
 def add_local_context(df, address):
     """
     Enriches the sales data with local context features (Holidays + Weather).
@@ -189,8 +218,10 @@ def add_local_context(df, address):
     local_holidays = holidays.country_holidays(country_code, years=CFG.holiday_years)
     df['is_public_holiday'] = df['date'].apply(lambda x: 1 if x in local_holidays else 0)
 
-    # Try to fetch real historical weather data
-    weather_df = get_historical_weather(lat, lon, df['date'].min(), df['date'].max())
+    # Try to fetch weather data: DB first, then API fallback
+    weather_df = fetch_weather_from_db(df['date'].min(), df['date'].max())
+    if weather_df is None:
+        weather_df = get_historical_weather(lat, lon, df['date'].min(), df['date'].max())
 
     if weather_df is not None and len(weather_df) > 0:
         df = df.merge(weather_df, on='date', how='left')
@@ -200,8 +231,8 @@ def add_local_context(df, address):
         df = df.reset_index()
     else:
         raise ValueError(
-            "Training cannot proceed: failed to fetch historical weather data from Open-Meteo. "
-            "Please check your internet connection and try again."
+            "Training cannot proceed: failed to fetch historical weather data from both "
+            "the database and Open-Meteo API. Please check your connections and try again."
         )
 
     return df, country_code, lat, lon
@@ -235,7 +266,7 @@ def fetch_training_data():
     df['date'] = df['date'].dt.normalize()
 
     # Aggregate sales to ensure each dish has exactly one entry per day.
-    # This is critical for preventing errors in time-series models like Prophet.
+    # This is critical for preventing errors in time-series models.
     df = df.groupby(['date', 'dish']).agg(sales=('sales', 'sum')).reset_index()
 
     return df.sort_values('date')
@@ -356,7 +387,7 @@ def _optimize_catboost(df, config):
             model = CatBoostRegressor(
                 iterations=1000, depth=depth, learning_rate=learning_rate,
                 l2_leaf_reg=l2_leaf_reg, cat_features=cat_features,
-                random_seed=config.random_seed, verbose=False
+                random_seed=config.random_seed, verbose=0
             )
             model.fit(
                 train[features], train['sales'],
@@ -436,39 +467,33 @@ def _optimize_xgboost(df, config):
     return round(study.best_value, 2), study.best_params, best_last_fold_preds
 
 
-def _optimize_prophet(df, config, country_code):
-    """Optuna-based hyperparameter optimization for Prophet."""
+def _optimize_lightgbm(df, config):
+    """Optuna-based hyperparameter optimization for LightGBM with early stopping."""
+    features = config.tree_features
     best_last_fold_preds = None
 
     def objective(trial):
         nonlocal best_last_fold_preds
-        changepoint_prior = trial.suggest_float('changepoint_prior_scale', 0.001, 0.5, log=True)
-        seasonality_prior = trial.suggest_float('seasonality_prior_scale', 0.01, 10.0, log=True)
+        num_leaves = trial.suggest_int('num_leaves', 20, 150)
+        learning_rate = trial.suggest_float('learning_rate', 0.01, 0.3, log=True)
+        reg_alpha = trial.suggest_float('reg_alpha', 0.0, 10.0)
+        reg_lambda = trial.suggest_float('reg_lambda', 0.0, 10.0)
 
         fold_maes = []
         last_preds = None
 
         for train, test in _generate_cv_folds(df, config):
-            p_train = train[['date', 'sales'] + WEATHER_COLS].rename(
-                columns={'date': 'ds', 'sales': 'y'})
-            p_train = p_train.sort_values(by='ds')
-            m = Prophet(daily_seasonality=False,
-                        changepoint_prior_scale=changepoint_prior,
-                        seasonality_prior_scale=seasonality_prior)
-            try:
-                if country_code and country_code in holidays.list_supported_countries():
-                    m.add_country_holidays(country_name=country_code)
-                else:
-                    print(f"WARNING: Skipping country holidays for invalid or empty country_code: {country_code}")
-            except Exception as e:
-                print(f"WARNING: Error adding country holidays for {country_code}: {e}")
-            for col in WEATHER_COLS:
-                m.add_regressor(col)
-            m.fit(p_train)
-
-            p_test = test[['date'] + WEATHER_COLS].rename(columns={'date': 'ds'})
-            forecast = m.predict(p_test)
-            preds = np.maximum(forecast['yhat'].values, 0)
+            model = lgb.LGBMRegressor(
+                n_estimators=1000, num_leaves=num_leaves, learning_rate=learning_rate,
+                reg_alpha=reg_alpha, reg_lambda=reg_lambda,
+                random_state=config.random_seed, n_jobs=-1, verbose=-1
+            )
+            model.fit(
+                train[features], train['sales'],
+                eval_set=[(test[features], test['sales'])],
+                callbacks=[lgb.early_stopping(50, verbose=False)]
+            )
+            preds = np.maximum(model.predict(test[features]), 0)
             fold_maes.append(mean_absolute_error(test['sales'], preds))
             last_preds = {
                 'dates': test['date'].values,
@@ -491,7 +516,7 @@ def _optimize_prophet(df, config, country_code):
     return round(study.best_value, 2), study.best_params, best_last_fold_preds
 
 
-def evaluate_model(df, model_type, country_code, config=CFG):
+def evaluate_model(df, model_type, config=CFG):
     """
     Dispatcher: runs Optuna-based optimization for the given model type.
     Returns (best_mae, best_params, last_fold_preds).
@@ -500,8 +525,8 @@ def evaluate_model(df, model_type, country_code, config=CFG):
         return _optimize_catboost(df, config)
     elif model_type == 'xgboost':
         return _optimize_xgboost(df, config)
-    elif model_type == 'prophet':
-        return _optimize_prophet(df, config, country_code)
+    elif model_type == 'lightgbm':
+        return _optimize_lightgbm(df, config)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -514,104 +539,72 @@ def process_dish(dish_name, shared_df, country_code, config):
     Process a single dish: evaluate all models, determine champion, retrain on full data.
     This function is standalone (no closures) so it can be pickled by ProcessPoolExecutor.
     """
-    # Create a unique temp directory for this process to avoid cmdstanpy file conflicts
-    # when multiple Prophet instances run in parallel.
-    stan_tmpdir = tempfile.mkdtemp()
-    os.environ['CMDSTAN_TMPDIR'] = stan_tmpdir
-    try:
-        safe_name = safe_filename(dish_name)
-        os.makedirs(config.model_dir, exist_ok=True)
+    safe_name = safe_filename(dish_name)
+    os.makedirs(config.model_dir, exist_ok=True)
 
-        # Isolate and sanitize dish data
-        dish_data = shared_df[shared_df['dish'] == dish_name].copy()
-        dish_data = sanitize_sparse_data(dish_data, country_code)
+    # Isolate and sanitize dish data
+    dish_data = shared_df[shared_df['dish'] == dish_name].copy()
+    dish_data = sanitize_sparse_data(dish_data, country_code)
 
-        # Short-data guard: < min_ml_days -> use simple average
-        data_span = (dish_data['date'].max() - dish_data['date'].min()).days
-        if data_span < config.min_ml_days:
-            avg_sales = round(dish_data['sales'].mean())
-            with open(f'{config.model_dir}/average_{safe_name}.pkl', 'wb') as f:
-                pickle.dump(avg_sales, f)
+    # Full ML pipeline
+    dish_data_with_lags = add_lag_features(dish_data.copy())
 
-            recent_sales = dish_data[['date', 'sales']].tail(28).copy()
-            with open(f'{config.model_dir}/recent_sales_{safe_name}.pkl', 'wb') as f:
-                pickle.dump(recent_sales, f)
+    # Evaluate all 3 models
+    l_mae, l_params, l_preds = evaluate_model(dish_data_with_lags, 'lightgbm', config)
+    c_mae, c_params, c_preds = evaluate_model(dish_data_with_lags, 'catboost', config)
+    x_mae, x_params, x_preds = evaluate_model(dish_data_with_lags, 'xgboost', config)
 
-            return {
-                'dish': dish_name,
-                'champion': 'average',
-                'mae': {'prophet': None, 'catboost': None, 'xgboost': None},
-                'best_params': {},
-                'backtest_preds': None,
-                'avg_sales': avg_sales
-            }
+    # Determine champion
+    scores = {'lightgbm': l_mae, 'catboost': c_mae, 'xgboost': x_mae}
+    champion = min(scores, key=scores.get)
 
-        # Full ML pipeline
-        dish_data_with_lags = add_lag_features(dish_data.copy())
+    # Production training on 100% data with best params
 
-        # Evaluate all 3 models
-        p_mae, p_params, p_preds = evaluate_model(dish_data, 'prophet', country_code, config)
-        c_mae, c_params, c_preds = evaluate_model(dish_data_with_lags, 'catboost', country_code, config)
-        x_mae, x_params, x_preds = evaluate_model(dish_data_with_lags, 'xgboost', country_code, config)
+    # LightGBM
+    lgb_prod_params = {k: v for k, v in l_params.items()}
+    ml = lgb.LGBMRegressor(
+        n_estimators=1000, random_state=config.random_seed, n_jobs=-1,
+        verbose=-1, **lgb_prod_params
+    )
+    ml.fit(dish_data_with_lags[config.tree_features], dish_data_with_lags['sales'])
+    with open(f'{config.model_dir}/lightgbm_{safe_name}.pkl', 'wb') as f:
+        pickle.dump(ml, f)
 
-        # Determine champion
-        scores = {'prophet': p_mae, 'catboost': c_mae, 'xgboost': x_mae}
-        champion = min(scores, key=scores.get)
+    # CatBoost with best Optuna params
+    cb_params = {k: v for k, v in c_params.items()}
+    mc = CatBoostRegressor(
+        iterations=1000, cat_features=config.tree_cat_features,
+        random_seed=config.random_seed, verbose=False, **cb_params
+    )
+    mc.fit(dish_data_with_lags[config.tree_features], dish_data_with_lags['sales'])
+    with open(f'{config.model_dir}/catboost_{safe_name}.pkl', 'wb') as f:
+        pickle.dump(mc, f)
 
-        # Production training on 100% data with best params
+    # XGBoost with best Optuna params
+    xgb_params = {k: v for k, v in x_params.items()}
+    mx = XGBRegressor(
+        n_estimators=1000, random_state=config.random_seed, n_jobs=-1, verbosity=0, **xgb_params
+    )
+    mx.fit(dish_data_with_lags[config.tree_features], dish_data_with_lags['sales'])
+    with open(f'{config.model_dir}/xgboost_{safe_name}.pkl', 'wb') as f:
+        pickle.dump(mx, f)
 
-        # Prophet
-        p_df = dish_data[['date', 'sales'] + WEATHER_COLS].rename(
-            columns={'date': 'ds', 'sales': 'y'})
-        mp = Prophet(daily_seasonality=False, **p_params)
-        try:
-            mp.add_country_holidays(country_name=country_code)
-        except Exception:
-            pass
-        for col in WEATHER_COLS:
-            mp.add_regressor(col)
-        mp.fit(p_df)
-        with open(f'{config.model_dir}/prophet_{safe_name}.pkl', 'wb') as f:
-            pickle.dump(mp, f)
+    # Save recent sales for lag computation at prediction time
+    recent_sales = dish_data[['date', 'sales']].tail(28).copy()
+    with open(f'{config.model_dir}/recent_sales_{safe_name}.pkl', 'wb') as f:
+        pickle.dump(recent_sales, f)
 
-        # CatBoost with best Optuna params
-        cb_params = {k: v for k, v in c_params.items()}
-        mc = CatBoostRegressor(
-            iterations=1000, cat_features=config.tree_cat_features,
-            random_seed=config.random_seed, verbose=False, **cb_params
-        )
-        mc.fit(dish_data_with_lags[config.tree_features], dish_data_with_lags['sales'])
-        with open(f'{config.model_dir}/catboost_{safe_name}.pkl', 'wb') as f:
-            pickle.dump(mc, f)
+    preds_map = {'lightgbm': l_preds, 'catboost': c_preds, 'xgboost': x_preds}
 
-        # XGBoost with best Optuna params
-        xgb_params = {k: v for k, v in x_params.items()}
-        mx = XGBRegressor(
-            n_estimators=1000, random_state=config.random_seed, n_jobs=-1, **xgb_params
-        )
-        mx.fit(dish_data_with_lags[config.tree_features], dish_data_with_lags['sales'])
-        with open(f'{config.model_dir}/xgboost_{safe_name}.pkl', 'wb') as f:
-            pickle.dump(mx, f)
-
-        # Save recent sales for lag computation at prediction time
-        recent_sales = dish_data[['date', 'sales']].tail(28).copy()
-        with open(f'{config.model_dir}/recent_sales_{safe_name}.pkl', 'wb') as f:
-            pickle.dump(recent_sales, f)
-
-        preds_map = {'prophet': p_preds, 'catboost': c_preds, 'xgboost': x_preds}
-
-        return {
-            'dish': dish_name,
-            'champion': champion,
-            'mae': scores,
-            'best_params': {
-                'prophet': p_params,
-                'catboost': c_params,
-                'xgboost': x_params
-            },
-            'backtest_preds': preds_map,
-            'champion_mae': scores[champion]
-        }
-    finally:
-        # Ensure the temporary directory is cleaned up
-        shutil.rmtree(stan_tmpdir, ignore_errors=True)
+    return {
+        'dish': dish_name,
+        'champion': champion,
+        'mae': scores,
+        'best_params': {
+            'lightgbm': l_params,
+            'catboost': c_params,
+            'xgboost': x_params
+        },
+        'backtest_preds': preds_map,
+        'champion_mae': scores[champion]
+    }
