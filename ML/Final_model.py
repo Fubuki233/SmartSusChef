@@ -803,9 +803,14 @@ def main() -> None:
 
     summary_rows = []
     for r in forecasts:
+        reg = champion_map.get(r.dish, {})
+        champion_model = reg.get("model")
         summary_rows.append(
             {
                 "dish": r.dish,
+                "model": champion_model,
+                "model_combo": f"Prophet+{champion_model}" if champion_model else "Prophet+unknown",
+                "model_params": reg.get("best_params", {}).get(champion_model, {}) if champion_model else {},
                 "val_mae": r.val_mae,
                 "forecast_sum": float(r.pred_future["yhat"].sum()),
                 "forecast_mean": float(r.pred_future["yhat"].mean()),
