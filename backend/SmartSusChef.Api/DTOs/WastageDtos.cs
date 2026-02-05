@@ -9,6 +9,7 @@ public record WastageDataDto(
     string Unit,
     decimal Quantity,
     decimal CarbonFootprint,
+    DateTime CreatedAt,
     DateTime UpdatedAt
 );
 

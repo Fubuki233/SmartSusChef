@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.github/
+backup/
+catboost_info/
+outputs/
+*.ipynb
+.DS_Store
