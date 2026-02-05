@@ -27,13 +27,14 @@ import logging
 import pickle
 import warnings
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, List
 
 import numpy as np
 import optuna
 import pandas as pd
+import time
 from sklearn.metrics import mean_absolute_error
 import matplotlib.pyplot as plt
 import holidays
@@ -52,7 +53,6 @@ from training_logic import (
     add_local_context,
     sanitize_sparse_data,
     safe_filename,
-    get_location_details,
     WEATHER_COLS,
 )
 
@@ -242,19 +242,75 @@ def _build_residual_features(df: pd.DataFrame, prophet_yhat: np.ndarray) -> pd.D
 
 def _eval_hybrid_mae(
     model_type: str,
-    df_feat: pd.DataFrame,
-    country_code: str,
+    fold_cache: List[Dict[str, Any]],
     trial_params: Dict[str, Any],
-    config: PipelineConfig,
 ) -> float:
     """
-    给定模型类型和参数，跑 CV 并返回平均 MAE。
+    给定模型类型和参数，基于已缓存的 fold 数据跑 CV 并返回平均 MAE。
     """
-    feature_cols = TREE_FEATURES
     fold_maes = []
+    tree_n_jobs = 1 if CFG.max_workers > 1 else -1
+
+    for fold in fold_cache:
+        X_train = fold["X_train"]
+        y_train = fold["y_train"]
+        X_test = fold["X_test"]
+        y_test = fold["y_test"]
+        prophet_test = fold["prophet_test"]
+        sales_test = fold["sales_test"]
+
+        if model_type == "xgboost":
+            if XGBRegressor is None:
+                raise ImportError("缺少依赖：xgboost。")
+            model = XGBRegressor(
+                n_estimators=100,
+                random_state=RANDOM_SEED,
+                n_jobs=tree_n_jobs,
+                **trial_params,
+            )
+            model.fit(X_train, y_train, verbose=False)
+        elif model_type == "catboost":
+            if CatBoostRegressor is None:
+                raise ImportError("缺少依赖：catboost。")
+            model = CatBoostRegressor(
+                iterations=100,
+                random_seed=RANDOM_SEED,
+                verbose=False,
+                **trial_params,
+            )
+            model.fit(X_train, y_train, verbose=False)
+        elif model_type == "lightgbm":
+            if lgb is None:
+                raise ImportError("缺少依赖：lightgbm。")
+            model = lgb.LGBMRegressor(
+                n_estimators=100,
+                random_state=RANDOM_SEED,
+                n_jobs=tree_n_jobs,
+                **trial_params,
+            )
+            model.fit(X_train, y_train)
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
+
+        resid_pred = model.predict(X_test)
+        yhat = np.maximum(prophet_test + resid_pred, 0.0)
+        fold_maes.append(mean_absolute_error(sales_test, yhat))
+
+    if not fold_maes:
+        return float("inf")
+    return float(np.mean(fold_maes))
+
+
+def _prepare_cv_fold_cache(
+    df_feat: pd.DataFrame,
+    country_code: str,
+    config: PipelineConfig,
+) -> List[Dict[str, Any]]:
+    """Pre-compute Prophet + residual training matrices once per fold."""
+    feature_cols = TREE_FEATURES
+    fold_cache: List[Dict[str, Any]] = []
 
     for train, test in _generate_cv_folds(df_feat, config):
-        # Prophet
         pm = _fit_prophet(train, country_code)
         p_train = _prophet_predict(pm, train)
         p_test = _prophet_predict(pm, test)
@@ -263,53 +319,25 @@ def _eval_hybrid_mae(
         test_r = _build_residual_features(test, p_test)
 
         X_train = train_r[feature_cols].dropna()
-        y_train = train_r.loc[X_train.index, "resid"]
         X_test = test_r[feature_cols].dropna()
-        y_test = test_r.loc[X_test.index, "resid"]
+        if X_train.empty or X_test.empty:
+            continue
 
-        if model_type == "xgboost":
-            if XGBRegressor is None:
-                raise ImportError("缺少依赖：xgboost。")
-            model = XGBRegressor(
-                n_estimators=1000,
-                random_state=RANDOM_SEED,
-                n_jobs=-1,
-                **trial_params,
-            )
-            model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
-        elif model_type == "catboost":
-            if CatBoostRegressor is None:
-                raise ImportError("缺少依赖：catboost。")
-            model = CatBoostRegressor(
-                iterations=1000,
-                random_seed=RANDOM_SEED,
-                verbose=False,
-                **trial_params,
-            )
-            model.fit(X_train, y_train, eval_set=(X_test, y_test), verbose=False)
-        elif model_type == "lightgbm":
-            if lgb is None:
-                raise ImportError("缺少依赖：lightgbm。")
-            model = lgb.LGBMRegressor(
-                n_estimators=1000,
-                random_state=RANDOM_SEED,
-                n_jobs=-1,
-                **trial_params,
-            )
-            model.fit(X_train, y_train, eval_set=[(X_test, y_test)])
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
+        fold_cache.append(
+            {
+                "X_train": X_train,
+                "y_train": train_r.loc[X_train.index, "resid"],
+                "X_test": X_test,
+                "y_test": test_r.loc[X_test.index, "resid"],
+                "prophet_test": test_r.loc[X_test.index, "prophet_yhat"].to_numpy(),
+                "sales_test": test_r.loc[X_test.index, "sales"].to_numpy(),
+            }
+        )
 
-        resid_pred = model.predict(X_test)
-        yhat = np.maximum(test_r.loc[X_test.index, "prophet_yhat"].to_numpy() + resid_pred, 0.0)
-        fold_maes.append(mean_absolute_error(test.loc[X_test.index, "sales"], yhat))
-
-    if not fold_maes:
-        return float("inf")
-    return float(np.mean(fold_maes))
+    return fold_cache
 
 
-def _optimize_hybrid(model_type: str, df_feat: pd.DataFrame, country_code: str, config: PipelineConfig):
+def _optimize_hybrid(model_type: str, fold_cache: List[Dict[str, Any]], config: PipelineConfig):
     """Optuna for hybrid residual stacking per model type."""
     def objective(trial: optuna.Trial) -> float:
         if model_type == "xgboost":
@@ -337,7 +365,7 @@ def _optimize_hybrid(model_type: str, df_feat: pd.DataFrame, country_code: str, 
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-        return _eval_hybrid_mae(model_type, df_feat, country_code, params, config)
+        return _eval_hybrid_mae(model_type, fold_cache, params)
 
     study = optuna.create_study(
         direction="minimize",
@@ -384,22 +412,25 @@ def _load_models(dish: str, config: PipelineConfig, champion: str) -> Tuple[Prop
     return prophet_model, tree_model
 
 
-def process_dish(dish_name: str, shared_df: pd.DataFrame, country_code: str, config: PipelineConfig) -> DishResult:
+def process_dish(dish_name: str, dish_data: pd.DataFrame, country_code: str, config: PipelineConfig) -> DishResult:
     _silence_logs()
     # Prepare data
-    dish_data = shared_df[shared_df["dish"] == dish_name].copy()
+    dish_data = dish_data.copy()
     dish_data = sanitize_sparse_data(dish_data, country_code)
 
     # Add date + lag/rolling features (Parallel style)
     dish_feat = _add_date_features(dish_data.copy())
     dish_feat = _add_lag_roll_features(dish_feat)
+    fold_cache = _prepare_cv_fold_cache(dish_feat, country_code, config)
+    if not fold_cache:
+        raise RuntimeError(f"{dish_name}: CV folds unavailable after feature dropna.")
 
     # Optuna per model
     mae_map: Dict[str, float] = {}
     params_map: Dict[str, Dict[str, Any]] = {}
 
     for model_type in ["xgboost", "catboost", "lightgbm"]:
-        best_mae, best_params = _optimize_hybrid(model_type, dish_feat, country_code, config)
+        best_mae, best_params = _optimize_hybrid(model_type, fold_cache, config)
         mae_map[model_type] = round(best_mae, 4)
         params_map[model_type] = best_params
 
@@ -414,17 +445,23 @@ def process_dish(dish_name: str, shared_df: pd.DataFrame, country_code: str, con
 
     if champion == "xgboost":
         model = XGBRegressor(
-            n_estimators=1000, random_state=RANDOM_SEED, n_jobs=-1, **params_map[champion]
+            n_estimators=100,
+            random_state=RANDOM_SEED,
+            n_jobs=(1 if CFG.max_workers > 1 else -1),
+            **params_map[champion],
         )
         model.fit(X_full, y_full, verbose=False)
     elif champion == "catboost":
         model = CatBoostRegressor(
-            iterations=1000, random_seed=RANDOM_SEED, verbose=False, **params_map[champion]
+            iterations=100, random_seed=RANDOM_SEED, verbose=False, **params_map[champion]
         )
         model.fit(X_full, y_full, verbose=False)
     else:
         model = lgb.LGBMRegressor(
-            n_estimators=1000, random_state=RANDOM_SEED, n_jobs=-1, **params_map[champion]
+            n_estimators=100,
+            random_state=RANDOM_SEED,
+            n_jobs=(1 if CFG.max_workers > 1 else -1),
+            **params_map[champion],
         )
         model.fit(X_full, y_full)
 
@@ -440,8 +477,11 @@ def process_dish(dish_name: str, shared_df: pd.DataFrame, country_code: str, con
 
 def _compute_lag_features_from_history(sales_history: list[float]) -> Dict[str, float]:
     features: Dict[str, float] = {}
+    fallback = float(sales_history[-1]) if sales_history else 0.0
     for lag in LAGS:
-        features[f"y_lag_{lag}"] = sales_history[-lag] if len(sales_history) >= lag else 0.0
+        features[f"y_lag_{lag}"] = (
+            float(sales_history[-lag]) if len(sales_history) >= lag else fallback
+        )
     for w in ROLL_WINDOWS:
         window = sales_history[-w:] if len(sales_history) >= w else sales_history
         if window:
@@ -501,17 +541,14 @@ def _predict_future(
     prophet_model: Prophet,
     tree_model: Any,
     dish_mae: float | None,
+    forecast_weather: pd.DataFrame,
 ) -> DishForecast:
     dish_data = dish_data.sort_values("date").copy()
 
     # 历史尾部
     history_tail = dish_data[["date", "sales"]].tail(HISTORY_PLOT_DAYS).copy()
 
-    # 未来天气
-    lat, lon, _country = get_location_details(ADDRESS_INPUT)
-    if lat is None:
-        lat, lon = 31.23, 121.47
-    forecast_weather = _get_weather_forecast(lat, lon)
+    # 未来天气（在 main 中一次性获取后传入，避免重复请求）
     if forecast_weather is None or forecast_weather.empty:
         raise RuntimeError("无法获取未来天气预测（Open-Meteo）。")
 
@@ -666,31 +703,52 @@ def main() -> None:
     # Load data and enrich with context (same as model.ipynb)
     _ensure_dirs()
     raw_df = fetch_training_data()
-    enriched_df, country, _, _ = add_local_context(raw_df, ADDRESS_INPUT)
+    enriched_df, country, lat, lon = add_local_context(raw_df, ADDRESS_INPUT)
+    forecast_weather = _get_weather_forecast(lat, lon)
+    if forecast_weather is None or forecast_weather.empty:
+        raise RuntimeError("无法获取未来天气预测（Open-Meteo）。")
 
     dishes = enriched_df["dish"].unique().tolist()
+    dish_frames = {d: g.copy() for d, g in enriched_df.groupby("dish", sort=False)}
     _log(f"STARTING HYBRID OPTUNA SEARCH | dishes={len(dishes)} | trials={CFG.n_optuna_trials}")
 
     results: list[DishResult] = []
     with ProcessPoolExecutor(max_workers=CFG.max_workers) as executor:
         futures = {
-            executor.submit(process_dish, dish, enriched_df, country, CFG): dish
+            executor.submit(process_dish, dish, dish_frames[dish], country, CFG): dish
             for dish in dishes
         }
-        iterator = as_completed(futures)
-        if tqdm is not None:
-            iterator = tqdm(iterator, total=len(futures), desc="Dishes", unit="dish")
-        for future in iterator:
-            dish = futures[future]
-            try:
-                r = future.result()
-                results.append(r)
-                _log(
-                    f"{dish:<30} | X={r.mae['xgboost']:<7} C={r.mae['catboost']:<7} "
-                    f"L={r.mae['lightgbm']:<7} -> {r.champion.upper()}"
-                )
-            except Exception as e:
-                _log(f"{dish:<30} | FAILED: {e}")
+        total = len(futures)
+        pending = set(futures.keys())
+        completed = 0
+        heartbeat_sec = 30
+        t0 = time.time()
+        pbar = tqdm(total=total, desc="Train Dishes", unit="dish") if tqdm is not None else None
+        try:
+            while pending:
+                done, pending = wait(pending, timeout=heartbeat_sec, return_when=FIRST_COMPLETED)
+                if not done:
+                    elapsed = int(time.time() - t0)
+                    _log(f"[TRAIN] still running... {completed}/{total} done | elapsed={elapsed}s")
+                    continue
+
+                for future in done:
+                    dish = futures[future]
+                    try:
+                        r = future.result()
+                        results.append(r)
+                        _log(
+                            f"{dish:<30} | X={r.mae['xgboost']:<7} C={r.mae['catboost']:<7} "
+                            f"L={r.mae['lightgbm']:<7} -> {r.champion.upper()}"
+                        )
+                    except Exception as e:
+                        _log(f"{dish:<30} | FAILED: {e}")
+                    completed += 1
+                    if pbar is not None:
+                        pbar.update(1)
+        finally:
+            if pbar is not None:
+                pbar.close()
 
     if not results:
         _log("没有生成任何结果（请检查数据/列名/依赖包）。")
@@ -713,7 +771,10 @@ def main() -> None:
 
     # 未来预测与输出
     forecasts: list[DishForecast] = []
-    for r in results:
+    forecast_iter = results
+    if tqdm is not None:
+        forecast_iter = tqdm(results, total=len(results), desc="Forecast Dishes", unit="dish")
+    for r in forecast_iter:
         dish_data = enriched_df[enriched_df["dish"] == r.dish].copy()
         dish_data = sanitize_sparse_data(dish_data, country)
         dish_data = _add_date_features(dish_data)
@@ -728,6 +789,7 @@ def main() -> None:
                 prophet_model=prophet_model,
                 tree_model=tree_model,
                 dish_mae=r.mae.get(r.champion),
+                forecast_weather=forecast_weather,
             )
             forecasts.append(fc)
             out_path = OUT_FORECASTS_DIR / f"{safe_filename(r.dish)}.csv"
