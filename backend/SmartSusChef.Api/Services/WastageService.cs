@@ -247,6 +247,7 @@ public class WastageService : IWastageService
             wastageData.Ingredient?.Unit ?? "unit",
             wastageData.Quantity,
             await GetTotalImpactAsync(wastageData),
+            wastageData.CreatedAt,
             wastageData.UpdatedAt
         );
     }
