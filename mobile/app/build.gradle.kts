@@ -51,6 +51,10 @@ android {
     ksp {
         arg("dagger.hilt.internal.useAggregatingRootProcessor", "false")
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 dependencies {
@@ -64,6 +68,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.fragment.ktx)
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.core.testing)
+    testImplementation(libs.datastore.preferences)
+    testImplementation(libs.datastore.preferences.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     // Networking (For .NET Backend & Python ML)

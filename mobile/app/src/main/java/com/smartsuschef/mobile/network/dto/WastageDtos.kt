@@ -23,7 +23,7 @@ data class WastageDataDto(
     val recipeId: String? = null,
 
     @SerializedName("displayName")
-    val displayName: String, // Ingredient Name or Recipe Name
+    val displayName: String,
 
     @SerializedName("unit")
     val unit: String,
@@ -32,7 +32,13 @@ data class WastageDataDto(
     val quantity: Double, // decimal in C#
 
     @SerializedName("carbonFootprint")
-    val carbonFootprint: Double // decimal in C#
+    val carbonFootprint: Double, // decimal in C#
+
+    @SerializedName("createdAt")
+    val createdAt: String,
+
+    @SerializedName("updatedAt")
+    val updatedAt: String
 ) : Parcelable
 
 /**
