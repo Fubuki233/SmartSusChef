@@ -257,7 +257,7 @@ public class RecipeService : IRecipeService
                 ri.IngredientId?.ToString(),
                 ri.ChildRecipeId?.ToString(),
                 ri.Ingredient?.Name ?? ri.ChildRecipe?.Name ?? "Unknown",
-                ri.Ingredient?.Unit ?? "unit",
+                ri.Ingredient?.Unit ?? (ri.ChildRecipeId.HasValue ? "Portion" : "Unknown"),
                 ri.Quantity
             )).ToList()
         );
