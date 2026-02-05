@@ -228,10 +228,12 @@ class DataInputFragment : Fragment(R.layout.fragment_data_input), RecentEntryAct
         binding.etQuantity.setText(entry.quantity.toString())
 
         // Set spinner selection
-        val adapter = binding.itemSpinner.adapter as ArrayAdapter<String>
-        val position = adapter.getPosition(entry.name)
-        if (position != -1) {
-            binding.itemSpinner.setSelection(position)
+        val adapter = binding.itemSpinner.adapter as? ArrayAdapter<String>
+        if (adapter != null) {
+            val position = adapter.getPosition(entry.name)
+            if (position != -1) {
+                binding.itemSpinner.setSelection(position)
+            }
         }
         binding.itemSpinner.isEnabled = false // Lock item selection
 

@@ -1,11 +1,15 @@
 package com.smartsuschef.mobile.data.repository
+
 import com.smartsuschef.mobile.data.TokenManager
 import com.smartsuschef.mobile.network.api.AuthApiService
+import com.smartsuschef.mobile.network.dto.ChangePasswordRequest
 import com.smartsuschef.mobile.network.dto.LoginRequest
 import com.smartsuschef.mobile.network.dto.LoginResponse
 import com.smartsuschef.mobile.util.Resource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -53,6 +57,42 @@ class AuthRepository @Inject constructor(
                 Resource.Error(e.localizedMessage ?: "An unexpected error occurred")
             }
             */
+        }
+    }
+
+    /**
+     * Change user password
+     * Requires current password for verification
+     * Maps to .NET AuthController.ChangePassword
+     */
+    suspend fun changePassword(request: ChangePasswordRequest): Resource<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = authApi.changePassword(request)
+                if (response.isSuccessful) {
+                    Resource.Success(Unit)
+                } else {
+                    // Parse error message from response
+                    val errorBody = response.errorBody()?.string()
+                    val errorMessage = when {
+                        errorBody?.contains("incorrect", ignoreCase = true) == true ->
+                            "Current password is incorrect"
+                        errorBody?.contains("invalid", ignoreCase = true) == true ->
+                            "Invalid password format"
+                        response.code() == 401 ->
+                            "Current password is incorrect"
+                        response.code() == 400 ->
+                            "Password does not meet requirements"
+                        else ->
+                            "Failed to change password: ${response.message()}"
+                    }
+                    Resource.Error(errorMessage)
+                }
+            } catch (e: HttpException) {
+                Resource.Error("An unexpected error occurred: ${e.message()}")
+            } catch (e: IOException) {
+                Resource.Error("Couldn't reach the server. Check your internet connection.")
+            }
         }
     }
 

@@ -11,6 +11,7 @@ import android.view.View
 import com.smartsuschef.mobile.R
 import com.smartsuschef.mobile.databinding.ActivityDashboardBinding
 import com.smartsuschef.mobile.ui.auth.LoginActivity
+import com.smartsuschef.mobile.ui.settings.SettingsActivity
 import com.smartsuschef.mobile.util.visible
 import com.smartsuschef.mobile.util.gone
 import com.smartsuschef.mobile.util.showToast
@@ -57,7 +58,7 @@ class DashboardActivity : AppCompatActivity() {
                 val location = viewModel.outletLocation.value ?: ""
                 supportActionBar?.title = if (location.isNotEmpty()) "$storeName | $location" else storeName
             } else {
-                // Remove the subtitle on SalesDtail so the title in this Fragment looks clean
+                // Remove the subtitle on SalesDetail so the title in this Fragment looks clean
                 supportActionBar?.subtitle = null
             }
         }
@@ -98,8 +99,7 @@ class DashboardActivity : AppCompatActivity() {
                 true
             }
             R.id.action_settings -> {
-                // navigateToSettings()
-                showToast("To be directed to Settings: Coming Soon")
+                navigateToSettings()
                 true
             }
 
@@ -118,7 +118,7 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     private fun navigateToSettings() {
-        // val intent = Intent(this, SettingsActivity::class.java)
-        // startActivity(intent)
+        val intent = Intent(this, SettingsActivity::class.java)
+        startActivity(intent)
     }
 }
