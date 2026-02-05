@@ -16,6 +16,7 @@ export function SalesInputForm() {
   const [selectedRecipe, setSelectedRecipe] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Warning modal state
   const [showWarning, setShowWarning] = useState(false);
@@ -80,6 +81,7 @@ export function SalesInputForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (editingId) {
         // Update existing entry - only quantity can be modified
@@ -102,6 +104,8 @@ export function SalesInputForm() {
       setQuantity('');
     } catch (error) {
       toast.error('Failed to save sales data');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -199,12 +203,13 @@ export function SalesInputForm() {
           <div className="flex gap-2">
             <Button
               onClick={handleSubmit}
+              disabled={isSubmitting}
               className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-6"
             >
               {editingId ? 'Update Sales Data' : 'Save Sales Data'}
             </Button>
             {editingId && (
-              <Button onClick={handleCancel} variant="outline" className="rounded-[32px] px-6">
+              <Button onClick={handleCancel} disabled={isSubmitting} variant="outline" className="rounded-[32px] px-6">
                 Cancel
               </Button>
             )}

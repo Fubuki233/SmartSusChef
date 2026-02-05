@@ -19,6 +19,8 @@ export function IngredientManagement() {
   const [carbonFootprint, setCarbonFootprint] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingIngredient, setDeletingIngredient] = useState<{ id: string; name: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleOpenDialog = (ingredient?: Ingredient) => {
     if (ingredient) {
@@ -61,6 +63,7 @@ export function IngredientManagement() {
       carbonFootprint: carbon,
     };
 
+    setIsSubmitting(true);
     try {
       if (editingIngredient) {
         await updateIngredient(editingIngredient.id, ingredientData);
@@ -72,6 +75,8 @@ export function IngredientManagement() {
       handleCloseDialog();
     } catch (error) {
       toast.error('Failed to save ingredient');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -83,6 +88,7 @@ export function IngredientManagement() {
   const handleDeleteConfirm = async () => {
     if (!deletingIngredient) return;
 
+    setIsDeleting(true);
     try {
       await deleteIngredient(deletingIngredient.id);
       toast.success('Ingredient deleted successfully');
@@ -90,6 +96,8 @@ export function IngredientManagement() {
       setDeletingIngredient(null);
     } catch (error) {
       toast.error('Failed to delete ingredient');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -156,10 +164,10 @@ export function IngredientManagement() {
               </div>
 
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={handleCloseDialog}>
+                <Button variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>
                   Cancel
                 </Button>
-                <Button onClick={handleSubmit}>
+                <Button onClick={handleSubmit} disabled={isSubmitting}>
                   {editingIngredient ? 'Update Ingredient' : 'Add Ingredient'}
                 </Button>
               </div>
@@ -250,6 +258,7 @@ export function IngredientManagement() {
               <Button
                 variant="outline"
                 onClick={() => setIsDeleteDialogOpen(false)}
+                disabled={isDeleting}
                 className="rounded-[32px] px-6 hover:bg-gray-100"
               >
                 Cancel
@@ -257,6 +266,7 @@ export function IngredientManagement() {
               <Button
                 variant="destructive"
                 onClick={handleDeleteConfirm}
+                disabled={isDeleting}
                 className="bg-red-600 hover:bg-red-700 rounded-[32px] px-6"
               >
                 Yes, Delete Ingredient

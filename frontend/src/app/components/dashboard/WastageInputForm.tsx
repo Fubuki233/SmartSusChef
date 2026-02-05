@@ -20,6 +20,7 @@ export function WastageInputForm() {
   const [selectedItemId, setSelectedItemId] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showWarning, setShowWarning] = useState(false);
   const [duplicateEntryId, setDuplicateEntryId] = useState<string | null>(null);
@@ -110,6 +111,7 @@ export function WastageInputForm() {
       ingredientId: !isRecipe ? selectedItemId : undefined,
     };
 
+    setIsSubmitting(true);
     try {
       if (editingId) {
         await updateWastageData(editingId, payload);
@@ -125,6 +127,8 @@ export function WastageInputForm() {
       setQuantity('');
     } catch (error) {
       toast.error('Failed to save wastage data');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -330,12 +334,13 @@ export function WastageInputForm() {
           <div className="flex gap-3 pt-2">
             <Button
               onClick={handleSubmit}
+              disabled={isSubmitting}
               className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-8 h-11 transition-all"
             >
               {editingId ? 'Update Entry' : 'Save Entry'}
             </Button>
             {editingId && (
-              <Button onClick={handleCancel} variant="outline" className="rounded-[32px] px-8 h-11">
+              <Button onClick={handleCancel} disabled={isSubmitting} variant="outline" className="rounded-[32px] px-8 h-11">
                 Cancel
               </Button>
             )}

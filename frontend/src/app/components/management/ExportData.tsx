@@ -10,48 +10,59 @@ import { jsPDF } from 'jspdf';
 export function ExportData() {
   const { exportData, salesData, wastageData, forecastData } = useApp();
   const [lastExport, setLastExport] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<string | null>(null);
 
   const handleExportCSV = async (type: 'sales' | 'wastage' | 'forecast') => {
-    await exportData(type);
-    setLastExport(`csv-${type}`);
-    toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} data exported as CSV successfully`);
+    setIsExporting(`csv-${type}`);
+    try {
+      await exportData(type);
+      setLastExport(`csv-${type}`);
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} data exported as CSV successfully`);
+    } finally {
+      setIsExporting(null);
+    }
   };
 
   const handleExportReport = (reportType: 'sales-trend' | 'predictions' | 'wastage-trend') => {
-    const reportNames = {
-      'sales-trend': 'Sales Trend Report',
-      'predictions': 'Predictions Report',
-      'wastage-trend': 'Wastage Trend Report',
-    };
-    const doc = new jsPDF();
-    const title = reportNames[reportType];
+    setIsExporting(`pdf-${reportType}`);
+    try {
+      const reportNames = {
+        'sales-trend': 'Sales Trend Report',
+        'predictions': 'Predictions Report',
+        'wastage-trend': 'Wastage Trend Report',
+      };
+      const doc = new jsPDF();
+      const title = reportNames[reportType];
 
-    doc.setFontSize(16);
-    doc.text(title, 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+      doc.setFontSize(16);
+      doc.text(title, 14, 20);
+      doc.setFontSize(10);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
 
-    const lines: string[] = [];
-    if (reportType === 'sales-trend') {
-      lines.push(`Total sales records: ${salesData.length}`);
+      const lines: string[] = [];
+      if (reportType === 'sales-trend') {
+        lines.push(`Total sales records: ${salesData.length}`);
+      }
+      if (reportType === 'predictions') {
+        lines.push(`Forecast records: ${forecastData.length}`);
+      }
+      if (reportType === 'wastage-trend') {
+        lines.push(`Wastage records: ${wastageData.length}`);
+      }
+
+      let y = 40;
+      lines.forEach((line) => {
+        doc.text(line, 14, y);
+        y += 8;
+      });
+
+      const filename = `${reportType}_report.pdf`;
+      doc.save(filename);
+      setLastExport(`pdf-${reportType}`);
+      toast.success(`${title} exported as PDF successfully`);
+    } finally {
+      setIsExporting(null);
     }
-    if (reportType === 'predictions') {
-      lines.push(`Forecast records: ${forecastData.length}`);
-    }
-    if (reportType === 'wastage-trend') {
-      lines.push(`Wastage records: ${wastageData.length}`);
-    }
-
-    let y = 40;
-    lines.forEach((line) => {
-      doc.text(line, 14, y);
-      y += 8;
-    });
-
-    const filename = `${reportType}_report.pdf`;
-    doc.save(filename);
-    setLastExport(`pdf-${reportType}`);
-    toast.success(`${title} exported as PDF successfully`);
   };
 
   const csvExportOptions = [
@@ -154,6 +165,7 @@ export function ExportData() {
                   </div>
                   <Button
                     onClick={() => handleExportCSV(option.type)}
+                    disabled={isExporting === `csv-${option.type}`}
                     className="w-full gap-2 bg-[#4F6F52] hover:bg-[#3D563F] text-white"
                   >
                     <Download className="w-4 h-4" />
@@ -213,6 +225,7 @@ export function ExportData() {
                 <CardContent>
                   <Button
                     onClick={() => handleExportReport(option.type)}
+                    disabled={isExporting === `pdf-${option.type}`}
                     className="w-full gap-2 bg-[#4F6F52] hover:bg-[#3D563F] text-white"
                   >
                     <Download className="w-4 h-4" />
