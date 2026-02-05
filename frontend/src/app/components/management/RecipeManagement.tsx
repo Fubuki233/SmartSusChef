@@ -179,7 +179,7 @@ export function RecipeManagement() {
   const getComponentUnit = (item: any) => {
     if (item.childRecipeId) {
       const recipe = recipes.find(r => r.id === item.childRecipeId);
-      return recipe?.unit || 'L'; // Use recipe's unit or default to L
+      return recipe?.unit || 'portion'; // Use recipe's unit or default to portion
     }
     return ingredients.find(i => i.id === item.ingredientId)?.unit || '';
   };
@@ -230,8 +230,8 @@ export function RecipeManagement() {
                     </TableCell>
                     <TableCell>
                       <Badge className={`rounded-[4px] px-3 py-1 font-medium text-white border-none shadow-none ${recipe.isSubRecipe
-                          ? 'bg-[#F59E0B]' // Amber/Orange for Sub-Recipe
-                          : 'bg-[#0EA5E9]' // Sky Blue for Main Dish 
+                        ? 'bg-[#F59E0B]' // Amber/Orange for Sub-Recipe
+                        : 'bg-[#0EA5E9]' // Sky Blue for Main Dish 
                         }`}
                       >
                         {recipe.isSubRecipe ? 'Sub-Recipe' : 'Main Dish'}
