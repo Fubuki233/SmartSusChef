@@ -1,0 +1,119 @@
+﻿ingredient_name,category,unit,co2_kg_per_kg,source_reference
+Beef (beef herd),Meat & Animal Products,kg,60,Poore & Nemecek 2018
+Beef (dairy herd),Meat & Animal Products,kg,21,Poore & Nemecek 2018
+Veal,Meat & Animal Products,kg,33,FAO LCA
+Lamb,Meat & Animal Products,kg,24,Poore & Nemecek 2018
+Goat,Meat & Animal Products,kg,20,FAO LCA
+Pork,Meat & Animal Products,kg,9,Poore & Nemecek 2018
+Bacon,Meat & Animal Products,kg,11,Climatiq
+Ham,Meat & Animal Products,kg,9.5,Climatiq
+Chicken (broiler),Meat & Animal Products,kg,6.9,Poore & Nemecek 2018
+Duck,Meat & Animal Products,kg,9.6,FAO LCA
+Turkey,Meat & Animal Products,kg,10.9,Poore & Nemecek 2018
+Eggs,Meat & Animal Products,kg,4.5,Poore & Nemecek 2018
+Milk (cow),Meat & Animal Products,kg,1.9,Poore & Nemecek 2018
+Buffalo milk,Meat & Animal Products,kg,2.8,FAO LCA
+Yogurt,Meat & Animal Products,kg,2.2,Climatiq
+Cheese (average),Meat & Animal Products,kg,21,Poore & Nemecek 2018
+Cheddar cheese,Meat & Animal Products,kg,23,Climatiq
+Mozzarella cheese,Meat & Animal Products,kg,19,Climatiq
+Butter,Meat & Animal Products,kg,12,Poore & Nemecek 2018
+Ghee,Meat & Animal Products,kg,11.5,Climatiq
+Paneer,Meat & Animal Products,kg,13.5,Climatiq
+Fish (wild average),Seafood & Aquaculture,kg,6.5,Poore & Nemecek 2018
+Fish (farmed average),Seafood & Aquaculture,kg,4.5,Poore & Nemecek 2018
+Salmon (farmed),Seafood & Aquaculture,kg,6,Poore & Nemecek 2018
+Tuna (wild),Seafood & Aquaculture,kg,7.5,FAO Fisheries LCA
+Cod,Seafood & Aquaculture,kg,6,FAO Fisheries LCA
+Haddock,Seafood & Aquaculture,kg,5.8,FAO Fisheries LCA
+Sardines,Seafood & Aquaculture,kg,3,FAO Fisheries LCA
+Anchovies,Seafood & Aquaculture,kg,5.5,FAO Fisheries LCA
+Mackerel,Seafood & Aquaculture,kg,5,FAO Fisheries LCA
+Shrimp (farmed),Seafood & Aquaculture,kg,11.5,Poore & Nemecek 2018
+Shrimp (wild),Seafood & Aquaculture,kg,9.5,FAO Fisheries LCA
+Mussels,Seafood & Aquaculture,kg,1.5,Poore & Nemecek 2018
+Oysters,Seafood & Aquaculture,kg,2.2,Poore & Nemecek 2018
+Clams,Seafood & Aquaculture,kg,2.4,FAO Fisheries LCA
+Squid,Seafood & Aquaculture,kg,5,FAO Fisheries LCA
+Crab,Seafood & Aquaculture,kg,6.5,FAO Fisheries LCA
+Lobster,Seafood & Aquaculture,kg,11,FAO Fisheries LCA
+Rice (white),Plant-Based Staples,kg,4,Poore & Nemecek 2018
+Basmati rice,Plant-Based Staples,kg,4.2,FAO Rice LCA
+Jasmine rice,Plant-Based Staples,kg,4,FAO Rice LCA
+Wheat grain,Plant-Based Staples,kg,0.5,Poore & Nemecek 2018
+Wheat flour,Plant-Based Staples,kg,1.4,Climatiq
+Bread,Plant-Based Staples,kg,1.6,Climatiq
+Pasta (dry),Plant-Based Staples,kg,1.8,Climatiq
+Rice noodles,Plant-Based Staples,kg,2.1,Climatiq
+Wheat noodles,Plant-Based Staples,kg,1.8,Climatiq
+Potatoes,Plant-Based Staples,kg,0.4,Poore & Nemecek 2018
+Sweet potatoes,Plant-Based Staples,kg,0.6,FAO LCA
+Corn (maize),Plant-Based Staples,kg,1,Poore & Nemecek 2018
+Oats,Plant-Based Staples,kg,0.9,Poore & Nemecek 2018
+Barley,Plant-Based Staples,kg,0.8,FAO LCA
+Quinoa,Plant-Based Staples,kg,1.8,Climatiq
+Cassava,Plant-Based Staples,kg,0.7,FAO LCA
+Tapioca starch,Plant-Based Staples,kg,1.1,FAO LCA
+Tofu,Legumes & Plant Proteins,kg,2,Poore & Nemecek 2018
+Tempeh,Legumes & Plant Proteins,kg,1.7,Climatiq
+Soybeans,Legumes & Plant Proteins,kg,2,Poore & Nemecek 2018
+Lentils,Legumes & Plant Proteins,kg,0.9,Poore & Nemecek 2018
+Chickpeas,Legumes & Plant Proteins,kg,0.8,Poore & Nemecek 2018
+Green peas,Legumes & Plant Proteins,kg,0.9,FAO LCA
+Black beans,Legumes & Plant Proteins,kg,1,FAO LCA
+Kidney beans,Legumes & Plant Proteins,kg,1.1,FAO LCA
+Mung beans,Legumes & Plant Proteins,kg,1,FAO LCA
+Urad dal,Legumes & Plant Proteins,kg,1.1,FAO LCA
+Peanuts,Legumes & Plant Proteins,kg,2.5,Poore & Nemecek 2018
+Soy milk,Legumes & Plant Proteins,kg,1,Poore & Nemecek 2018
+Oat milk,Legumes & Plant Proteins,kg,0.9,Poore & Nemecek 2018
+Almond milk,Legumes & Plant Proteins,kg,0.7,Poore & Nemecek 2018
+Tomatoes (field),Vegetables,kg,0.3,Poore & Nemecek 2018
+Onions,Vegetables,kg,0.2,Poore & Nemecek 2018
+Garlic,Vegetables,kg,1.2,Climatiq
+Spinach,Vegetables,kg,0.4,FAO LCA
+Bok choy,Vegetables,kg,0.3,FAO LCA
+Cabbage,Vegetables,kg,0.3,Poore & Nemecek 2018
+Eggplant,Vegetables,kg,0.5,FAO LCA
+Zucchini,Vegetables,kg,0.4,FAO LCA
+Okra,Vegetables,kg,0.6,FAO LCA
+Mushrooms,Vegetables,kg,0.7,Poore & Nemecek 2018
+Carrots,Vegetables,kg,0.3,Poore & Nemecek 2018
+Bell peppers,Vegetables,kg,0.7,FAO LCA
+Chili peppers,Vegetables,kg,0.9,FAO LCA
+Apples,Fruits,kg,0.5,Poore & Nemecek 2018
+Pears,Fruits,kg,0.4,FAO LCA
+Strawberries,Fruits,kg,1.4,Poore & Nemecek 2018
+Blueberries,Fruits,kg,1.2,FAO LCA
+Grapes,Fruits,kg,0.8,Poore & Nemecek 2018
+Oranges,Fruits,kg,0.4,Poore & Nemecek 2018
+Bananas,Fruits,kg,0.9,Poore & Nemecek 2018
+Mangoes,Fruits,kg,1.1,FAO LCA
+Pineapples,Fruits,kg,0.9,FAO LCA
+Papaya,Fruits,kg,0.8,FAO LCA
+Dates,Fruits,kg,1.3,FAO LCA
+Durian,Fruits,kg,1.6,FAO LCA
+Olive oil,Oils & Fats,kg,5.5,Poore & Nemecek 2018
+Palm oil,Oils & Fats,kg,8,Poore & Nemecek 2018
+Sunflower oil,Oils & Fats,kg,3.5,Poore & Nemecek 2018
+Rapeseed oil,Oils & Fats,kg,3.1,Poore & Nemecek 2018
+Soybean oil,Oils & Fats,kg,6,Poore & Nemecek 2018
+Peanut oil,Oils & Fats,kg,3.9,Climatiq
+Sesame oil,Oils & Fats,kg,3.6,Climatiq
+Coconut oil,Oils & Fats,kg,3.4,FAO LCA
+Butter (fat),Oils & Fats,kg,12,Poore & Nemecek 2018
+Ghee (fat),Oils & Fats,kg,11.5,Climatiq
+Soy sauce,Condiments,kg,3,Climatiq
+Fish sauce,Condiments,kg,6,FAO LCA
+Oyster sauce,Condiments,kg,3.5,Derived
+Miso,Condiments,kg,2.6,Climatiq
+Gochujang,Condiments,kg,2.8,Climatiq
+Chili paste,Condiments,kg,3,Climatiq
+Chili oil,Condiments,kg,4.2,Derived
+Sambal,Condiments,kg,3.5,Derived
+Hoisin sauce,Condiments,kg,3.2,Climatiq
+Tahini,Condiments,kg,4.2,Poore & Nemecek 2018
+Tomato ketchup,Condiments,kg,2.9,Climatiq
+Mayonnaise,Condiments,kg,4.5,Climatiq
+Sugar (cane),Condiments,kg,3.2,Poore & Nemecek 2018
+Honey,Condiments,kg,2.6,Poore & Nemecek 2018
