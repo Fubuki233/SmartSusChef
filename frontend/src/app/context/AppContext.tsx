@@ -223,7 +223,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         recipesApi.getAll().catch(() => []),
         salesApi.getAll().catch(() => []),
         wastageApi.getAll().catch(() => []),
-        forecastApi.get(7).catch(() => []),
+        forecastApi.get(7, 7).catch(() => []), // Get 7 days future + 7 days past (including today)
         forecastApi.getWeather().catch(() => null),
         forecastApi.getHolidays(new Date().getFullYear()).catch(() => []),
         storeApi.get().catch(() => null),
@@ -233,7 +233,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRecipes(recipesData.map(mapRecipeDto));
       setSalesData(salesDataResult.map(mapSalesDataDto));
       setWastageData(wastageDataResult.map(mapWastageDataDto));
-      setForecastData(forecastDataResult.map(mapForecastDto));
+
+      const mappedForecast = forecastDataResult.map(mapForecastDto);
+      console.log('[AppContext] Raw forecast data from API:', forecastDataResult.length);
+      console.log('[AppContext] Mapped forecast data:', mappedForecast.length);
+      console.log('[AppContext] Sample forecast dates:', mappedForecast.slice(0, 5).map(f => f.date));
+      setForecastData(mappedForecast);
+
       setWeather(mapWeatherDto(weatherData));
       setHolidays(holidaysData.map(mapHolidayDto));
 

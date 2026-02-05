@@ -14,6 +14,7 @@ import { IngredientTable } from "@/app/components/dashboard/IngredientTable";
 import { CalendarWidget } from "@/app/components/dashboard/CalendarWidget";
 import { WeatherWidget } from "@/app/components/dashboard/WeatherWidget";
 import { PredictionSummary } from "@/app/components/dashboard/PredictionSummary";
+import { PredictionAccuracy } from "@/app/components/dashboard/PredictionAccuracy";
 import { PredictionDetail } from "@/app/components/dashboard/PredictionDetail";
 import { DishesForecast } from "@/app/components/dashboard/DishesForecast";
 import { WastageTrendChart } from "@/app/components/dashboard/WastageTrendChart";
@@ -127,6 +128,7 @@ export function Dashboard({
             <PredictionSummary />
             <DishesForecast />
             <PredictionDetail />
+            <PredictionAccuracy />
           </TabsContent>
 
           {/* Wastage Tab */}
