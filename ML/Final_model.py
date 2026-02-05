@@ -20,6 +20,9 @@ Final Prophet + Tree Residual Stacking Pipeline (Optuna)
 from __future__ import annotations
 
 import os
+# Must be set before cmdstanpy/prophet import
+os.environ.setdefault("CMDSTANPY_LOG_LEVEL", "WARNING")
+
 import logging
 import pickle
 import warnings
@@ -34,6 +37,10 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error
 import matplotlib.pyplot as plt
 import holidays
+try:
+    from requests import RequestsDependencyWarning
+except Exception:  # pragma: no cover
+    RequestsDependencyWarning = None  # type: ignore
 try:
     from tqdm import tqdm
 except Exception:  # pragma: no cover
@@ -83,12 +90,21 @@ except Exception:  # pragma: no cover
 
 
 warnings.filterwarnings("ignore")
+if RequestsDependencyWarning is not None:
+    warnings.filterwarnings("ignore", category=RequestsDependencyWarning)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-os.environ.setdefault("CMDSTANPY_LOG_LEVEL", "WARNING")
-logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
-logging.getLogger("prophet").setLevel(logging.WARNING)
-logging.getLogger("stan").setLevel(logging.WARNING)
-logging.getLogger("pystan").setLevel(logging.WARNING)
+
+
+def _silence_logs() -> None:
+    os.environ["CMDSTANPY_LOG_LEVEL"] = "ERROR"
+    for name in ("cmdstanpy", "prophet", "stan", "pystan"):
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.ERROR)
+        logger.propagate = False
+        logger.disabled = True
+
+
+_silence_logs()
 
 
 def _log(msg: str) -> None:
@@ -369,6 +385,7 @@ def _load_models(dish: str, config: PipelineConfig, champion: str) -> Tuple[Prop
 
 
 def process_dish(dish_name: str, shared_df: pd.DataFrame, country_code: str, config: PipelineConfig) -> DishResult:
+    _silence_logs()
     # Prepare data
     dish_data = shared_df[shared_df["dish"] == dish_name].copy()
     dish_data = sanitize_sparse_data(dish_data, country_code)
