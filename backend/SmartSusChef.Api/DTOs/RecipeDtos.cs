@@ -3,15 +3,17 @@ namespace SmartSusChef.Api.DTOs;
 public record RecipeDto(
     string Id,
     string Name,
-    bool IsSellable,  // Added per final ERD 
-    bool IsSubRecipe, // Added per final ERD 
-    List<RecipeIngredientDto> Ingredients
+    bool IsSellable,
+    bool IsSubRecipe,
+    List<RecipeIngredientDto> Ingredients,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
 );
 
 public record RecipeIngredientDto(
-    string? IngredientId,   // Nullable to support Child Recipes 
-    string? ChildRecipeId,  // Added to support BOM hierarchy 
-    string DisplayName,     // Helper to show either Ingredient Name or Recipe Name
+    string? IngredientId,
+    string? ChildRecipeId,
+    string DisplayName,
     string Unit,
     decimal Quantity
 );
@@ -24,7 +26,7 @@ public record CreateRecipeRequest(
 );
 
 public record CreateRecipeIngredientRequest(
-    string? IngredientId,  // Either IngredientId or ChildRecipeId must be provided
+    string? IngredientId,
     string? ChildRecipeId,
     decimal Quantity
 );

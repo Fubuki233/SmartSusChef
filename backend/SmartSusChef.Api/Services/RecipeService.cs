@@ -172,10 +172,7 @@ public class RecipeService : IRecipeService
         return totalFootprint;
     }
 
-    public Task<List<IngredientUsageDto>> GetFlattenedIngredientsAsync(Guid recipeId)
-    {
-        throw new NotImplementedException();
-    }
+
 
     public async Task<bool> DeleteAsync(Guid id)
     {
@@ -259,7 +256,9 @@ public class RecipeService : IRecipeService
                 ri.Ingredient?.Name ?? ri.ChildRecipe?.Name ?? "Unknown",
                 ri.Ingredient?.Unit ?? (ri.ChildRecipeId.HasValue ? "Portion" : "Unknown"),
                 ri.Quantity
-            )).ToList()
+            )).ToList(),
+            recipe.CreatedAt,
+            recipe.UpdatedAt
         );
     }
 }
