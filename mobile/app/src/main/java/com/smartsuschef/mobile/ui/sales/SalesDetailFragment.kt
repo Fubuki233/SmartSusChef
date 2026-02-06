@@ -43,7 +43,7 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
     // Set up the toolbar
     private fun setupUI() {
         (activity as? AppCompatActivity)?.supportActionBar?.apply {
-            title = "Sales for ${args.date}"
+            title = "Sales Details"
         }
         binding.tvDetailTitle.text = "Sales Breakdown: ${args.date}"
     }
@@ -80,7 +80,7 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
                 ContextCompat.getColor(requireContext(), R.color.chart_8),
                 ContextCompat.getColor(requireContext(), R.color.chart_9),
                 ContextCompat.getColor(requireContext(), R.color.chart_10)
-                )
+            )
 
             // Mock Data for Distribution
             val rawEntries = listOf(
@@ -92,7 +92,11 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
                 PieEntry(12f, "Carrot Cake"),
                 PieEntry(8f, "Char Kway Teow"),
                 PieEntry(10f, "Fish Porridge")
-                )
+            )
+
+            // Calculate total dishes sold
+            val totalDishes = rawEntries.sumOf { it.value.toDouble() }.toInt()
+            binding.tvSalesSubtitle.text = "Total dishes sold: $totalDishes"
 
             val finalEntries = if (rawEntries.size > 10) {
                 val topNine = rawEntries.take(9)

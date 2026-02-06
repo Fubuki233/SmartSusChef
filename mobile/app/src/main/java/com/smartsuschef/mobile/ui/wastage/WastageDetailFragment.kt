@@ -3,6 +3,7 @@ package com.smartsuschef.mobile.ui.wastage
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -38,6 +39,9 @@ class WastageDetailFragment : Fragment(R.layout.fragment_wastage_detail) {
     }
 
     private fun setupUI() {
+        (activity as? AppCompatActivity)?.supportActionBar?.apply {
+            title = "Wastage Details"
+        }
         binding.tvDetailTitle.text = "Wastage for ${args.date}"
     }
 
@@ -48,6 +52,10 @@ class WastageDetailFragment : Fragment(R.layout.fragment_wastage_detail) {
         val entries = breakdown.map { (type, carbonFootprint) ->
             PieEntry(carbonFootprint.toFloat(), type)
         }
+
+        // Calculate total carbon footprint for subtitle
+        val totalCarbonFootprint = data.sumOf { it.carbonFootprint }
+        binding.tvWastageSubtitle.text = "Total Carbon Footprint: %.2f kg CO2".format(totalCarbonFootprint)
 
         val dataSet = PieDataSet(entries, "").apply {
             colors = listOf(
