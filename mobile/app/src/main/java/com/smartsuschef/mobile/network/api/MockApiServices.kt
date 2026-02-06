@@ -23,11 +23,13 @@ class MockAuthApiService : AuthApiService {
                 username = "test",
                 name = "Test User",
                 email = "test@example.com",
-                role = "Employee"
+                role = "employee", // Corrected to lowercase
+                status = "Active"   // Added missing status field
             )
             val mockResponse = LoginResponse(
                 token = "fake-jwt-token-for-testing",
-                user = mockUser
+                user = mockUser,
+                storeSetupRequired = false // Added missing storeSetupRequired field
             )
             // Return a successful HTTP 200 response
             return Response.success(mockResponse)
@@ -45,7 +47,8 @@ class MockAuthApiService : AuthApiService {
             username = "test",
             name = "Test User",
             email = "test@example.com",
-            role = "Employee"
+            role = "employee", // Corrected to lowercase
+            status = "Active"   // Added missing status field
         )
         return Response.success(mockUser)
     }
