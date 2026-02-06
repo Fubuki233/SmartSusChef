@@ -366,6 +366,15 @@ jobs:
           container-name: smartsuschef-ml
           image: ${{ needs.docker-build-push.outputs.ml-image }}
 
+      - name: Deploy ML Service to UAT ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
+          service: smartsuschef-uat-ml-service
+          cluster: smartsuschef-uat-cluster
+          wait-for-service-stability: true
+          wait-for-minutes: 15
+
       - name: Deploy Backend to UAT ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
@@ -380,15 +389,6 @@ jobs:
         with:
           task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
           service: smartsuschef-uat-frontend-service
-          cluster: smartsuschef-uat-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 10
-
-      - name: Deploy ML Service to UAT ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
-          service: smartsuschef-uat-ml-service
           cluster: smartsuschef-uat-cluster
           wait-for-service-stability: true
           wait-for-minutes: 15
@@ -475,6 +475,15 @@ jobs:
           container-name: smartsuschef-ml
           image: ${{ needs.docker-build-push.outputs.ml-image }}
 
+      - name: Deploy ML to Production ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
+          service: smartsuschef-production-ml-service
+          cluster: smartsuschef-production-cluster
+          wait-for-service-stability: true
+          wait-for-minutes: 15
+
       - name: Deploy Backend to Production ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
@@ -489,15 +498,6 @@ jobs:
         with:
           task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
           service: smartsuschef-production-frontend-service
-          cluster: smartsuschef-production-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 10
-
-      - name: Deploy ML to Production ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
-          service: smartsuschef-production-ml-service
           cluster: smartsuschef-production-cluster
           wait-for-service-stability: true
           wait-for-minutes: 15
