@@ -36,7 +36,8 @@ public class ForecastControllerTests
     {
         // Arrange
         var forecast = new List<ForecastDto> { new ForecastDto(DateTime.UtcNow.ToString(), Guid.NewGuid().ToString(), "test", 1, new List<ForecastIngredientDto>()) };
-        _mockForecastService.Setup(s => s.GetForecastAsync(7)).ReturnsAsync(forecast);
+        // Explicitly provide all arguments to avoid "expression tree cannot contain optional arguments" error
+        _mockForecastService.Setup(s => s.GetForecastAsync(7, 0)).ReturnsAsync(forecast);
 
         // Act
         var result = await _controller.GetForecast(7);
@@ -52,7 +53,8 @@ public class ForecastControllerTests
     {
         // Arrange
         var summary = new List<ForecastSummaryDto> { new ForecastSummaryDto(DateTime.UtcNow.ToString(), 1, 0.1m) };
-        _mockForecastService.Setup(s => s.GetForecastSummaryAsync(7)).ReturnsAsync(summary);
+        // Explicitly provide all arguments to avoid "expression tree cannot contain optional arguments" error
+        _mockForecastService.Setup(s => s.GetForecastSummaryAsync(7, 0)).ReturnsAsync(summary);
 
         // Act
         var result = await _controller.GetForecastSummary(7);

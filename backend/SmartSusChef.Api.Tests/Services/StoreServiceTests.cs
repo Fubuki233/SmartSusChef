@@ -88,7 +88,7 @@ public class StoreServiceTests
         context.Store.Add(new Store { Id = storeId });
         await context.SaveChangesAsync();
         
-        var request = new CreateStoreRequest("Test Company", "UEN123", "Test Store", "Test Location", "12345678", DateTime.UtcNow, 1.0m, 1.0m, "SG", "Test Address", true);
+        var request = new CreateStoreRequest("Test Company", "UEN123", "Test Store", "Test Location", "+12345678", DateTime.UtcNow, 1.0m, 1.0m, "SG", "Test Address", true);
         var mockCurrentUserService = GetMockCurrentUserService(storeId);
         var service = new StoreService(context, mockCurrentUserService.Object);
 

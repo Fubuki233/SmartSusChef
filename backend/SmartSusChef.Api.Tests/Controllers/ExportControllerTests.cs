@@ -63,7 +63,8 @@ public class ExportControllerTests
     {
         // Arrange
         var forecast = new List<ForecastDto> { new ForecastDto(DateTime.UtcNow.ToString(), Guid.NewGuid().ToString(), "test", 1, new List<ForecastIngredientDto>()) };
-        _mockForecastService.Setup(s => s.GetForecastAsync(7)).ReturnsAsync(forecast);
+        // Explicitly provide all arguments to avoid "expression tree cannot contain optional arguments" error
+        _mockForecastService.Setup(s => s.GetForecastAsync(7, 0)).ReturnsAsync(forecast);
 
         // Act
         var result = await _controller.ExportForecastCsv(7);
