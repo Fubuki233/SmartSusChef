@@ -20,9 +20,15 @@ export function WastageInputForm() {
   const [selectedItemId, setSelectedItemId] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showWarning, setShowWarning] = useState(false);
   const [duplicateEntryId, setDuplicateEntryId] = useState<string | null>(null);
+
+  // Delete confirmation dialog state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingData, setDeletingData] = useState<{ id: string; itemName: string; category: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -110,6 +116,7 @@ export function WastageInputForm() {
       ingredientId: !isRecipe ? selectedItemId : undefined,
     };
 
+    setIsSubmitting(true);
     try {
       if (editingId) {
         await updateWastageData(editingId, payload);
@@ -125,6 +132,8 @@ export function WastageInputForm() {
       setQuantity('');
     } catch (error) {
       toast.error('Failed to save wastage data');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -158,14 +167,24 @@ export function WastageInputForm() {
     setQuantity(entry.quantity.toString());
   };
 
-  const handleDelete = async (id: string, itemName: string) => {
-    if (confirm(`Are you sure you want to delete the entry for "${itemName}"?`)) {
-      try {
-        await deleteWastageData(id);
-        toast.success('Entry deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete entry');
-      }
+  const handleDelete = (id: string, itemName: string, category: string) => {
+    setDeletingData({ id, itemName, category });
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingData) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteWastageData(deletingData.id);
+      toast.success('Entry deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete entry');
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+      setDeletingData(null);
     }
   };
 
@@ -330,12 +349,13 @@ export function WastageInputForm() {
           <div className="flex gap-3 pt-2">
             <Button
               onClick={handleSubmit}
+              disabled={isSubmitting}
               className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-8 h-11 transition-all"
             >
               {editingId ? 'Update Entry' : 'Save Entry'}
             </Button>
             {editingId && (
-              <Button onClick={handleCancel} variant="outline" className="rounded-[32px] px-8 h-11">
+              <Button onClick={handleCancel} disabled={isSubmitting} variant="outline" className="rounded-[32px] px-8 h-11">
                 Cancel
               </Button>
             )}
@@ -419,7 +439,7 @@ export function WastageInputForm() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDelete(entry.id, entry.itemName)}
+                              onClick={() => handleDelete(entry.id, entry.itemName, entry.type)}
                               className="h-8 w-8 hover:bg-red-50"
                             >
                               <Trash2 className="w-4 h-4 text-[#E74C3C]" />
@@ -435,6 +455,53 @@ export function WastageInputForm() {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#E74C3C]">
+              <AlertTriangle className="w-5 h-5" />
+              Confirm Deletion
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete the wastage entry.
+            </DialogDescription>
+          </DialogHeader>
+          {deletingData && (
+            <div className="grid gap-2 py-4">
+              <div className="grid grid-cols-3 items-center gap-4">
+                <span className="font-semibold">Item:</span>
+                <span className="col-span-2">{deletingData.itemName}</span>
+              </div>
+              <div className="grid grid-cols-3 items-center gap-4">
+                <span className="font-semibold">Category:</span>
+                <span className="col-span-2">{deletingData.category}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setDeletingData(null);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-[#E74C3C] hover:bg-[#C0392B]"
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

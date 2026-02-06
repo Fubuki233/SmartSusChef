@@ -10,7 +10,9 @@ public record UserDto(
     string Name,
     string Email,
     string Role,
-    string Status
+    string Status,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
 );
 
 // Registration DTOs
@@ -76,5 +78,6 @@ public record UserListDto(
     string Email,
     string Role,
     string Status,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    DateTime UpdatedAt
 );

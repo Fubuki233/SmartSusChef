@@ -27,6 +27,7 @@ export function ImportSalesData() {
   const [errors, setErrors] = useState<CSVValidationError[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [duplicates, setDuplicates] = useState<{ date: string; dish: string; rows: number[] }[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Add after the existing state declarations
   const [overwriteConfirmData, setOverwriteConfirmData] = useState<{
@@ -364,6 +365,7 @@ export function ImportSalesData() {
       return;
     }
 
+    setIsImporting(true);
     try {
       // Check which records will overwrite existing data
       const duplicates = checkForExistingDuplicates(salesToImport);
@@ -402,6 +404,8 @@ export function ImportSalesData() {
       } else {
         toast.error('Failed to import sales data');
       }
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -800,10 +804,10 @@ export function ImportSalesData() {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={handleCancel}>
+                <Button variant="outline" onClick={handleCancel} disabled={isImporting}>
                   Cancel
                 </Button>
-                <Button onClick={handleImport} className="gap-2 bg-[#4F6F52] hover:bg-[#3A4D39]">
+                <Button onClick={handleImport} disabled={isImporting} className="gap-2 bg-[#4F6F52] hover:bg-[#3A4D39]">
                   <ArrowRight className="w-4 h-4" />
                   Import Data
                 </Button>

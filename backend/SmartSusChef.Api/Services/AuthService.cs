@@ -38,7 +38,9 @@ public class AuthService : IAuthService
             user.Name,
             user.Email,
             user.Role.ToString().ToLower(),
-            user.UserStatus
+            user.UserStatus,
+            user.CreatedAt,
+            user.UpdatedAt
         );
 
         // Check if store setup is required (empty store name means not set up)
@@ -58,7 +60,9 @@ public class AuthService : IAuthService
             user.Name,
             user.Email,
             user.Role.ToString().ToLower(),
-            user.UserStatus
+            user.UserStatus,
+            user.CreatedAt,
+            user.UpdatedAt
         );
     }
 
@@ -125,7 +129,9 @@ public class AuthService : IAuthService
             newUser.Name,
             newUser.Email,
             newUser.Role.ToString().ToLower(),
-            newUser.UserStatus
+            newUser.UserStatus,
+            newUser.CreatedAt,
+            newUser.UpdatedAt
         );
 
         // storeSetupRequired is true for new stores (empty StoreName)
@@ -176,7 +182,8 @@ public class AuthService : IAuthService
             user.Email,
             user.Role.ToString().ToLower(),
             user.UserStatus,
-            user.CreatedAt
+            user.CreatedAt,
+            user.UpdatedAt
         );
     }
 
@@ -195,7 +202,8 @@ public class AuthService : IAuthService
             u.Email,
             u.Role.ToString().ToLower(),
             u.UserStatus,
-            u.CreatedAt
+            u.CreatedAt,
+            u.UpdatedAt
         )).ToList();
     }
 
@@ -238,7 +246,8 @@ public class AuthService : IAuthService
             user.Email,
             user.Role.ToString().ToLower(),
             user.UserStatus,
-            user.CreatedAt
+            user.CreatedAt,
+            user.UpdatedAt
         );
     }
 
@@ -262,7 +271,9 @@ public class AuthService : IAuthService
             user.Name,
             user.Email,
             user.Role.ToString().ToLower(),
-            user.UserStatus
+            user.UserStatus,
+            user.CreatedAt,
+            user.UpdatedAt
         );
     }
 

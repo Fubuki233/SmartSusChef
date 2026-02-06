@@ -159,6 +159,7 @@ public class RecipeServiceTests
         Assert.Equal(updatedIngredientId.ToString(), result.Ingredients.First().IngredientId);
         
         var recipeInDb = await context.Recipes.Include(r => r.RecipeIngredients).FirstOrDefaultAsync(r => r.Id == recipeId);
+        Assert.NotNull(recipeInDb);
         Assert.Equal("New Pizza", recipeInDb.Name);
         Assert.Single(recipeInDb.RecipeIngredients);
         Assert.Equal(updatedIngredientId, recipeInDb.RecipeIngredients.First().IngredientId);

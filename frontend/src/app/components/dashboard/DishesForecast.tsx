@@ -29,26 +29,36 @@ export function DishesForecast() {
 
   const chartData = useMemo(() => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
     const data: any[] = [];
 
-    // Get next 7 days of forecast
-    for (let i = 0; i < 7; i++) {
+    console.log('[DishesForecast] Total forecast data:', forecastData.length);
+    console.log('[DishesForecast] Main recipes:', mainRecipes.length);
+    console.log('[DishesForecast] Today:', format(today, 'yyyy-MM-dd'));
+    const uniqueDates = [...new Set(forecastData.map(f => f.date))].sort();
+    console.log('[DishesForecast] Available forecast dates:', uniqueDates);
+    console.log('[DishesForecast] Date range expected: ',
+      format(addDays(today, 1), 'yyyy-MM-dd'), 'to', format(addDays(today, 7), 'yyyy-MM-dd'));
+
+    // Get next 7 days of forecast (starting from tomorrow)
+    for (let i = 1; i <= 7; i++) {
       const date = addDays(today, i);
       const dateKey = format(date, 'yyyy-MM-dd');
       const dayOfWeek = format(date, 'EEE');
 
       // Aggregate forecast by recipe for this date
       const recipeForecasts: { [key: string]: number } = {};
-      
-      forecastData
-        .filter((f) => f.date === dateKey)
-        .forEach((forecast) => {
-          const recipe = mainRecipes.find(r => r.id === forecast.recipeId);
-          if (recipe) {
-            const qty = forecast.quantity || (forecast as any).predictedQuantity || 0;
-            recipeForecasts[recipe.name] = (recipeForecasts[recipe.name] || 0) + qty;
-          }
-        });
+
+      const dayForecasts = forecastData.filter((f) => f.date === dateKey);
+      console.log(`[DishesForecast] ${dateKey}: ${dayForecasts.length} forecasts`);
+
+      dayForecasts.forEach((forecast) => {
+        const recipe = mainRecipes.find(r => r.id === forecast.recipeId);
+        if (recipe) {
+          const qty = forecast.quantity || (forecast as any).predictedQuantity || 0;
+          recipeForecasts[recipe.name] = (recipeForecasts[recipe.name] || 0) + qty;
+        }
+      });
 
       const dayData: any = {
         date: dateKey,
@@ -119,8 +129,8 @@ export function DishesForecast() {
                             return (
                               <div key={index} className="flex items-center justify-between gap-4 text-xs">
                                 <div className="flex items-center gap-2">
-                                  <div 
-                                    className="w-3 h-3 rounded-sm" 
+                                  <div
+                                    className="w-3 h-3 rounded-sm"
                                     style={{ backgroundColor: entry.fill }}
                                   />
                                   <span>{entry.name}</span>
@@ -145,11 +155,11 @@ export function DishesForecast() {
             />
             <Legend wrapperStyle={{ fontSize: '12px' }} />
             {mainRecipes.map((recipe, index) => (
-              <Bar 
+              <Bar
                 key={recipe.id}
-                dataKey={recipe.name} 
+                dataKey={recipe.name}
                 stackId="dishes"
-                fill={CHART_COLORS[index % CHART_COLORS.length]} 
+                fill={CHART_COLORS[index % CHART_COLORS.length]}
                 radius={index === mainRecipes.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
               />
             ))}

@@ -41,20 +41,8 @@ public partial class IngredientService : IIngredientService
 
     public async Task<IngredientDto> CreateAsync(CreateIngredientRequest request)
     {
-        // Validation: Ensure Unit matches allowed values
-        var allowedUnits = new[] { "g", "ml", "kg", "L" };
-        if (!allowedUnits.Contains(request.Unit))
-            throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
-
-        // Refactor the duplicate check for high-reliability:
-        // Use .ToLower() to prevent "Tomato" vs "tomato" duplicates
-        var duplicate = await _context.Ingredients
-            .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name.ToLower() == request.Name.ToLower());
-            
-        if (duplicate)
-        {
-            throw new InvalidOperationException($"Ingredient '{request.Name}' already exists.");
-        }
+        ValidateUnit(request.Unit);
+        await ValidateNameIsUnique(request.Name);
 
         var ingredient = new Ingredient
         {
@@ -80,21 +68,11 @@ public partial class IngredientService : IIngredientService
 
         if (ingredient == null) return null;
 
-        // Optional: Re-validate unit during update
-        var allowedUnits = new[] { "g", "ml", "kg", "L" };
-        if (!allowedUnits.Contains(request.Unit))
-            throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
+        ValidateUnit(request.Unit);
 
-        // Check for duplicates if name is changing
         if (request.Name.ToLower() != ingredient.Name.ToLower())
         {
-            var duplicate = await _context.Ingredients
-                .AnyAsync(i => i.StoreId == CurrentStoreId && i.Name.ToLower() == request.Name.ToLower());
-                
-            if (duplicate)
-            {
-                throw new InvalidOperationException($"Ingredient '{request.Name}' already exists.");
-            }
+            await ValidateNameIsUnique(request.Name, ingredient.Id);
         }
 
         ingredient.Name = request.Name;
@@ -128,63 +106,30 @@ public partial class IngredientService : IIngredientService
 
         return true;
     }
-    // Strategic Insight: Total environmental impact of current stock/usage
-    public async Task<decimal> GetTotalCarbonImpactAsync()
-    {
-        return await _context.Ingredients
-            .Where(i => i.StoreId == CurrentStoreId)
-            .SumAsync(i => i.CarbonFootprint);
-    }
 
-    // Calculates total carbon impact for specific ingredients with quantities
-    public async Task<decimal> GetTotalCarbonImpactAsync(List<(Guid Id, decimal Quantity)> items)
-    {
-        if (items == null || items.Count == 0)
-            return 0;
-
-        var ingredientIds = items.Select(x => x.Id).ToList();
-        var ingredients = await _context.Ingredients
-            .Where(i => i.StoreId == CurrentStoreId && ingredientIds.Contains(i.Id))
-            .ToListAsync();
-
-        decimal totalImpact = 0;
-        foreach (var item in items)
-        {
-            var ingredient = ingredients.FirstOrDefault(i => i.Id == item.Id);
-            if (ingredient != null)
-            {
-                // Carbon impact = carbon footprint per unit * quantity
-                totalImpact += ingredient.CarbonFootprint * item.Quantity;
-            }
-        }
-
-        return totalImpact;
-    }
-
-    // Bulk Import: Ensuring StoreId is enforced for all new records
-    public async Task ImportIngredientsAsync(List<CreateIngredientRequest> requests)
+    private static void ValidateUnit(string unit)
     {
         var allowedUnits = new[] { "g", "ml", "kg", "L" };
+        if (!allowedUnits.Contains(unit))
+            throw new ArgumentException("Invalid unit. Must be g, ml, kg, or L.");
+    }
+    
+    private async Task ValidateNameIsUnique(string name, Guid? existingId = null)
+    {
+        var query = _context.Ingredients
+            .Where(i => i.StoreId == CurrentStoreId && i.Name.ToLower() == name.ToLower());
 
-        var newIngredients = requests.Select(req =>
+        if (existingId.HasValue)
         {
-            if (!allowedUnits.Contains(req.Unit))
-                throw new ArgumentException($"Invalid unit '{req.Unit}' for ingredient {req.Name}");
+            query = query.Where(i => i.Id != existingId.Value);
+        }
 
-            return new Ingredient
-            {
-                Id = Guid.NewGuid(),
-                StoreId = CurrentStoreId,
-                Name = req.Name,
-                Unit = req.Unit,
-                CarbonFootprint = req.CarbonFootprint,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-        }).ToList();
-
-        _context.Ingredients.AddRange(newIngredients);
-        await _context.SaveChangesAsync();
+        var duplicate = await query.AnyAsync();
+            
+        if (duplicate)
+        {
+            throw new InvalidOperationException($"Ingredient '{name}' already exists.");
+        }
     }
 
     private static IngredientDto MapToDto(Ingredient ingredient)
@@ -193,7 +138,9 @@ public partial class IngredientService : IIngredientService
             ingredient.Id.ToString(),
             ingredient.Name,
             ingredient.Unit,
-            ingredient.CarbonFootprint
+            ingredient.CarbonFootprint,
+            ingredient.CreatedAt,
+            ingredient.UpdatedAt
         );
     }
 }

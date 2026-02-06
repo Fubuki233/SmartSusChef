@@ -22,11 +22,16 @@ public class MockForecastService : IForecastService
         _currentUserService = currentUserService;
     }
 
-    public async Task<List<ForecastDto>> GetForecastAsync(int days = 7)
+    public async Task<List<ForecastDto>> GetForecastAsync(int days = 7, int includePastDays = 0)
     {
         if (days < 1 || days > 30)
         {
             throw new ArgumentException("Forecast days must be between 1 and 30.");
+        }
+
+        if (includePastDays < 0 || includePastDays > 30)
+        {
+            throw new ArgumentException("includePastDays must be between 0 and 30.");
         }
 
         var recipes = await _context.Recipes
@@ -39,70 +44,104 @@ public class MockForecastService : IForecastService
         var forecasts = new List<ForecastDto>();
         var today = DateTime.UtcNow.Date;
 
-        for (int i = 1; i <= days; i++)
+        Console.WriteLine($"[MockForecastService] Generating forecasts - Today: {today:yyyy-MM-dd}, days: {days}, includePastDays: {includePastDays}");
+
+        // Generate forecasts for past days (if requested)
+        for (int i = -includePastDays; i < 0; i++)
         {
             var forecastDate = today.AddDays(i);
+            Console.WriteLine($"[MockForecastService] Generating past day: {forecastDate:yyyy-MM-dd}");
+            forecasts.AddRange(GenerateForecastsForDate(forecastDate, recipes, today));
+        }
 
-            foreach (var recipe in recipes)
+        // Generate forecast for today (if includePastDays > 0)
+        if (includePastDays > 0)
+        {
+            Console.WriteLine($"[MockForecastService] Generating today: {today:yyyy-MM-dd}");
+            forecasts.AddRange(GenerateForecastsForDate(today, recipes, today));
+        }
+
+        // Generate forecasts for future days (always from tomorrow onwards)
+        // Generate extra days to handle timezone and boundary issues
+        // When days=7, generate 8 days to ensure frontend can display all 7 days
+        int futureDays = days + 2;
+        for (int i = 1; i <= futureDays; i++)
+        {
+            var forecastDate = today.AddDays(i);
+            Console.WriteLine($"[MockForecastService] Generating future day {i}: {forecastDate:yyyy-MM-dd}");
+            forecasts.AddRange(GenerateForecastsForDate(forecastDate, recipes, today));
+        }
+
+        Console.WriteLine($"[MockForecastService] Total forecasts generated: {forecasts.Count}");
+        var uniqueDates = forecasts.Select(f => f.Date).Distinct().OrderBy(d => d).ToList();
+        Console.WriteLine($"[MockForecastService] Unique dates: {string.Join(", ", uniqueDates)}");
+
+        return forecasts;
+    }
+
+    private List<ForecastDto> GenerateForecastsForDate(DateTime forecastDate, List<Models.Recipe> recipes, DateTime today)
+    {
+        var forecasts = new List<ForecastDto>();
+
+        foreach (var recipe in recipes)
+        {
+            // Calculate average sales from last 30 days
+            var recentSales = recipe.SalesRecords
+                .Where(s => s.Date >= today.AddDays(-30))
+                .ToList();
+
+            var avgQuantity = recentSales.Any()
+                ? (int)recentSales.Average(s => s.Quantity)
+                : 10; // Default if no history
+
+            // Add some randomness and day-of-week pattern
+            var dayOfWeek = forecastDate.DayOfWeek;
+            var multiplier = dayOfWeek switch
             {
-                // Calculate average sales from last 30 days
-                var recentSales = recipe.SalesRecords
-                    .Where(s => s.Date >= today.AddDays(-30))
-                    .ToList();
+                DayOfWeek.Friday => 1.3,
+                DayOfWeek.Saturday => 1.5,
+                DayOfWeek.Sunday => 1.2,
+                DayOfWeek.Monday => 0.8,
+                _ => 1.0
+            };
 
-                var avgQuantity = recentSales.Any()
-                    ? (int)recentSales.Average(s => s.Quantity)
-                    : 10; // Default if no history
+            // Add random variation between -10% to +10%
+            var randomFactor = 0.9 + (_random.NextDouble() * 0.2);
 
-                // Add some randomness and day-of-week pattern
-                var dayOfWeek = forecastDate.DayOfWeek;
-                var multiplier = dayOfWeek switch
-                {
-                    DayOfWeek.Friday => 1.3,
-                    DayOfWeek.Saturday => 1.5,
-                    DayOfWeek.Sunday => 1.2,
-                    DayOfWeek.Monday => 0.8,
-                    _ => 1.0
-                };
+            // Ensure non-negative prediction
+            var rawPrediction = avgQuantity * multiplier * randomFactor;
+            var predictedQuantity = (int)Math.Max(0, rawPrediction);
 
-                // Add random variation between -10% to +10%
-                var randomFactor = 0.9 + (_random.NextDouble() * 0.2);
-                
-                // Ensure non-negative prediction
-                var rawPrediction = avgQuantity * multiplier * randomFactor;
-                var predictedQuantity = (int)Math.Max(0, rawPrediction);
+            // Simulate ML confidence
+            // In a real scenario, this would come from the model's probability score
+            var confidence = predictedQuantity > 50 ? "High" : (predictedQuantity > 20 ? "Medium" : "Low");
 
-                // Simulate ML confidence
-                // In a real scenario, this would come from the model's probability score
-                var confidence = predictedQuantity > 50 ? "High" : (predictedQuantity > 20 ? "Medium" : "Low");
+            var forecastIngredients = recipe.RecipeIngredients
+                .Where(ri => ri.Ingredient != null && ri.IngredientId.HasValue) // Filter out null ingredients
+                .Select(ri =>
+                new ForecastIngredientDto(
+                    ri.IngredientId!.Value.ToString(),
+                    ri.Ingredient!.Name,
+                    ri.Ingredient.Unit,
+                    ri.Quantity * predictedQuantity
+                )).ToList();
 
-                var forecastIngredients = recipe.RecipeIngredients
-                    .Where(ri => ri.Ingredient != null && ri.IngredientId.HasValue) // Filter out null ingredients
-                    .Select(ri =>
-                    new ForecastIngredientDto(
-                        ri.IngredientId!.Value.ToString(),
-                        ri.Ingredient!.Name,
-                        ri.Ingredient.Unit,
-                        ri.Quantity * predictedQuantity
-                    )).ToList();
-
-                forecasts.Add(new ForecastDto(
-                    forecastDate.ToString("yyyy-MM-dd"),
-                    recipe.Id.ToString(),
-                    recipe.Name,
-                    predictedQuantity,
-                    forecastIngredients,
-                    confidence
-                ));
-            }
+            forecasts.Add(new ForecastDto(
+                forecastDate.ToString("yyyy-MM-dd"),
+                recipe.Id.ToString(),
+                recipe.Name,
+                predictedQuantity,
+                forecastIngredients,
+                confidence
+            ));
         }
 
         return forecasts;
     }
 
-    public async Task<List<ForecastSummaryDto>> GetForecastSummaryAsync(int days = 7)
+    public async Task<List<ForecastSummaryDto>> GetForecastSummaryAsync(int days = 7, int includePastDays = 0)
     {
-        var forecasts = await GetForecastAsync(days);
+        var forecasts = await GetForecastAsync(days, includePastDays);
 
         var summary = forecasts
             .GroupBy(f => f.Date)

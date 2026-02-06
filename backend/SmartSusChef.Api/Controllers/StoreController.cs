@@ -110,24 +110,6 @@ public class StoreController : ControllerBase
         return Ok(store);
     }
 
-    /// <summary>
-    /// Initialize store information (Legacy - can only be called once)
-    /// </summary>
-    [HttpPost("initialize")]
-    [Authorize(Roles = "Manager")]
-    public async Task<ActionResult<StoreDto>> InitializeStore([FromBody] CreateStoreRequest request)
-    {
-        try
-        {
-            var store = await _storeService.InitializeStoreAsync(request);
-            return CreatedAtAction(nameof(GetStore), store);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-    }
-
     private int? GetStoreIdFromClaims()
     {
         var storeIdClaim = User.FindFirst("StoreId")?.Value;

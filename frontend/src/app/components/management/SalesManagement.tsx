@@ -26,6 +26,8 @@ export function SalesManagement() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newDate, setNewDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
   const [newRecipeId, setNewRecipeId] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Calculate the allowed date range for editing (last 7 days)
   const today = new Date();
@@ -98,6 +100,7 @@ export function SalesManagement() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       // Update sales data with new quantity
       await updateSalesData(editingData.id, {
@@ -108,12 +111,15 @@ export function SalesManagement() {
       handleCloseEditDialog();
     } catch (error) {
       toast.error('Failed to update sales data');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDeleteRecord = async () => {
     if (!deletingData) return;
 
+    setIsDeleting(true);
     try {
       await deleteSalesData(deletingData.id);
 
@@ -127,6 +133,8 @@ export function SalesManagement() {
     } catch (error) {
       console.error('Failed to delete sales data:', error);
       toast.error('Failed to delete sales record');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -142,6 +150,7 @@ export function SalesManagement() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       // Check for duplicate record
       const existingRecord = salesData.find(
@@ -165,6 +174,8 @@ export function SalesManagement() {
     } catch (error) {
       console.error('Failed to create sales data:', error);
       toast.error('Failed to add new sales record');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -375,16 +386,18 @@ export function SalesManagement() {
                     setDeletingData(editingData);
                     setIsDeleteDialogOpen(true);
                   }}
+                  disabled={isSubmitting}
                   className="bg-red-600 hover:bg-red-700"
                 >
                   Delete Record
                 </Button>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleCloseEditDialog}>
+                  <Button variant="outline" onClick={handleCloseEditDialog} disabled={isSubmitting}>
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSubmitEdit}
+                    disabled={isSubmitting}
                     className="bg-[#81A263] hover:bg-[#6b9a4d]"
                   >
                     Update Record
@@ -436,6 +449,7 @@ export function SalesManagement() {
               <Button
                 variant="outline"
                 onClick={() => setIsDeleteDialogOpen(false)}
+                disabled={isDeleting}
                 className="hover:bg-gray-100"
               >
                 Cancel
@@ -443,6 +457,7 @@ export function SalesManagement() {
               <Button
                 variant="destructive"
                 onClick={handleDeleteRecord}
+                disabled={isDeleting}
                 className="bg-red-600 hover:bg-red-700"
               >
                 Yes, Delete Record
@@ -514,13 +529,13 @@ export function SalesManagement() {
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={handleCloseCreateDialog}>
+              <Button variant="outline" onClick={handleCloseCreateDialog} disabled={isSubmitting}>
                 Cancel
               </Button>
               <Button
                 onClick={handleCreateRecord}
                 className="bg-[#81A263] hover:bg-[#6b9a4d]"
-                disabled={!newDate || !newRecipeId || !newQuantity}
+                disabled={!newDate || !newRecipeId || !newQuantity || isSubmitting}
               >
                 Save Record
               </Button>
