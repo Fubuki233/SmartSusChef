@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import os
-import pickle
-from dataclasses import dataclass
+import time
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import holidays
+import joblib
 import numpy as np
 import pandas as pd
 
-from training_logic import PipelineConfig, WEATHER_COLS, get_location_details, safe_filename
+from training_logic_v2 import (
+    PipelineConfig,
+    WEATHER_COLS,
+    get_location_details,
+    safe_filename,
+    _prophet_predict,
+    compute_lag_features_from_history,
+    _load_hybrid_models,
+)
 
 try:
     import openmeteo_requests  # type: ignore
@@ -20,43 +29,55 @@ except Exception:  # pragma: no cover
     retry = None  # type: ignore
 
 
-TIME_FEATURES = ["day_of_week", "month", "day", "dayofyear", "is_weekend"]
-LAGS = (1, 7, 14)
-ROLL_WINDOWS = (7, 14, 28)
-TREE_FEATURES = TIME_FEATURES + ["is_public_holiday"] + WEATHER_COLS + [
-    "y_lag_1",
-    "y_lag_7",
-    "y_lag_14",
-    "y_roll_mean_7",
-    "y_roll_std_7",
-    "y_roll_mean_14",
-    "y_roll_std_14",
-    "y_roll_mean_28",
-    "y_roll_std_28",
-    "prophet_yhat",
-]
+logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
 class LoadedDishModel:
-    dish: str
-    champion: str
-    prophet_model: Any
-    tree_model: Any
+    __slots__ = ("dish", "champion", "prophet_model", "tree_model")
+
+    def __init__(self, dish: str, champion: str, prophet_model: Any, tree_model: Any):
+        self.dish = dish
+        self.champion = champion
+        self.prophet_model = prophet_model
+        self.tree_model = tree_model
 
 
 class ModelStore:
+    """Manages loading, caching, and hot-reloading of trained dish models."""
+
     def __init__(self, model_dir: str = "models") -> None:
         self.model_dir = Path(model_dir)
         self.registry: Dict[str, Dict[str, Any]] = {}
         self._cache: Dict[str, LoadedDishModel] = {}
+        self._registry_mtime: float = 0.0
 
     def load_registry(self) -> None:
         registry_path = self.model_dir / "champion_registry.pkl"
         if not registry_path.exists():
             raise FileNotFoundError(f"Missing registry: {registry_path}")
-        with open(registry_path, "rb") as f:
-            self.registry = pickle.load(f)
+        self.registry = joblib.load(registry_path)
+        self._registry_mtime = registry_path.stat().st_mtime
+
+    def reload_if_updated(self) -> bool:
+        """Check if the champion registry has been updated on disk and reload if so.
+
+        Returns True if a reload occurred, False otherwise.
+        """
+        registry_path = self.model_dir / "champion_registry.pkl"
+        if not registry_path.exists():
+            return False
+        try:
+            current_mtime = registry_path.stat().st_mtime
+        except OSError:
+            return False
+        if current_mtime > self._registry_mtime:
+            logger.info("Detected updated champion_registry.pkl (mtime %.0f -> %.0f). Reloading.",
+                        self._registry_mtime, current_mtime)
+            self.registry = joblib.load(registry_path)
+            self._cache.clear()
+            self._registry_mtime = current_mtime
+            return True
+        return False
 
     def list_dishes(self) -> List[str]:
         return sorted(self.registry.keys())
@@ -82,10 +103,8 @@ class ModelStore:
                 f"Missing model files for '{dish}': {prophet_path.name}, {tree_path.name}"
             )
 
-        with open(prophet_path, "rb") as f:
-            prophet_model = pickle.load(f)
-        with open(tree_path, "rb") as f:
-            tree_model = pickle.load(f)
+        prophet_model = joblib.load(prophet_path)
+        tree_model = joblib.load(tree_path)
 
         loaded = LoadedDishModel(
             dish=dish,
@@ -95,27 +114,6 @@ class ModelStore:
         )
         self._cache[dish] = loaded
         return loaded
-
-
-def _compute_lag_features_from_history(sales_history: List[float]) -> Dict[str, float]:
-    features: Dict[str, float] = {}
-    fallback = float(sales_history[-1]) if sales_history else 0.0
-
-    for lag in LAGS:
-        features[f"y_lag_{lag}"] = (
-            float(sales_history[-lag]) if len(sales_history) >= lag else fallback
-        )
-
-    for w in ROLL_WINDOWS:
-        window = sales_history[-w:] if len(sales_history) >= w else sales_history
-        if window:
-            features[f"y_roll_mean_{w}"] = float(np.mean(window))
-            features[f"y_roll_std_{w}"] = float(np.std(window, ddof=1)) if len(window) >= 2 else 0.0
-        else:
-            features[f"y_roll_mean_{w}"] = 0.0
-            features[f"y_roll_std_{w}"] = 0.0
-
-    return features
 
 
 def _fetch_weather_forecast(latitude: float, longitude: float, forecast_days: int) -> pd.DataFrame:
@@ -233,9 +231,8 @@ def predict_dish(
         weather_rows=weather_rows,
     )
 
-    prophet_input = future_weather.rename(columns={"date": "ds"})
-    prophet_pred = loaded.prophet_model.predict(prophet_input[["ds"] + WEATHER_COLS])
-    prophet_yhat = prophet_pred["yhat"].astype(float).to_numpy()
+    # Use _prophet_predict from training_logic_v2 for consistency
+    prophet_yhat = _prophet_predict(loaded.prophet_model, future_weather)
 
     local_hols = holidays.country_holidays(cc, years=cfg.holiday_years) if cc else None
     sales_history = [float(x) for x in recent_sales]
@@ -256,9 +253,10 @@ def predict_dish(
         for c in WEATHER_COLS:
             feat[c] = float(row.get(c, 0.0))
 
-        feat.update(_compute_lag_features_from_history(sales_history))
+        feat.update(compute_lag_features_from_history(sales_history, cfg))
 
-        X_one = pd.DataFrame([{k: feat.get(k, 0.0) for k in TREE_FEATURES}])
+        # Use cfg.hybrid_tree_features for dynamic feature ordering
+        X_one = pd.DataFrame([{k: feat.get(k, 0.0) for k in cfg.hybrid_tree_features}])
         resid_hat = float(loaded.tree_model.predict(X_one)[0])
         yhat = max(0.0, feat["prophet_yhat"] + resid_hat)
 

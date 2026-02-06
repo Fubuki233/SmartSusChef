@@ -37,7 +37,6 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, use system env vars
 
-import argparse
 import numpy as np
 import pandas as pd
 import joblib
@@ -45,6 +44,7 @@ import holidays
 import warnings
 import logging
 import traceback
+from typing import Optional, Dict, Any, List
 
 # Set up logging for this module
 logger = logging.getLogger(__name__)
@@ -522,112 +522,130 @@ def plot_forecasts(all_forecasts: dict, forecast_horizon: int) -> None:
 # Run all dishes in parallel using `ProcessPoolExecutor`. Each dish is independently
 # processed across CPU cores using the hybrid Prophet + Tree methodology.
 
-# In[ ]:
 
-# --- MAIN EXECUTION ---
-if __name__ == "__main__":
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="SmartSus Chef: Hybrid Prophet + Tree Demand Forecasting")
-    parser.add_argument(
-        "--forecast_date", type=str,
-        help="Date to start forecasting from (YYYY-MM-DD). Defaults to tomorrow.",
-        default=(pd.Timestamp.today() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-    )
-    parser.add_argument(
-        "--address", type=str,
-        help="Restaurant location address for weather/holiday context.",
-        default="Shanghai, China"
-    )
-    parser.add_argument(
-        "--debug", action="store_true",
-        help="Run in sequential debug mode (no parallel processing)."
-    )
-    args = parser.parse_args()
+# --- CELERY TASK: TRAINING ORCHESTRATOR ---
+# TODO: Uncomment the decorator below once celery_app is defined in app/celery_app.py
+# from app.celery_app import celery_app
+# @celery_app.task(name="train_models")
+def train_models(
+    address: str = "Shanghai, China",
+    retrain_all: bool = True,
+    sales_data_source: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Execute the full training pipeline for all dishes.
 
-    # Phase 1 Fix: Ensure model directory exists before any processing
-    os.makedirs(CFG.model_dir, exist_ok=True)
+    This function encapsulates the complete training workflow and is designed
+    to be called as a Celery task for asynchronous execution.
 
-    # 1. Load and prepare the master DataFrame
-    raw_df = fetch_training_data()
+    Parameters
+    ----------
+    address : str
+        Restaurant location address for weather/holiday context.
+    retrain_all : bool
+        If True, retrain all dishes. If False, skip dishes that already
+        have an entry in the champion registry.
+    sales_data_source : Optional[str]
+        Path to a CSV file for sales data. If None, uses the default
+        behavior (database first, then 'food_sales_eng.csv' fallback).
 
-    # 2. Define global context for this run
-    address_input = args.address
+    Returns
+    -------
+    dict
+        Summary containing 'champion_registry', 'results_table' (list of row dicts),
+        'trained_dishes' count, 'skipped_dishes' count, and 'errors' list.
+    """
     config = PipelineConfig()
-
-    # Ensure model directory exists (redundant but explicit)
     os.makedirs(config.model_dir, exist_ok=True)
 
-    enriched_df, country, lat, lon = add_local_context(raw_df, address_input)
+    # 1. Load sales data
+    if sales_data_source is not None:
+        logger.info("Loading sales data from provided source: %s", sales_data_source)
+        raw_df = pd.read_csv(sales_data_source)
+        raw_df['date'] = pd.to_datetime(raw_df['date'], format='%m/%d/%Y')
+        raw_df['date'] = raw_df['date'].dt.normalize()
+        raw_df = raw_df.groupby(['date', 'dish']).agg(sales=('sales', 'sum')).reset_index()
+        raw_df = raw_df.sort_values('date')
+    else:
+        raw_df = fetch_training_data()
 
-    # 3. Run the full training pipeline in parallel for each dish
+    # 2. Enrich with location context (holidays + weather)
+    enriched_df, country, lat, lon = add_local_context(raw_df, address)
+
+    # 3. Determine which dishes to train
     unique_dishes = enriched_df['dish'].unique()
-    results = []
+    dishes_to_train = list(unique_dishes)
+
+    existing_registry: Dict[str, Any] = {}
+    registry_path = f'{config.model_dir}/champion_registry.pkl'
+    if not retrain_all:
+        try:
+            existing_registry = joblib.load(registry_path)
+            dishes_to_train = [d for d in unique_dishes if d not in existing_registry]
+            logger.info(
+                "retrain_all=False: skipping %d dishes with existing models, training %d new dishes.",
+                len(unique_dishes) - len(dishes_to_train), len(dishes_to_train)
+            )
+        except FileNotFoundError:
+            logger.info("No existing champion registry found. Training all %d dishes.", len(unique_dishes))
+
+    if len(dishes_to_train) == 0:
+        logger.info("No dishes to train. All models are up to date.")
+        return {
+            'champion_registry': existing_registry,
+            'results_table': [],
+            'trained_dishes': 0,
+            'skipped_dishes': len(unique_dishes),
+            'errors': [],
+        }
 
     logger.info("=" * 95)
     logger.info(
         "STARTING HYBRID PROPHET + TREE TRAINING FOR %d DISHES (%d workers, %d Optuna trials each)",
-        len(unique_dishes), config.max_workers, config.n_optuna_trials
+        len(dishes_to_train), config.max_workers, config.n_optuna_trials
     )
     logger.info("=" * 95)
 
-    # --- DEBUGGING: Use --debug flag to run sequentially ---
-    DEBUG_SEQUENTIAL = args.debug
+    # 4. Run the full training pipeline in parallel for each dish
+    results: List[Dict[str, Any]] = []
+    errors: List[Dict[str, str]] = []
 
-    if DEBUG_SEQUENTIAL:
-        # Run sequentially for debugging
-        logger.info("*** RUNNING IN SEQUENTIAL DEBUG MODE ***")
-        for dish in unique_dishes:
-            logger.info("--- Processing %s ---", dish)
+    with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
+        futures = {
+            executor.submit(process_dish, dish, enriched_df, country, config): dish
+            for dish in dishes_to_train
+        }
+
+        if tqdm is not None:
+            pbar = tqdm(as_completed(futures), total=len(dishes_to_train), desc="Training Dishes")
+        else:
+            pbar = as_completed(futures)
+
+        for future in pbar:
+            dish_name = futures[future]
             try:
-                result = process_dish(dish, enriched_df, country, config)
+                result = future.result()
                 results.append(result)
                 mae = result['mae']
-                logger.info(
-                    "  SUCCESS: X=%s C=%s L=%s -> Prophet+%s",
-                    mae['xgboost'], mae['catboost'], mae['lightgbm'],
-                    result['champion'].upper()
-                )
+                msg = (f"  {dish_name:<35} | X={mae['xgboost']:<7} C={mae['catboost']:<7} "
+                       f"L={mae['lightgbm']:<7} -> Prophet+{result['champion'].upper()}")
+                if tqdm is not None:
+                    tqdm.write(msg)
+                else:
+                    logger.info(msg)
             except Exception as e:
-                logger.error("  FAILED: %s", e)
-                traceback.print_exc()
-    else:
-        # Use ProcessPoolExecutor to run the `process_dish` function for each dish
-        with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
-            futures = {
-                executor.submit(process_dish, dish, enriched_df, country, config): dish
-                for dish in unique_dishes
-            }
-            # Process results as they complete
-            if tqdm is not None:
-                pbar = tqdm(as_completed(futures), total=len(unique_dishes), desc="Training Dishes")
-            else:
-                pbar = as_completed(futures)
+                msg = f"  {dish_name:<35} | FAILED: {e}"
+                if tqdm is not None:
+                    tqdm.write(msg)
+                else:
+                    logger.error(msg)
+                logger.error(traceback.format_exc())
+                errors.append({'dish': dish_name, 'error': str(e)})
 
-            for future in pbar:
-                dish_name = futures[future]
-                try:
-                    result = future.result()
-                    results.append(result)
-                    mae = result['mae']
-                    msg = (f"  {dish_name:<35} | X={mae['xgboost']:<7} C={mae['catboost']:<7} "
-                           f"L={mae['lightgbm']:<7} -> Prophet+{result['champion'].upper()}")
-                    if tqdm is not None:
-                        tqdm.write(msg)
-                    else:
-                        logger.info(msg)
-                except Exception as e:
-                    msg = f"  {dish_name:<35} | FAILED: {e}"
-                    if tqdm is not None:
-                        tqdm.write(msg)
-                    else:
-                        logger.error(msg)
-                    # Log full traceback for debugging
-                    logger.error(traceback.format_exc())
+    # 5. Aggregate results and build champion registry
+    champion_map = dict(existing_registry)  # Preserve existing entries if retrain_all=False
 
-    # 4. Aggregate and display the final results
-    champion_map = {}
-    results_rows = []
-
+    results_rows: List[Dict[str, Any]] = []
     for r in results:
         dish = r['dish']
         champion_map[dish] = {
@@ -637,7 +655,6 @@ if __name__ == "__main__":
             'best_params': r['best_params'],
             'model_type': r.get('model_type', 'hybrid'),
         }
-
         results_rows.append({
             'Dish': dish,
             'XGBoost MAE': r['mae']['xgboost'],
@@ -646,104 +663,28 @@ if __name__ == "__main__":
             'Winner': f"Prophet+{r['champion'].upper()}"
         })
 
-    # Save champion registry using joblib (safer serialization)
-    joblib.dump(champion_map, f'{config.model_dir}/champion_registry.pkl')
+    # Save champion registry
+    joblib.dump(champion_map, registry_path)
 
     clear_model_cache()
-
-    # Create results table (even if empty)
-    results_table = pd.DataFrame(results_rows)
 
     logger.info("=" * 60)
     logger.info("MODEL LEADERBOARD (Lower MAE is Better)")
     logger.info("Model Type: Prophet + Tree Residual Stacking")
     logger.info("=" * 60)
 
-    if len(results_table) > 0:
-        display(results_table)
+    if results_rows:
+        results_table = pd.DataFrame(results_rows)
+        logger.info("\n%s", results_table.to_string(index=False))
     else:
         logger.warning("No results to display. Check for errors above.")
 
-    # --- VISUALIZATION A: MAE Comparison Bar Chart ---
-    if len(results_table) > 0:
-        plot_mae_comparison(results_table)
+    logger.info("Training complete. %d dishes trained, %d errors.", len(results), len(errors))
 
-    # --- VISUALIZATION B: Multi-Day Forecast (14 days) ---
-    if len(results_table) > 0:
-        forecast_date = args.forecast_date
-
-        all_forecasts = {}
-        day1_summary = []
-
-        for dish_name in enriched_df['dish'].unique():
-            preds = get_prediction(
-                dish=dish_name, date_str=forecast_date,
-                address=address_input, config=config
-            )
-            if preds and 'Error' not in preds[0]:
-                all_forecasts[dish_name] = preds
-                p0 = preds[0]
-                expl = p0.get('Explanation', {})
-                day1_summary.append({
-                    'Dish': p0['Dish'],
-                    'Day 1 Qty': p0['Prediction'],
-                    'Lower': p0['Prediction_Lower'],
-                    'Upper': p0['Prediction_Upper'],
-                    'Model': p0['Model Used'],
-                    'ProphetTrend': expl.get('ProphetTrend', 0),
-                    'Seasonality': expl.get('Seasonality', 0),
-                    'Holiday': expl.get('Holiday', 0),
-                    'Weather': expl.get('Weather', 0),
-                    'Lags/Trend': expl.get('Lags/Trend', 0),
-                })
-
-        # Build 14-Day Forecast Table (rows=dishes, columns=dates)
-        forecast_table_rows = []
-        for dish_name, preds in all_forecasts.items():
-            row = {'Dish': dish_name}
-            for pred in preds:
-                date_str = pred['Date']
-                row[date_str] = pred['Prediction']
-            forecast_table_rows.append(row)
-
-        forecast_14day_df = pd.DataFrame(forecast_table_rows)
-
-        logger.info(
-            "Forecast starting: %s | Location: %s | Horizon: %d days",
-            forecast_date, address_input, config.forecast_horizon
-        )
-        logger.info("Model: Prophet + Tree Residual Stacking")
-        logger.info("=" * 90)
-
-        if len(forecast_14day_df) > 0:
-            # Display the 14-day forecast table in terminal
-            logger.info("14-Day Forecast Quantities (per dish):")
-            display(forecast_14day_df)
-
-            # Display the 14-day forecast table in a graphical window
-            n_rows = len(forecast_14day_df)
-            n_cols = len(forecast_14day_df.columns)
-            fig_width = max(14, n_cols * 1.2)
-            fig_height = max(4, n_rows * 0.5 + 1)
-
-            fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-            ax.axis('off')
-
-            table = ax.table(
-                cellText=forecast_14day_df.values,
-                colLabels=forecast_14day_df.columns,
-                loc='center',
-                cellLoc='center'
-            )
-            table.auto_set_font_size(False)
-            table.set_fontsize(9)
-            table.scale(1.2, 1.5)
-
-            fig.suptitle('14-Day Forecast Quantities - Graphical View', fontsize=14, fontweight='bold')
-            fig.tight_layout()
-            plt.show()
-
-            # Plot individual dish forecasts
-            plot_forecasts(all_forecasts, config.forecast_horizon)
-        else:
-            logger.warning("No forecasts generated. Check for errors above.")
+    return {
+        'champion_registry': champion_map,
+        'results_table': results_rows,
+        'trained_dishes': len(results),
+        'skipped_dishes': len(unique_dishes) - len(dishes_to_train),
+        'errors': errors,
+    }
