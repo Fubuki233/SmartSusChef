@@ -24,23 +24,6 @@ class AuthRepository @Inject constructor(
      */
     suspend fun login(request: LoginRequest): Resource<LoginResponse> {
         return withContext(Dispatchers.IO) {
-            /*
-            // --- MOCK IMPLEMENTATION FOR UI TESTING ---
-            // This code pretends the login was successful without making a real network call.
-            
-            // 1. Create a fake user and response
-            val fakeUser = com.smartsuschef.mobile.network.dto.UserDto(id = "user-123", name = "Test Employee", username = "test", email = "test@test.com", role = "employee", status = "Active")
-            val fakeResponse = LoginResponse(token = "FAKE_JWT_TOKEN", user = fakeUser, storeSetupRequired = false)
-
-            // 2. Save the fake session data
-            tokenManager.saveToken(fakeResponse.token)
-            tokenManager.saveUserRole(fakeResponse.user.role)
-
-            // 3. Return success
-            Resource.Success(fakeResponse)
-            */
-
-            // --- ORIGINAL IMPLEMENTATION ---
             try {
                 val response = authApi.login(request)
                 if (response.isSuccessful && response.body() != null) {
