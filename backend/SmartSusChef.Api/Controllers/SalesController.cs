@@ -77,6 +77,24 @@ public class SalesController : ControllerBase
         return Ok(new { message = "Sales data imported successfully", count = request.SalesData.Count });
     }
 
+    /// <summary>
+    /// Import sales data by dish name. Auto-creates recipes if not found (ingredients can be empty).
+    /// CSV format: Date (yyyy-MM-dd), DishName, Quantity
+    /// </summary>
+    [HttpPost("import-by-name")]
+    [Authorize(Roles = "Manager")]
+    public async Task<IActionResult> ImportByName([FromBody] ImportSalesByNameRequest request)
+    {
+        var result = await _salesService.ImportByNameAsync(request.SalesData, request.DateFormat);
+        return Ok(new
+        {
+            message = "Sales data imported successfully",
+            imported = result.Imported,
+            newDishesCreated = result.Created,
+            newDishes = result.NewDishes
+        });
+    }
+
     [HttpPut("{id}")]
     public async Task<ActionResult<SalesDataDto>> Update(Guid id, [FromBody] UpdateSalesDataRequest request)
     {

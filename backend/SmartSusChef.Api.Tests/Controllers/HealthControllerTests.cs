@@ -87,6 +87,20 @@ public class HealthControllerTests
     }
 
     [Fact]
+    public async Task Ready_ShouldReturn503_WhenExceptionOccurs()
+    {
+        // Arrange
+        _mockDatabase.Setup(d => d.CanConnectAsync(default)).ThrowsAsync(new Exception("DB Error"));
+
+        // Act
+        var result = await _controller.Ready();
+
+        // Assert
+        var actionResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(503, actionResult.StatusCode);
+    }
+
+    [Fact]
     public async Task GetDetailed_ShouldReturnOk_WhenEverythingIsHealthy()
     {
         // Arrange
@@ -116,5 +130,22 @@ public class HealthControllerTests
         var healthResult = Assert.IsType<HealthCheckResult>(actionResult.Value);
         Assert.Equal("unhealthy", healthResult.Status);
         Assert.Equal(503, actionResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetDetailed_ShouldReturn503_WhenExceptionOccurs()
+    {
+        // Arrange
+        _mockDatabase.Setup(d => d.CanConnectAsync(default)).ThrowsAsync(new Exception("DB Error"));
+
+        // Act
+        var result = await _controller.GetDetailed();
+
+        // Assert
+        var actionResult = Assert.IsType<ObjectResult>(result);
+        var healthResult = Assert.IsType<HealthCheckResult>(actionResult.Value);
+        Assert.Equal("unhealthy", healthResult.Status);
+        Assert.Equal(503, actionResult.StatusCode);
+        Assert.Contains("DB Error", healthResult.Checks["database"].Message);
     }
 }

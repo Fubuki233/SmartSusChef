@@ -183,7 +183,8 @@ public class ForecastController : ControllerBase
             (isHoliday, holidayName) = await _holidayService.IsHolidayAsync(date, locationInfo.CountryCode);
         }
 
-        var isSchoolHoliday = _holidayService.IsSchoolHoliday(date);
+        // IsSchoolHoliday is now internal static, so we call it directly from the class
+        var isSchoolHoliday = HolidayService.IsSchoolHoliday(date);
         var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 
         WeatherForecastDto? weather = null;
@@ -216,7 +217,15 @@ public class ForecastController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(countryCode) && latitude.HasValue && longitude.HasValue)
         {
-            countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(latitude.Value, longitude.Value);
+            // GetCountryCodeFromCoordinatesAsync is now internal, so we need to cast to the concrete class to access it
+            // or use reflection if we want to stick to the interface.
+            // However, since we are in the same assembly (or friend assembly), we can just cast.
+            // But wait, ForecastController is in SmartSusChef.Api, and HolidayService is also in SmartSusChef.Api.
+            // So we can just cast _holidayService to HolidayService to access the internal method.
+            if (_holidayService is HolidayService concreteService)
+            {
+                countryCode = await concreteService.GetCountryCodeFromCoordinatesAsync(latitude.Value, longitude.Value);
+            }
         }
 
         return new StoreLocationInfo(latitude, longitude, countryCode);

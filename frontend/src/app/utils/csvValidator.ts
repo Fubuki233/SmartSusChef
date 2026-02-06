@@ -1,7 +1,94 @@
 import { CSVRow, CSVValidationError, CSVValidationResult } from '@/app/types/csv';
 import { Recipe } from '@/app/types';
 
-const REQUIRED_COLUMNS = ['Date', 'Dish_Name', 'Quantity_Sold', 'Total_Revenue_SGD', 'Unit_Cost_SGD'];
+const REQUIRED_COLUMNS = ['Date', 'Dish_Name', 'Quantity_Sold'];
+
+/**
+ * Supported date format definitions.
+ * label: display text, value: .NET format string sent to backend,
+ * regex: JS validation regex, example: sample date string,
+ * parse: function to parse a date string into a Date object
+ */
+export interface DateFormatOption {
+  label: string;
+  value: string;        // .NET format string (sent to backend)
+  regex: RegExp;
+  example: string;
+  parse: (s: string) => Date | null;
+}
+
+export const DATE_FORMATS: DateFormatOption[] = [
+  {
+    label: 'M/D/YY  (e.g. 5/1/25)',
+    value: 'M/d/yy',
+    regex: /^\d{1,2}\/\d{1,2}\/\d{2}$/,
+    example: '5/1/25',
+    parse: (s) => {
+      const p = s.split('/');
+      return new Date(2000 + +p[2], +p[0] - 1, +p[1]);
+    },
+  },
+  {
+    label: 'M/D/YYYY  (e.g. 5/1/2025)',
+    value: 'M/d/yyyy',
+    regex: /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+    example: '5/1/2025',
+    parse: (s) => {
+      const p = s.split('/');
+      return new Date(+p[2], +p[0] - 1, +p[1]);
+    },
+  },
+  {
+    label: 'YYYY-MM-DD  (e.g. 2025-05-01)',
+    value: 'yyyy-MM-dd',
+    regex: /^\d{4}-\d{2}-\d{2}$/,
+    example: '2025-05-01',
+    parse: (s) => {
+      const p = s.split('-');
+      return new Date(+p[0], +p[1] - 1, +p[2]);
+    },
+  },
+  {
+    label: 'D/M/YY  (e.g. 1/5/25)',
+    value: 'd/M/yy',
+    regex: /^\d{1,2}\/\d{1,2}\/\d{2}$/,
+    example: '1/5/25',
+    parse: (s) => {
+      const p = s.split('/');
+      return new Date(2000 + +p[2], +p[1] - 1, +p[0]);
+    },
+  },
+  {
+    label: 'DD/MM/YYYY  (e.g. 01/05/2025)',
+    value: 'dd/MM/yyyy',
+    regex: /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+    example: '01/05/2025',
+    parse: (s) => {
+      const p = s.split('/');
+      return new Date(+p[2], +p[1] - 1, +p[0]);
+    },
+  },
+  {
+    label: 'DD-MM-YYYY  (e.g. 01-05-2025)',
+    value: 'dd-MM-yyyy',
+    regex: /^\d{1,2}-\d{1,2}-\d{4}$/,
+    example: '01-05-2025',
+    parse: (s) => {
+      const p = s.split('-');
+      return new Date(+p[2], +p[1] - 1, +p[0]);
+    },
+  },
+  {
+    label: 'YYYY/MM/DD  (e.g. 2025/05/01)',
+    value: 'yyyy/MM/dd',
+    regex: /^\d{4}\/\d{2}\/\d{2}$/,
+    example: '2025/05/01',
+    parse: (s) => {
+      const p = s.split('/');
+      return new Date(+p[0], +p[1] - 1, +p[2]);
+    },
+  },
+];
 
 /**
  * Validates CSV data against SmartSus Chef requirements
@@ -11,9 +98,11 @@ export class CSVValidator {
   private recipes: Recipe[];
   private errors: CSVValidationError[] = [];
   private warnings: CSVValidationError[] = [];
+  private dateFormat: DateFormatOption;
 
-  constructor(recipes: Recipe[]) {
+  constructor(recipes: Recipe[], dateFormatValue?: string) {
     this.recipes = recipes;
+    this.dateFormat = DATE_FORMATS.find(f => f.value === dateFormatValue) || DATE_FORMATS[0];
   }
 
   /**
@@ -91,14 +180,17 @@ export class CSVValidator {
       validated.date = dateValidation.value;
     }
 
-    // Validate Dish Name (STRICT - must exist in recipes)
+    // Validate Dish Name (non-blocking — new dishes will be auto-created on import)
     const dishValidation = this.validateDishName(row.Dish_Name, rowNumber);
     if (dishValidation.error) {
       this.errors.push(dishValidation.error);
       hasErrors = true;
     } else {
-      validated.recipeId = dishValidation.value;
-      validated.recipeName = row.Dish_Name;
+      validated.dishName = row.Dish_Name.trim();
+      // If matched an existing recipe, store recipeId for duplicate checking
+      if (dishValidation.value) {
+        validated.recipeId = dishValidation.value;
+      }
     }
 
     // Validate Quantity (auto-correct format)
@@ -115,39 +207,11 @@ export class CSVValidator {
       validated.quantity = quantityValidation.value;
     }
 
-    // Validate Total Revenue (auto-correct currency format)
-    const revenueValidation = this.validateCurrency(
-      row.Total_Revenue_SGD,
-      'Total_Revenue_SGD',
-      rowNumber
-    );
-    if (revenueValidation.error) {
-      this.errors.push(revenueValidation.error);
-      hasErrors = true;
-    } else if (revenueValidation.warning) {
-      this.warnings.push(revenueValidation.warning);
-    }
-    validated.revenue = revenueValidation.value;
-
-    // Validate Unit Cost (auto-correct currency format)
-    const costValidation = this.validateCurrency(
-      row.Unit_Cost_SGD,
-      'Unit_Cost_SGD',
-      rowNumber
-    );
-    if (costValidation.error) {
-      this.errors.push(costValidation.error);
-      hasErrors = true;
-    } else if (costValidation.warning) {
-      this.warnings.push(costValidation.warning);
-    }
-    validated.unitCost = costValidation.value;
-
     return hasErrors ? null : validated;
   }
 
   /**
-   * Validate date format (YYYY-MM-DD)
+   * Validate date format dynamically based on selected dateFormat
    */
   private validateDate(value: string, row: number): { value?: string; error?: CSVValidationError } {
     if (!value || value.trim() === '') {
@@ -157,27 +221,27 @@ export class CSVValidator {
           column: 'Date',
           value,
           error: 'Date is required',
-          suggestion: 'Use format: YYYY-MM-DD (e.g., 2026-01-22)',
+          suggestion: `Use format: ${this.dateFormat.label}`,
         },
       };
     }
 
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(value)) {
+    const trimmed = value.trim();
+    if (!this.dateFormat.regex.test(trimmed)) {
       return {
         error: {
           row,
           column: 'Date',
           value,
           error: 'Invalid date format',
-          suggestion: 'Expected: YYYY-MM-DD (e.g., 2026-01-22)',
+          suggestion: `Expected: ${this.dateFormat.label}`,
         },
       };
     }
 
-    // Validate it's a real date
-    const date = new Date(value);
-    if (isNaN(date.getTime())) {
+    // Parse and validate it's a real calendar date
+    const date = this.dateFormat.parse(trimmed);
+    if (!date || isNaN(date.getTime())) {
       return {
         error: {
           row,
@@ -189,12 +253,39 @@ export class CSVValidator {
       };
     }
 
-    return { value };
+    // Cross-check parsed month/day (guards against overflow like 2/30)
+    const parts = trimmed.replace(/-/g, '/').split('/');
+    const fmt = this.dateFormat.value;
+    let expectedMonth: number;
+    let expectedDay: number;
+    if (fmt.startsWith('yyyy')) {
+      expectedMonth = +parts[1];
+      expectedDay = +parts[2];
+    } else if (fmt.startsWith('d') || fmt.startsWith('D')) {
+      expectedDay = +parts[0];
+      expectedMonth = +parts[1];
+    } else {
+      expectedMonth = +parts[0];
+      expectedDay = +parts[1];
+    }
+    if (date.getMonth() + 1 !== expectedMonth || date.getDate() !== expectedDay) {
+      return {
+        error: {
+          row,
+          column: 'Date',
+          value,
+          error: 'Invalid date',
+          suggestion: 'Date does not exist in the calendar',
+        },
+      };
+    }
+
+    return { value: trimmed };
   }
 
   /**
-   * Validate dish name exists in recipe database
-   * STRICT - No auto-creation allowed
+   * Validate dish name — empty is an error, unknown dishes generate a warning
+   * (they will be auto-created on import)
    */
   private validateDishName(value: string, row: number): { value?: string; error?: CSVValidationError } {
     if (!value || value.trim() === '') {
@@ -212,19 +303,14 @@ export class CSVValidator {
     const recipe = this.recipes.find(r => r.name.toLowerCase() === trimmedValue.toLowerCase());
 
     if (!recipe) {
-      // Find closest match for suggestion
-      const suggestion = this.findClosestRecipe(trimmedValue);
-      return {
-        error: {
-          row,
-          column: 'Dish_Name',
-          value,
-          error: `Dish "${trimmedValue}" not found in recipe database`,
-          suggestion: suggestion 
-            ? `Did you mean "${suggestion.name}"? Or add this dish to Recipe Management first.`
-            : 'Please add this dish to Recipe Management before importing.',
-        },
-      };
+      // Not an error — dish will be auto-created on import
+      this.warnings.push({
+        row,
+        column: 'Dish_Name',
+        value,
+        error: `New dish "${trimmedValue}" will be auto-created on import`,
+      });
+      return { value: undefined }; // no recipeId yet
     }
 
     return { value: recipe.id };
@@ -448,7 +534,7 @@ export class CSVValidator {
    * Generate error log for download
    */
   static generateErrorLog(errors: CSVValidationError[]): string {
-    const lines = ['SmartSus Chef - CSV Import Error Log', '=' .repeat(60), ''];
+    const lines = ['SmartSus Chef - CSV Import Error Log', '='.repeat(60), ''];
 
     errors.forEach((error, index) => {
       lines.push(`Error ${index + 1}:`);
@@ -466,9 +552,9 @@ export class CSVValidator {
     lines.push(`Total Errors: ${errors.length}`);
     lines.push('');
     lines.push('Common Solutions:');
-    lines.push('1. Ensure all dish names exist in Recipe Management');
-    lines.push('2. Use date format: YYYY-MM-DD');
-    lines.push('3. Currency values should be numeric (S$ prefix is optional)');
+    lines.push('1. Ensure date format matches the selected format');
+    lines.push('2. Quantity must be a whole number >= 0');
+    lines.push('3. Dish name cannot be empty');
     lines.push('4. Download the sample template for correct format');
 
     return lines.join('\n');
@@ -477,13 +563,15 @@ export class CSVValidator {
   /**
    * Generate sample CSV template
    */
-  static generateSampleCSV(): string {
+  static generateSampleCSV(dateFormatValue?: string): string {
+    const fmt = DATE_FORMATS.find(f => f.value === dateFormatValue) || DATE_FORMATS[0];
     const headers = REQUIRED_COLUMNS.join(',');
+    // Generate sample dates using the selected format's example pattern
+    const ex = fmt.example;
     const sampleRows = [
-      '2026-01-20,Laksa,85,510.00,6.00',
-      '2026-01-20,Hainanese Chicken Rice,120,660.00,5.50',
-      '2026-01-21,Laksa,70,420.00,6.00',
-      '2026-01-21,Hainanese Chicken Rice,95,522.50,5.50',
+      `${ex},Laksa,85`,
+      `${ex},Hainanese Chicken Rice,120`,
+      `${ex},Chicken Salad,45`,
     ];
 
     return [headers, ...sampleRows].join('\n');

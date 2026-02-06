@@ -3,7 +3,11 @@ using Microsoft.EntityFrameworkCore;
 using SmartSusChef.Api.Data;
 using SmartSusChef.Api.Services;
 using SmartSusChef.Api.Models;
-using Moq; // Ensure Moq is installed via NuGet
+using Moq;
+using System;
+using System.Threading.Tasks;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace SmartSusChef.Api.Tests.Services;
 
@@ -99,6 +103,50 @@ public class IngredientServiceTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_ShouldReturnIngredient_WhenExistsInCurrentStore()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var ingredientId = Guid.NewGuid();
+        context.Ingredients.Add(new Ingredient { Id = ingredientId, Name = "Test Ingredient", StoreId = storeId, Unit = "kg" });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new IngredientService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetByIdAsync(ingredientId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(ingredientId.ToString(), result.Id);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ShouldReturnNull_WhenExistsInDifferentStore()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var myStoreId = 1;
+        var otherStoreId = 2;
+        var ingredientId = Guid.NewGuid();
+        context.Ingredients.Add(new Ingredient { Id = ingredientId, Name = "Test Ingredient", StoreId = otherStoreId, Unit = "kg" });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(myStoreId);
+        var service = new IngredientService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetByIdAsync(ingredientId);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task UpdateAsync_ShouldModifyExistingIngredient()
     {
         // Arrange
@@ -148,5 +196,17 @@ public class IngredientServiceTests
         Assert.True(result);
         var ingredientInDb = await context.Ingredients.FindAsync(ingredientId);
         Assert.Null(ingredientInDb);
+    }
+    
+    [Fact]
+    public void ValidateUnit_ShouldThrowArgumentException_ForInvalidUnit()
+    {
+        // Arrange
+        // Use reflection to invoke private static method
+        var methodInfo = typeof(IngredientService).GetMethod("ValidateUnit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        // Act & Assert
+        var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() => methodInfo?.Invoke(null, new object[] { "invalid" }));
+        Assert.IsType<ArgumentException>(ex.InnerException);
     }
 }

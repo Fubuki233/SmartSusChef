@@ -83,33 +83,41 @@ export function PredictionAccuracy() {
                 </div>
             </CardHeader>
             <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                            dataKey="displayDate"
-                            tick={{ fontSize: 12 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={60}
-                        />
-                        <YAxis tick={{ fontSize: 12 }} />
-                        <Tooltip formatter={(value: number) => [value, 'Dishes']} />
-                        <Legend />
-                        <Bar
-                            dataKey="predicted"
-                            fill="#B4A373"
-                            name="Predicted"
-                            radius={[8, 8, 0, 0]}
-                        />
-                        <Bar
-                            dataKey="actual"
-                            fill="#4F6F52"
-                            name="Actual Sales"
-                            radius={[8, 8, 0, 0]}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
+                {forecastData.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                        <Target className="w-10 h-10 mb-3 opacity-40" />
+                        <p className="text-sm">No prediction accuracy data available yet.</p>
+                        <p className="text-xs mt-1">Accuracy comparison will appear after ML models generate predictions.</p>
+                    </div>
+                ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                                dataKey="displayDate"
+                                tick={{ fontSize: 12 }}
+                                angle={-45}
+                                textAnchor="end"
+                                height={60}
+                            />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip formatter={(value: number) => [value, 'Dishes']} />
+                            <Legend />
+                            <Bar
+                                dataKey="predicted"
+                                fill="#B4A373"
+                                name="Predicted"
+                                radius={[8, 8, 0, 0]}
+                            />
+                            <Bar
+                                dataKey="actual"
+                                fill="#4F6F52"
+                                name="Actual Sales"
+                                radius={[8, 8, 0, 0]}
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
+                )}
             </CardContent>
         </Card>
     );

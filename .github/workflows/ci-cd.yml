@@ -1,10 +1,9 @@
-name: SmartSusChef CI/CD Pipeline
+name: SmartSusChef CI/CD Pipeline (Legacy)
 
+# NOTE: This workflow is superseded by aws-deploy.yml
+# Kept for reference only — manual trigger only
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+  workflow_dispatch:
 
 env:
   DOTNET_VERSION: '8.0.x'

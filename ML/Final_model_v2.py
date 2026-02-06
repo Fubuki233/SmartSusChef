@@ -72,7 +72,7 @@ except Exception:
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 try:
-    from tqdm.notebook import tqdm
+    from tqdm.auto import tqdm
 except Exception:
     try:
         from tqdm import tqdm

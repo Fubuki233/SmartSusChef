@@ -1,15 +1,17 @@
 {
   "family": "smartsuschef-ml-api",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "1024",
-  "memory": "2048",
-  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/smartsuschef-uat-ecs-task-execution",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/smartsuschef-uat-ecs-task",
   "containerDefinitions": [
     {
-      "name": "ml-api",
-      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/<ECR_REPO>:latest",
+      "name": "smartsuschef-ml",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/smartsuschef-ml-api:latest",
       "essential": true,
       "portMappings": [
         {
@@ -19,22 +21,32 @@
         }
       ],
       "environment": [
-        { "name": "MODEL_DIR", "value": "models" }
+        {
+          "name": "MODEL_DIR",
+          "value": "/app/models"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "mysql+pymysql://smartsuschef:<DB_PASSWORD>@<RDS_ENDPOINT>/smartsuschef"
+        }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/smartsuschef-ml-api",
+          "awslogs-group": "/ecs/smartsuschef-uat-ml",
           "awslogs-region": "<REGION>",
           "awslogs-stream-prefix": "ecs"
         }
       },
       "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/health || exit 1"
+        ],
         "interval": 30,
         "timeout": 5,
         "retries": 3,
-        "startPeriod": 30
+        "startPeriod": 60
       }
     }
   ]

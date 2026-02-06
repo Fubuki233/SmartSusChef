@@ -49,6 +49,26 @@ public class ForecastControllerTests
     }
     
     [Fact]
+    public async Task GetForecast_ShouldReturnBadRequest_WhenDaysIsInvalid()
+    {
+        // Act
+        var result = await _controller.GetForecast(0);
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetForecast_ShouldReturnBadRequest_WhenIncludePastDaysIsInvalid()
+    {
+        // Act
+        var result = await _controller.GetForecast(7, -1);
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
     public async Task GetForecastSummary_ShouldReturnOk_WithListOfForecastSummaries()
     {
         // Arrange
@@ -66,6 +86,16 @@ public class ForecastControllerTests
     }
     
     [Fact]
+    public async Task GetForecastSummary_ShouldReturnBadRequest_WhenDaysIsInvalid()
+    {
+        // Act
+        var result = await _controller.GetForecastSummary(31);
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
     public async Task GetWeather_ShouldReturnOk_WithWeatherDto()
     {
         // Arrange
@@ -81,6 +111,19 @@ public class ForecastControllerTests
     }
     
     [Fact]
+    public async Task GetWeather_ShouldReturnNoContent_WhenWeatherIsNull()
+    {
+        // Arrange
+        _mockWeatherService.Setup(s => s.GetCurrentWeatherAsync()).ReturnsAsync((WeatherDto?)null);
+
+        // Act
+        var result = await _controller.GetWeather();
+
+        // Assert
+        Assert.IsType<NoContentResult>(result.Result);
+    }
+
+    [Fact]
     public async Task GetHolidays_ShouldReturnOk_WithListOfHolidays()
     {
         // Arrange
@@ -95,5 +138,115 @@ public class ForecastControllerTests
         var actionResult = Assert.IsType<OkObjectResult>(result.Result);
         var value = Assert.IsAssignableFrom<List<HolidayDto>>(actionResult.Value);
         Assert.Single(value);
+    }
+    
+    [Fact]
+    public async Task GetHolidays_ShouldReturnBadRequest_WhenYearIsInvalid()
+    {
+        // Act
+        var result = await _controller.GetHolidays(2019);
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetTomorrowForecast_ShouldReturnOk()
+    {
+        // Arrange
+        _mockStoreService.Setup(s => s.GetStoreAsync()).ReturnsAsync(new StoreDto(1, "test", "test", "test", "test", "test", DateTime.UtcNow, 1, 1, "US", "test", true, DateTime.UtcNow, DateTime.UtcNow));
+        _mockHolidayService.Setup(s => s.IsHolidayAsync(It.IsAny<DateTime>(), "US")).ReturnsAsync((false, null));
+        _mockWeatherService.Setup(s => s.GetWeatherForecastAsync(It.IsAny<DateTime>(), 1, 1)).ReturnsAsync(new WeatherForecastDto("2024-01-01", 30, 25, 0, 0, "Sunny"));
+
+        // Act
+        var result = await _controller.GetTomorrowForecast();
+
+        // Assert
+        var actionResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.IsType<TomorrowForecastDto>(actionResult.Value);
+    }
+
+    [Fact]
+    public async Task GetCalendarDay_ShouldReturnOk()
+    {
+        // Arrange
+        var date = "2024-01-01";
+        _mockStoreService.Setup(s => s.GetStoreAsync()).ReturnsAsync(new StoreDto(1, "test", "test", "test", "test", "test", DateTime.UtcNow, 1, 1, "US", "test", true, DateTime.UtcNow, DateTime.UtcNow));
+        _mockHolidayService.Setup(s => s.IsHolidayAsync(It.IsAny<DateTime>(), "US")).ReturnsAsync((false, null));
+
+        // Act
+        var result = await _controller.GetCalendarDay(date);
+
+        // Assert
+        var actionResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.IsType<CalendarDayDto>(actionResult.Value);
+    }
+
+    [Fact]
+    public async Task GetCalendarDay_ShouldReturnBadRequest_WhenDateIsInvalid()
+    {
+        // Act
+        var result = await _controller.GetCalendarDay("invalid-date");
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetCalendarRange_ShouldReturnOk()
+    {
+        // Arrange
+        var startDate = "2024-01-01";
+        var endDate = "2024-01-05";
+        _mockStoreService.Setup(s => s.GetStoreAsync()).ReturnsAsync(new StoreDto(1, "test", "test", "test", "test", "test", DateTime.UtcNow, 1, 1, "US", "test", true, DateTime.UtcNow, DateTime.UtcNow));
+        _mockHolidayService.Setup(s => s.IsHolidayAsync(It.IsAny<DateTime>(), "US")).ReturnsAsync((false, null));
+
+        // Act
+        var result = await _controller.GetCalendarRange(startDate, endDate);
+
+        // Assert
+        var actionResult = Assert.IsType<OkObjectResult>(result.Result);
+        var value = Assert.IsAssignableFrom<List<CalendarDayDto>>(actionResult.Value);
+        Assert.Equal(5, value.Count);
+    }
+
+    [Fact]
+    public async Task GetCalendarRange_ShouldReturnBadRequest_WhenStartDateIsInvalid()
+    {
+        // Act
+        var result = await _controller.GetCalendarRange("invalid", "2024-01-05");
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetCalendarRange_ShouldReturnBadRequest_WhenEndDateIsInvalid()
+    {
+        // Act
+        var result = await _controller.GetCalendarRange("2024-01-01", "invalid");
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetCalendarRange_ShouldReturnBadRequest_WhenEndDateIsBeforeStartDate()
+    {
+        // Act
+        var result = await _controller.GetCalendarRange("2024-01-05", "2024-01-01");
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetCalendarRange_ShouldReturnBadRequest_WhenRangeExceeds30Days()
+    {
+        // Act
+        var result = await _controller.GetCalendarRange("2024-01-01", "2024-02-05");
+
+        // Assert
+        var actionResult = Assert.IsType<BadRequestObjectResult>(result.Result);
     }
 }
