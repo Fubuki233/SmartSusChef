@@ -1,0 +1,148 @@
+@startuml
+hide empty members
+
+entity "Store" as Store {
+  + Id : int (PK)
+  --
+  CompanyName : string
+  UEN : string
+  StoreName : string
+  OutletLocation : string
+  OpeningDate : DateTime
+  Latitude : decimal
+  Longitude : decimal
+  CountryCode : string
+  Address : string
+  ContactNumber : string
+  IsActive : bool
+  CreatedAt : DateTime
+  UpdatedAt : DateTime
+}
+
+entity "User" as User {
+  + Id : Guid (PK)
+  --
+  StoreId : int (FK)
+  Username : string
+  Email : string
+  PasswordHash : string
+  Name : string
+  Role : UserRole
+  UserStatus : string
+  CreatedAt : DateTime
+  UpdatedAt : DateTime
+}
+
+entity "Ingredient" as Ingredient {
+  + Id : Guid (PK)
+  --
+  StoreId : int (FK)
+  Name : string
+  Unit : string
+  CarbonFootprint : decimal
+  CreatedAt : DateTime
+  UpdatedAt : DateTime
+}
+
+entity "Recipe" as Recipe {
+  + Id : Guid (PK)
+  --
+  StoreId : int (FK)
+  Name : string
+  IsSubRecipe : bool
+  IsSellable : bool
+  CreatedAt : DateTime
+  UpdatedAt : DateTime
+}
+
+entity "RecipeIngredient" as RecipeIngredient {
+  + Id : Guid (PK)
+  --
+  RecipeId : Guid (FK)
+  IngredientId : Guid (FK, nullable)
+  ChildRecipeId : Guid (FK, nullable)
+  Quantity : decimal
+}
+
+entity "SalesData" as SalesData {
+  + Id : Guid (PK)
+  --
+  StoreId : int (FK)
+  Date : DateTime
+  RecipeId : Guid (FK)
+  Quantity : int
+  CreatedAt : DateTime
+  UpdatedAt : DateTime
+}
+
+entity "WastageData" as WastageData {
+  + Id : Guid (PK)
+  --
+  StoreId : int (FK)
+  Date : DateTime
+  IngredientId : Guid (FK, nullable)
+  RecipeId : Guid (FK, nullable)
+  Quantity : decimal
+  CreatedAt : DateTime
+  UpdatedAt : DateTime
+}
+
+entity "ForecastData" as ForecastData {
+  + Id : Guid (PK)
+  --
+  StoreId : int (FK)
+  RecipeId : Guid (FK)
+  ForecastDate : DateTime
+  PredictedQuantity : int
+  CreatedAt : DateTime
+  UpdatedAt : DateTime
+}
+
+entity "HolidayCalendar" as HolidayCalendar {
+  + CountryCode : string (PK)
+  + Year : int (PK)
+  --
+  HolidaysJson : string
+  UpdatedAt : DateTime
+}
+
+entity "WeatherDaily" as WeatherDaily {
+  + StoreId : int (PK)
+  + Date : DateTime (PK)
+  --
+  Temperature : decimal
+  Condition : string
+  Humidity : int
+  Description : string
+  UpdatedAt : DateTime
+}
+
+entity "GlobalCalendarSignals" as GlobalCalendarSignals {
+  + Date : DateTime (PK)
+  --
+  IsHoliday : bool
+  HolidayName : string
+  IsSchoolHoliday : bool
+  RainMm : decimal
+  WeatherDesc : string
+}
+
+
+' Relationships
+Store ||--o{ User
+Store ||--o{ Ingredient
+Store ||--o{ Recipe
+Store ||--o{ SalesData
+Store ||--o{ WastageData
+Store ||--o{ ForecastData
+Store ||--o{ WeatherDaily
+
+Recipe ||--o{ SalesData
+Recipe ||--o{ WastageData
+Ingredient ||--o{ WastageData
+Recipe ||--o{ RecipeIngredient
+Ingredient }o--|| RecipeIngredient
+Recipe }o--|| RecipeIngredient : "ChildRecipe"
+Recipe ||--o{ ForecastData
+
+@enduml
