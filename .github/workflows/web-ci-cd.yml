@@ -1,21 +1,11 @@
 # .github/workflows/web-ci-cd.yml
 
-name: Web CI/CD (Frontend & Backend)
+name: Web CI/CD (Legacy)
 
+# NOTE: This workflow is superseded by aws-deploy.yml
+# Kept for reference only — manual trigger only
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'frontend/**'
-      - 'backend/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'frontend/**'
-      - 'backend/**'
-  workflow_dispatch: # Allows manual trigger
+  workflow_dispatch:
 
 jobs:
   backend-build-test:

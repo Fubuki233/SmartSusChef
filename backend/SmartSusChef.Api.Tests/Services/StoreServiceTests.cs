@@ -80,6 +80,22 @@ public class StoreServiceTests
     }
 
     [Fact]
+    public async Task GetStoreAsync_ShouldReturnNull_WhenStoreDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = GetMockCurrentUserService(storeId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetStoreAsync();
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task InitializeStoreAsync_ShouldUpdateExistingEmptyStore()
     {
         // Arrange
@@ -98,6 +114,48 @@ public class StoreServiceTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("Test Store", result.StoreName);
+    }
+
+    [Fact]
+    public async Task InitializeStoreAsync_ShouldThrowException_WhenStoreAlreadyInitialized()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        context.Store.Add(new Store { Id = storeId, StoreName = "Existing Store" });
+        await context.SaveChangesAsync();
+        
+        var request = new CreateStoreRequest("Test Company", "UEN123", "Test Store", "Test Location", "+12345678", DateTime.UtcNow, 1.0m, 1.0m, "SG", "Test Address", true);
+        var mockCurrentUserService = GetMockCurrentUserService(storeId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.InitializeStoreAsync(request));
+    }
+
+    [Fact]
+    public async Task InitializeStoreAsync_ShouldCreateNewStore_WhenStoreDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        // Do NOT add store to context
+        
+        var request = new CreateStoreRequest("Test Company", "UEN123", "Test Store", "Test Location", "+12345678", DateTime.UtcNow, 1.0m, 1.0m, "SG", "Test Address", true);
+        var mockCurrentUserService = GetMockCurrentUserService(storeId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.InitializeStoreAsync(request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Test Store", result.StoreName);
+        
+        // Verify it was added to DB (although ID might be auto-generated differently depending on DB provider, 
+        // but here we just check if a store exists)
+        var count = await context.Store.CountAsync();
+        Assert.Equal(1, count);
     }
 
     [Fact]
@@ -120,6 +178,23 @@ public class StoreServiceTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("New Name", result.StoreName);
+    }
+
+    [Fact]
+    public async Task UpdateStoreAsync_ShouldReturnNull_WhenStoreDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = GetMockCurrentUserService(storeId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+        var request = new UpdateStoreRequest(null, null, "New Name", null, null, null, null, null, null, null, null);
+
+        // Act
+        var result = await service.UpdateStoreAsync(request);
+
+        // Assert
+        Assert.Null(result);
     }
 
     [Fact]
@@ -153,5 +228,103 @@ public class StoreServiceTests
 
         // Assert
         Assert.True(result);
+    }
+
+    [Fact]
+    public async Task IsStoreSetupCompleteAsync_ShouldReturnFalse_WhenStoreDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var service = new StoreService(context, Mock.Of<ICurrentUserService>());
+
+        // Act
+        var result = await service.IsStoreSetupCompleteAsync(storeId);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task GetStoreByIdAsync_ShouldReturnStore_WhenIdMatchesCurrentStore()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var store = new Store { Id = storeId, StoreName = "My Store" };
+        context.Store.Add(store);
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = GetMockCurrentUserService(storeId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetStoreByIdAsync(storeId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("My Store", result.StoreName);
+    }
+
+    [Fact]
+    public async Task GetStoreByIdAsync_ShouldReturnNull_WhenIdDoesNotMatchCurrentStore()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var myStoreId = 1;
+        var otherStoreId = 2;
+        context.Store.Add(new Store { Id = myStoreId, StoreName = "My Store" });
+        context.Store.Add(new Store { Id = otherStoreId, StoreName = "Other Store" });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = GetMockCurrentUserService(myStoreId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetStoreByIdAsync(otherStoreId);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpdateStoreByIdAsync_ShouldReturnNull_WhenIdDoesNotMatchCurrentStore()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var myStoreId = 1;
+        var otherStoreId = 2;
+        context.Store.Add(new Store { Id = myStoreId, StoreName = "My Store" });
+        context.Store.Add(new Store { Id = otherStoreId, StoreName = "Other Store" });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = GetMockCurrentUserService(myStoreId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+        var request = new UpdateStoreRequest(null, null, "Hacked Name", null, null, null, null, null, null, null, null);
+
+        // Act
+        var result = await service.UpdateStoreByIdAsync(otherStoreId, request);
+
+        // Assert
+        Assert.Null(result);
+        var otherStore = await context.Store.FindAsync(otherStoreId);
+        Assert.Equal("Other Store", otherStore.StoreName); // Should not be updated
+    }
+
+    [Fact]
+    public async Task UpdateStoreByIdAsync_ShouldReturnNull_WhenStoreDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var myStoreId = 1;
+        var mockCurrentUserService = GetMockCurrentUserService(myStoreId);
+        var service = new StoreService(context, mockCurrentUserService.Object);
+        var request = new UpdateStoreRequest(null, null, "New Name", null, null, null, null, null, null, null, null);
+
+        // Act
+        var result = await service.UpdateStoreByIdAsync(myStoreId, request);
+
+        // Assert
+        Assert.Null(result);
     }
 }

@@ -88,7 +88,8 @@ public class WeatherService : IWeatherService
         }
     }
 
-    private async Task<WeatherDto?> GetWeatherForCoordinates(double latitude, double longitude)
+    // Changed from private to internal to allow testing via InternalsVisibleTo
+    internal async Task<WeatherDto?> GetWeatherForCoordinates(double latitude, double longitude)
     {
         var baseUrl = _configuration["ExternalApis:WeatherApiUrl"];
         // Use 'current' parameter to get current humidity directly (more reliable than matching hourly times)
@@ -276,7 +277,8 @@ public class WeatherService : IWeatherService
         await _context.SaveChangesAsync();
     }
 
-    private static (string Condition, string Description) MapWeatherCode(int code)
+    // Changed from private to internal to allow testing via InternalsVisibleTo
+    internal static (string Condition, string Description) MapWeatherCode(int code)
     {
         return code switch
         {
@@ -295,7 +297,8 @@ public class WeatherService : IWeatherService
     /// <summary>
     /// Convert WMO weather code to description (matching Python script logic)
     /// </summary>
-    private static string GetWeatherDescription(int code)
+    // Changed from private to internal to allow testing via InternalsVisibleTo
+    internal static string GetWeatherDescription(int code)
     {
         return code switch
         {

@@ -7,8 +7,8 @@ import { format, subDays, parseISO } from 'date-fns';
 import { TrendingUp } from 'lucide-react';
 
 interface SalesTrendChartProps {
-  dateRange: 'today' | '7days' | 'custom';
-  onDateRangeChange: (range: 'today' | '7days' | 'custom') => void;
+  dateRange: 'today' | '7days' | '30days' | '90days' | 'all' | 'custom';
+  onDateRangeChange: (range: 'today' | '7days' | '30days' | '90days' | 'all' | 'custom') => void;
   maxDays?: number;
   onBarClick?: (date: string) => void;
   selectedDate?: string | null;
@@ -17,7 +17,7 @@ interface SalesTrendChartProps {
 export function SalesTrendChart({
   dateRange,
   onDateRangeChange,
-  maxDays = 30,
+  maxDays,
   onBarClick,
   selectedDate,
 }: SalesTrendChartProps) {
@@ -26,7 +26,36 @@ export function SalesTrendChart({
   const chartData = useMemo(() => {
     const today = new Date();
     today.setHours(23, 59, 59, 999); // Set to end of today
-    const daysToShow = dateRange === 'today' ? 1 : Math.min(maxDays, dateRange === '7days' ? 7 : 30);
+
+    // Calculate daysToShow based on the selected range
+    let daysToShow: number;
+    if (dateRange === 'today') {
+      daysToShow = 1;
+    } else if (dateRange === '7days') {
+      daysToShow = 7;
+    } else if (dateRange === '30days') {
+      daysToShow = 30;
+    } else if (dateRange === '90days') {
+      daysToShow = 90;
+    } else if (dateRange === 'all') {
+      // Find the earliest date in sales data
+      if (salesData.length === 0) {
+        daysToShow = 30;
+      } else {
+        const earliest = salesData.reduce((min, s) => s.date < min ? s.date : min, salesData[0].date);
+        const earliestDate = new Date(earliest);
+        earliestDate.setHours(0, 0, 0, 0);
+        daysToShow = Math.max(1, Math.ceil((today.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      }
+    } else {
+      daysToShow = maxDays ? Math.min(maxDays, 30) : 30;
+    }
+
+    // Apply maxDays cap if set
+    if (maxDays && dateRange !== 'all') {
+      daysToShow = Math.min(daysToShow, maxDays);
+    }
+
     const startDate = subDays(today, daysToShow - 1);
     startDate.setHours(0, 0, 0, 0); // Set to start of the first day
 
@@ -124,13 +153,15 @@ export function SalesTrendChart({
             </CardDescription>
           </div>
           <Select value={dateRange} onValueChange={(value: any) => onDateRangeChange(value)}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="today">Today</SelectItem>
               <SelectItem value="7days">Last 7 Days</SelectItem>
-              {maxDays > 7 && <SelectItem value="custom">Last 30 Days</SelectItem>}
+              {(!maxDays || maxDays > 7) && <SelectItem value="30days">Last 30 Days</SelectItem>}
+              {(!maxDays || maxDays > 30) && <SelectItem value="90days">Last 90 Days</SelectItem>}
+              {!maxDays && <SelectItem value="all">All Time</SelectItem>}
             </SelectContent>
           </Select>
         </div>

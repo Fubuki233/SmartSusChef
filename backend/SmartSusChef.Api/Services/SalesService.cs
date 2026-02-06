@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmartSusChef.Api.Data;
 using SmartSusChef.Api.DTOs;
@@ -49,9 +50,25 @@ public class SalesService : ISalesService
         return salesData == null ? null : MapToDto(salesData);
     }
 
+    /// <summary>
+    /// Parse date string. If customFormat is provided, try it first; otherwise fall back to common formats.
+    /// </summary>
+    private static DateTime ParseDate(string dateStr, string? customFormat = null)
+    {
+        var allFormats = new List<string>();
+        if (!string.IsNullOrWhiteSpace(customFormat))
+            allFormats.Add(customFormat);
+        allFormats.AddRange(new[] { "M/d/yy", "M/d/yyyy", "yyyy-MM-dd", "d/M/yy", "d/M/yyyy", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd" });
+
+        if (DateTime.TryParseExact(dateStr.Trim(), allFormats.ToArray(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var result))
+            return result.Date;
+        // Fallback to general parse
+        return DateTime.Parse(dateStr, CultureInfo.InvariantCulture).Date;
+    }
+
     public async Task<SalesDataDto> CreateAsync(CreateSalesDataRequest request)
     {
-        var date = DateTime.Parse(request.Date).Date;
+        var date = ParseDate(request.Date);
         var recipeId = Guid.Parse(request.RecipeId);
 
         // Check if the same record already exists
@@ -218,10 +235,11 @@ public class SalesService : ISalesService
             .ToListAsync();
 
         return salesData
-            .Select(s => new RecipeSalesDto(
-                s.RecipeId.ToString(),
-                s.Recipe.Name,
-                s.Quantity
+            .GroupBy(s => s.RecipeId)
+            .Select(g => new RecipeSalesDto(
+                g.Key.ToString(),
+                g.First().Recipe.Name,
+                g.Sum(s => s.Quantity)
             ))
             .ToList();
     }
@@ -241,7 +259,7 @@ public class SalesService : ISalesService
         var groupedImport = salesData
             .Select(s => new
             {
-                Date = DateTime.Parse(s.Date).Date,
+                Date = ParseDate(s.Date),
                 RecipeId = Guid.Parse(s.RecipeId),
                 Quantity = s.Quantity
             })
@@ -264,60 +282,136 @@ public class SalesService : ISalesService
                 && recipeIds.Contains(s.RecipeId))
             .ToListAsync();
 
-        // Use transactions to ensure data consistency
-        using var transaction = await _context.Database.BeginTransactionAsync();
+        // Check if we are running in memory (for tests)
+        var isInMemory = _context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
 
-        try
+        if (isInMemory)
         {
-            foreach (var item in groupedImport)
+            await ProcessImportAsync(groupedImport, existingRecords);
+        }
+        else
+        {
+            // Use transactions to ensure data consistency
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var existing = existingRecords
-                    .FirstOrDefault(s => s.Date == item.Date && s.RecipeId == item.RecipeId);
-
-                if (existing != null)
-                {
-                    // Update existing records
-                    existing.Quantity = item.Quantity;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                }
-                else
-                {
-                    // Insert new record
-                    _context.SalesData.Add(new SalesData
-                    {
-                        Id = Guid.NewGuid(),
-                        StoreId = CurrentStoreId,
-                        Date = item.Date,
-                        RecipeId = item.RecipeId,
-                        Quantity = item.Quantity,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    });
-                }
+                await ProcessImportAsync(groupedImport, existingRecords);
+                await transaction.CommitAsync();
             }
+            catch (DbUpdateException ex) when (IsDuplicateKeyException(ex))
+            {
+                await transaction.RollbackAsync();
+                throw new InvalidOperationException(
+                    "Duplicate records detected. This should not happen with proper validation.");
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+    }
 
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch (DbUpdateException ex) when (IsDuplicateKeyException(ex))
+    private async Task ProcessImportAsync(IEnumerable<dynamic> groupedImport, List<SalesData> existingRecords)
+    {
+        foreach (var item in groupedImport)
         {
-            await transaction.RollbackAsync();
-            throw new InvalidOperationException(
-                "Duplicate records detected. This should not happen with proper validation.");
+            var existing = existingRecords
+                .FirstOrDefault(s => s.Date == item.Date && s.RecipeId == item.RecipeId);
+
+            if (existing != null)
+            {
+                // Update existing records
+                existing.Quantity = item.Quantity;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                // Insert new record
+                _context.SalesData.Add(new SalesData
+                {
+                    Id = Guid.NewGuid(),
+                    StoreId = CurrentStoreId,
+                    Date = item.Date,
+                    RecipeId = item.RecipeId,
+                    Quantity = item.Quantity,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
         }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        await _context.SaveChangesAsync();
     }
 
     private static bool IsDuplicateKeyException(DbUpdateException ex)
     {
         // Check if the uniqueness constraint is violated
         return ex.InnerException?.Message?.Contains("violates unique constraint") == true
-            || ex.InnerException?.Message?.Contains("duplicate key") == true;
+            || ex.InnerException?.Message?.Contains("duplicate key") == true
+            || ex.InnerException?.Message?.Contains("Duplicate entry") == true;
     }
+
+    public async Task<ImportSalesByNameResponse> ImportByNameAsync(List<ImportSalesByNameItem> salesData, string? dateFormat = null)
+    {
+        if (!salesData.Any())
+            return new ImportSalesByNameResponse(0, 0, new List<string>());
+
+        // 1. Collect all unique dish names from import
+        var dishNames = salesData
+            .Select(s => s.DishName.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // 2. Look up existing recipes for this store (case-insensitive)
+        var existingRecipes = await _context.Recipes
+            .Where(r => r.StoreId == CurrentStoreId)
+            .ToListAsync();
+
+        var recipeMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in existingRecipes)
+            recipeMap[r.Name] = r.Id;
+
+        // 3. Auto-create missing recipes
+        var newDishes = new List<string>();
+        foreach (var name in dishNames)
+        {
+            if (!recipeMap.ContainsKey(name))
+            {
+                var newRecipe = new Recipe
+                {
+                    Id = Guid.NewGuid(),
+                    StoreId = CurrentStoreId,
+                    Name = name,
+                    IsSubRecipe = false,
+                    IsSellable = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.Recipes.Add(newRecipe);
+                recipeMap[name] = newRecipe.Id;
+                newDishes.Add(name);
+            }
+        }
+
+        if (newDishes.Any())
+            await _context.SaveChangesAsync();
+
+        // 4. Convert dates using the user-specified format, then delegate
+        var standardData = salesData.Select(s => new CreateSalesDataRequest(
+            Date: ParseDate(s.Date, dateFormat).ToString("yyyy-MM-dd"),
+            RecipeId: recipeMap[s.DishName.Trim()].ToString(),
+            Quantity: s.Quantity
+        )).ToList();
+
+        await ImportAsync(standardData);
+
+        return new ImportSalesByNameResponse(
+            Imported: standardData.Count,
+            Created: newDishes.Count,
+            NewDishes: newDishes
+        );
+    }
+
     private static SalesDataDto MapToDto(SalesData salesData)
     {
         return new SalesDataDto(

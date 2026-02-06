@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import pickle
+import joblib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -55,8 +55,7 @@ class ModelStore:
         registry_path = self.model_dir / "champion_registry.pkl"
         if not registry_path.exists():
             raise FileNotFoundError(f"Missing registry: {registry_path}")
-        with open(registry_path, "rb") as f:
-            self.registry = pickle.load(f)
+        self.registry = joblib.load(str(registry_path))
 
     def list_dishes(self) -> List[str]:
         return sorted(self.registry.keys())
@@ -82,10 +81,8 @@ class ModelStore:
                 f"Missing model files for '{dish}': {prophet_path.name}, {tree_path.name}"
             )
 
-        with open(prophet_path, "rb") as f:
-            prophet_model = pickle.load(f)
-        with open(tree_path, "rb") as f:
-            tree_model = pickle.load(f)
+        prophet_model = joblib.load(str(prophet_path))
+        tree_model = joblib.load(str(tree_path))
 
         loaded = LoadedDishModel(
             dish=dish,

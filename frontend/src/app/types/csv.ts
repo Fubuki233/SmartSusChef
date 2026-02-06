@@ -4,8 +4,6 @@ export interface CSVRow {
   Date: string;
   Dish_Name: string;
   Quantity_Sold: string;
-  Total_Revenue_SGD: string;
-  Unit_Cost_SGD: string;
 }
 
 export interface CSVValidationError {

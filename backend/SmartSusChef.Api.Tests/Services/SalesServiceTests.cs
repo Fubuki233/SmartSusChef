@@ -4,6 +4,10 @@ using SmartSusChef.Api.Data;
 using SmartSusChef.Api.Services;
 using SmartSusChef.Api.Models;
 using Moq;
+using System;
+using System.Threading.Tasks;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace SmartSusChef.Api.Tests.Services;
 
@@ -132,5 +136,266 @@ public class SalesServiceTests
         Assert.Equal(15, savedEntry.Quantity);
         Assert.Equal(recipeId, savedEntry.RecipeId);
         Assert.Equal(storeId, savedEntry.StoreId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldUpdateQuantity_WhenSalesDataExists()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var salesId = Guid.NewGuid();
+        var recipeId = Guid.NewGuid();
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = storeId });
+        context.SalesData.Add(new SalesData { Id = salesId, StoreId = storeId, Quantity = 10, RecipeId = recipeId, Date = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        var request = new DTOs.UpdateSalesDataRequest(20);
+
+        // Act
+        var result = await service.UpdateAsync(salesId, request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(20, result.Quantity);
+        var dbEntry = await context.SalesData.FindAsync(salesId);
+        Assert.Equal(20, dbEntry.Quantity);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldReturnNull_WhenSalesDataDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        var request = new DTOs.UpdateSalesDataRequest(20);
+
+        // Act
+        var result = await service.UpdateAsync(Guid.NewGuid(), request);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldRemoveSalesData_WhenExists()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var salesId = Guid.NewGuid();
+        var recipeId = Guid.NewGuid();
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = storeId });
+        context.SalesData.Add(new SalesData { Id = salesId, StoreId = storeId, Quantity = 10, RecipeId = recipeId, Date = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.DeleteAsync(salesId);
+
+        // Assert
+        Assert.True(result);
+        var dbEntry = await context.SalesData.FindAsync(salesId);
+        Assert.Null(dbEntry);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldReturnFalse_WhenSalesDataDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.DeleteAsync(Guid.NewGuid());
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnAllSalesForStore()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var recipeId = Guid.NewGuid();
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = storeId });
+        context.SalesData.Add(new SalesData { Id = Guid.NewGuid(), StoreId = storeId, Quantity = 10, RecipeId = recipeId, Date = DateTime.UtcNow });
+        context.SalesData.Add(new SalesData { Id = Guid.NewGuid(), StoreId = storeId, Quantity = 20, RecipeId = recipeId, Date = DateTime.UtcNow.AddDays(-1) });
+        context.SalesData.Add(new SalesData { Id = Guid.NewGuid(), StoreId = 2, Quantity = 30, RecipeId = recipeId, Date = DateTime.UtcNow }); // Different store
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetAllAsync();
+
+        // Assert
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnEmptyList_WhenNoSalesExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetAllAsync();
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task ImportAsync_ShouldImportSalesData()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var recipeId = Guid.NewGuid();
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = storeId });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        var importData = new List<DTOs.CreateSalesDataRequest>
+        {
+            new(DateTime.UtcNow.ToString("o"), recipeId.ToString(), 10),
+            new(DateTime.UtcNow.AddDays(-1).ToString("o"), recipeId.ToString(), 20)
+        };
+
+        // Act
+        await service.ImportAsync(importData);
+
+        // Assert
+        var salesCount = await context.SalesData.CountAsync();
+        Assert.Equal(2, salesCount);
+    }
+
+    [Fact]
+    public async Task GetIngredientUsageByDateAsync_ShouldReturnCorrectUsage()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var recipeId = Guid.NewGuid();
+        var ingredientId = Guid.NewGuid();
+        var date = DateTime.UtcNow.Date;
+
+        var ingredient = new Ingredient { Id = ingredientId, Name = "Flour", Unit = "kg", StoreId = storeId };
+        context.Ingredients.Add(ingredient);
+
+        var recipe = new Recipe { Id = recipeId, Name = "Bread", StoreId = storeId };
+        recipe.RecipeIngredients.Add(new RecipeIngredient { IngredientId = ingredientId, Quantity = 0.5m });
+        context.Recipes.Add(recipe);
+
+        context.SalesData.Add(new SalesData { Id = Guid.NewGuid(), StoreId = storeId, RecipeId = recipeId, Quantity = 10, Date = date });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetIngredientUsageByDateAsync(date);
+
+        // Assert
+        Assert.Single(result);
+        var usage = result.First();
+        Assert.Equal("Flour", usage.IngredientName);
+        Assert.Equal(5.0m, usage.Quantity); // 10 sales * 0.5kg
+    }
+
+    [Fact]
+    public async Task GetRecipeSalesByDateAsync_ShouldReturnCorrectSales()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var recipeId = Guid.NewGuid();
+        var date = DateTime.UtcNow.Date;
+
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Bread", StoreId = storeId });
+        context.SalesData.Add(new SalesData { Id = Guid.NewGuid(), StoreId = storeId, RecipeId = recipeId, Quantity = 10, Date = date });
+        context.SalesData.Add(new SalesData { Id = Guid.NewGuid(), StoreId = storeId, RecipeId = recipeId, Quantity = 5, Date = date });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetRecipeSalesByDateAsync(date);
+
+        // Assert
+        Assert.Single(result);
+        var sales = result.First();
+        Assert.Equal("Bread", sales.RecipeName);
+        Assert.Equal(15, sales.Quantity); // 10 + 5
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ShouldReturnSalesData_WhenExists()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var salesId = Guid.NewGuid();
+        var recipeId = Guid.NewGuid();
+        context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = storeId });
+        context.SalesData.Add(new SalesData { Id = salesId, StoreId = storeId, Quantity = 10, RecipeId = recipeId, Date = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetByIdAsync(salesId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(salesId.ToString(), result.Id);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ShouldReturnNull_WhenSalesDataDoesNotExist()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new SalesService(context, mockCurrentUserService.Object);
+
+        // Act
+        var result = await service.GetByIdAsync(Guid.NewGuid());
+
+        // Assert
+        Assert.Null(result);
     }
 }

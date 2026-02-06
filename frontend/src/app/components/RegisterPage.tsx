@@ -29,6 +29,11 @@ export function RegisterPage({ onBackToLogin, onRegisterSuccess }: RegisterPageP
     setError('');
 
     // Validation
+    if (formData.username.length < 3) {
+      setError('Username must be at least 3 characters');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -84,7 +89,7 @@ export function RegisterPage({ onBackToLogin, onRegisterSuccess }: RegisterPageP
                 type="text"
                 placeholder="Enter your full name"
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
                 className="rounded-[8px]"
               />
@@ -97,7 +102,7 @@ export function RegisterPage({ onBackToLogin, onRegisterSuccess }: RegisterPageP
                 type="email"
                 placeholder="Enter your email"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
                 className="rounded-[8px]"
               />
@@ -110,7 +115,7 @@ export function RegisterPage({ onBackToLogin, onRegisterSuccess }: RegisterPageP
                 type="text"
                 placeholder="Choose a username"
                 value={formData.username}
-                onChange={(e) => setFormData({...formData, username: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 required
                 className="rounded-[8px]"
               />
@@ -123,7 +128,7 @@ export function RegisterPage({ onBackToLogin, onRegisterSuccess }: RegisterPageP
                 type="password"
                 placeholder="Create a password (min 6 characters)"
                 value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
                 className="rounded-[8px]"
               />
@@ -136,7 +141,7 @@ export function RegisterPage({ onBackToLogin, onRegisterSuccess }: RegisterPageP
                 type="password"
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
-                onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                 required
                 className="rounded-[8px]"
               />
@@ -149,8 +154,8 @@ export function RegisterPage({ onBackToLogin, onRegisterSuccess }: RegisterPageP
               </div>
             )}
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] h-11 gap-2"
               disabled={isLoading}
             >

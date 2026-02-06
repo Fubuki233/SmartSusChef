@@ -264,6 +264,10 @@ resource "aws_lb_target_group" "backend" {
     timeout             = 5
     unhealthy_threshold = 3
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_lb_target_group" "frontend" {
@@ -283,6 +287,10 @@ resource "aws_lb_target_group" "frontend" {
     protocol            = "HTTP"
     timeout             = 5
     unhealthy_threshold = 3
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -429,6 +437,10 @@ resource "aws_ecs_task_definition" "backend" {
       {
         name  = "Jwt__Secret"
         value = var.jwt_secret
+      },
+      {
+        name  = "ExternalApis__MlApiUrl"
+        value = "http://ml-service.smartsuschef.local:8000"
       }
     ]
 
@@ -497,6 +509,7 @@ resource "aws_ecs_service" "backend" {
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = var.environment == "uat" ? 1 : 2
   launch_type     = "FARGATE"
+  force_new_deployment = true
 
   network_configuration {
     subnets          = module.vpc.private_subnets
@@ -524,6 +537,7 @@ resource "aws_ecs_service" "frontend" {
   task_definition = aws_ecs_task_definition.frontend.arn
   desired_count   = var.environment == "uat" ? 1 : 2
   launch_type     = "FARGATE"
+  force_new_deployment = true
 
   network_configuration {
     subnets          = module.vpc.private_subnets
@@ -535,6 +549,112 @@ resource "aws_ecs_service" "frontend" {
     target_group_arn = aws_lb_target_group.frontend.arn
     container_name   = "smartsuschef-frontend"
     container_port   = 80
+  }
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  depends_on = [aws_lb_listener.http]
+}
+
+# ==========================================
+# Service Discovery (AWS Cloud Map)
+# ==========================================
+resource "aws_service_discovery_private_dns_namespace" "main" {
+  name = "smartsuschef.local"
+  vpc  = module.vpc.vpc_id
+}
+
+resource "aws_service_discovery_service" "ml" {
+  name = "ml-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_custom_config {
+    failure_threshold = 1
+  }
+}
+
+# ==========================================
+# ML Service Infrastructure
+# ==========================================
+resource "aws_cloudwatch_log_group" "ml" {
+  name              = "/ecs/smartsuschef-${var.environment}-ml"
+  retention_in_days = var.environment == "production" ? 30 : 7
+}
+
+resource "aws_ecs_task_definition" "ml" {
+  family                   = "smartsuschef-${var.environment}-ml"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.environment == "uat" ? "512" : "1024"
+  memory                   = var.environment == "uat" ? "1024" : "2048"
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([{
+    name  = "smartsuschef-ml"
+    image = "${aws_ecr_repository.ml_api.repository_url}:latest"
+
+    portMappings = [{
+      containerPort = 8000
+      protocol      = "tcp"
+    }]
+
+    environment = [
+      {
+        name  = "DATABASE_URL"
+        value = "mysql+pymysql://smartsuschef:${var.db_password}@${aws_db_instance.mysql.endpoint}/smartsuschef"
+      },
+      {
+        name  = "MODEL_DIR"
+        value = "/app/models"
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.ml.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
+      }
+    }
+
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60
+    }
+  }])
+}
+
+resource "aws_ecs_service" "ml" {
+  name            = "smartsuschef-${var.environment}-ml-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.ml.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = module.vpc.private_subnets
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.ml.arn
   }
 
   deployment_circuit_breaker {
@@ -571,4 +691,14 @@ output "ecr_ml_api_url" {
 output "rds_endpoint" {
   description = "RDS endpoint"
   value       = aws_db_instance.mysql.endpoint
+}
+
+output "service_discovery_namespace" {
+  description = "Service Discovery namespace"
+  value       = aws_service_discovery_private_dns_namespace.main.name
+}
+
+output "ml_service_dns" {
+  description = "ML service internal DNS name"
+  value       = "ml-service.${aws_service_discovery_private_dns_namespace.main.name}"
 }

@@ -61,7 +61,10 @@ export function SalesManagement() {
     return recipes.find((r) => r.id === id)?.name || 'Unknown Recipe';
   };
 
+  const isManager = user?.role === 'manager';
+
   const canEdit = (dateStr: string): boolean => {
+    if (isManager) return true; // Manager can edit data of any date
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dataDate = new Date(dateStr);
@@ -256,7 +259,7 @@ export function SalesManagement() {
           <CardTitle>Sales Records</CardTitle>
           <CardDescription>
             {filteredSalesData.length} record{filteredSalesData.length !== 1 ? 's' : ''} found.
-            Only data from the last 7 days can be edited.
+            {!isManager && ' Only data from the last 7 days can be edited.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -484,14 +487,16 @@ export function SalesManagement() {
                 type="date"
                 value={newDate}
                 onChange={(e) => setNewDate(e.target.value)}
-                min={sevenDaysAgoStr}
+                min={isManager ? undefined : sevenDaysAgoStr}
                 max={todayStr}
                 className="w-full"
               />
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <AlertTriangle className="w-4 h-4" />
-                <span>You can only add records for the last 7 days ({format(sevenDaysAgo, 'd MMM yyyy')} to {format(today, 'd MMM yyyy')})</span>
-              </div>
+              {!isManager && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>You can only add records for the last 7 days ({format(sevenDaysAgo, 'd MMM yyyy')} to {format(today, 'd MMM yyyy')})</span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
