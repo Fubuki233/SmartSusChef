@@ -119,7 +119,9 @@ class SalesRepository @Inject constructor(
             date = request.date,
             recipeId = request.recipeId,
             recipeName = "Mocked Recipe",
-            quantity = request.quantity
+            quantity = request.quantity,
+            createdAt = request.date,
+            updatedAt = request.date
         )
         return Resource.Success(fakeDto)
 
@@ -149,7 +151,9 @@ class SalesRepository @Inject constructor(
             date = "2023-01-01", // Mock date
             recipeId = "mock-recipe",
             recipeName = "Mocked Updated Recipe",
-            quantity = request.quantity
+            quantity = request.quantity,
+            createdAt = "2023-01-01",
+            updatedAt = "2023-01-01"
         )
         return Resource.Success(fakeDto)
 

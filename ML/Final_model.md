@@ -106,3 +106,22 @@ python3 Final_model.py
 ## 5. 一句话总结
 
 当前版本通过“按菜品并行 + Prophet fold 缓存 + 线程收敛 + 进度心跳”实现了更快、更稳定、可观测的混合预测工作流。
+
+## 6. 链接原理（TS + ML）
+
+我们的 TS（Prophet）与 ML（树模型）采用“残差堆叠”链接：
+
+1. TS 先建趋势  
+   - `Prophet` 训练并输出趋势预测 `prophet_yhat`（含天气回归变量）。
+2. 构造残差标签  
+   - `resid = sales - prophet_yhat`。
+   - 同时把 `prophet_yhat` 写入特征，作为 ML 侧可用输入。
+3. ML 学习残差  
+   - XGBoost / CatBoost / LightGBM 以 `resid` 为目标学习误差结构。
+   - 特征包含：时间/节假日/天气/滞后滚动特征 + `prophet_yhat`。
+4. 预测时相加  
+   - 先用 Prophet 得到未来 `prophet_yhat_future`；
+   - 树模型预测残差 `resid_hat`；
+   - 最终 `yhat = max(0, prophet_yhat + resid_hat)`。
+
+一句话：TS 负责趋势与季节性，ML 负责补残差，两者相加得到最终预测。
