@@ -264,6 +264,10 @@ resource "aws_lb_target_group" "backend" {
     timeout             = 5
     unhealthy_threshold = 3
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_lb_target_group" "frontend" {
@@ -283,6 +287,10 @@ resource "aws_lb_target_group" "frontend" {
     protocol            = "HTTP"
     timeout             = 5
     unhealthy_threshold = 3
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
