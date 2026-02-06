@@ -13,7 +13,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import androidx.appcompat.app.AppCompatActivity
 
 import android.graphics.Color
+import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
@@ -33,14 +35,16 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
         _binding = FragmentSalesDetailBinding.bind(view)
 
         setupUI()
-        setupPieChart()
+        setupPieChartStyle() // Renamed to clarify its purpose
         setupRecyclerView()
-        // Pass the date to the ViewModel to fetch mock or API data
+
+        // Fetch both data sets for the given date
         viewModel.fetchIngredientsForDate(args.date)
+        viewModel.fetchRecipeSalesForDate(args.date)
+        
         observeData()
     }
 
-    // Set up the toolbar
     private fun setupUI() {
         (activity as? AppCompatActivity)?.supportActionBar?.apply {
             title = "Sales Details"
@@ -48,7 +52,8 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
         binding.tvDetailTitle.text = "Sales Breakdown: ${args.date}"
     }
 
-    private fun setupPieChart() {
+    // This function now only sets up the chart's appearance
+    private fun setupPieChartStyle() {
         binding.pieChartDishBreakdown.apply {
             description.isEnabled = false
             isDrawHoleEnabled = true
@@ -68,55 +73,9 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
                 form = Legend.LegendForm.SQUARE
                 textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
             }
-
-            val chartPalette = listOf(
-                ContextCompat.getColor(requireContext(), R.color.chart_1),
-                ContextCompat.getColor(requireContext(), R.color.chart_2),
-                ContextCompat.getColor(requireContext(), R.color.chart_3),
-                ContextCompat.getColor(requireContext(), R.color.chart_4),
-                ContextCompat.getColor(requireContext(), R.color.chart_5),
-                ContextCompat.getColor(requireContext(), R.color.chart_6),
-                ContextCompat.getColor(requireContext(), R.color.chart_7),
-                ContextCompat.getColor(requireContext(), R.color.chart_8),
-                ContextCompat.getColor(requireContext(), R.color.chart_9),
-                ContextCompat.getColor(requireContext(), R.color.chart_10)
-            )
-
-            // Mock Data for Distribution
-            val rawEntries = listOf(
-                PieEntry(10f, "Hainese Chicken Rice"),
-                PieEntry(5f, "Laksa"),
-                PieEntry(20f, "Beef Rendang"),
-                PieEntry(5f, "Nasi Lemak"),
-                PieEntry(30f, "Mala Xiang Guo"),
-                PieEntry(12f, "Carrot Cake"),
-                PieEntry(8f, "Char Kway Teow"),
-                PieEntry(10f, "Fish Porridge")
-            )
-
-            // Calculate total dishes sold
-            val totalDishes = rawEntries.sumOf { it.value.toDouble() }.toInt()
-            binding.tvSalesSubtitle.text = "Total dishes sold: $totalDishes"
-
-            val finalEntries = if (rawEntries.size > 10) {
-                val topNine = rawEntries.take(9)
-                val othersSum = rawEntries.drop(9).sumOf { it.value.toDouble() }.toFloat()
-                topNine + PieEntry(othersSum, "Others")
-            } else {
-                rawEntries
-            }
-
-            val dataSet = PieDataSet(finalEntries, "").apply {
-                colors = chartPalette // Use the full list, it will cycle if needed
-                valueTextSize = 11f
-                valueTextColor = Color.WHITE
-                valueFormatter = LargeValueFormatter()
-            }
-
-            data = PieData(dataSet)
-            invalidate()
         }
     }
+
     private fun setupRecyclerView() {
         ingredientAdapter = IngredientAdapter(emptyList())
         binding.rvIngredients.layoutManager = LinearLayoutManager(requireContext())
@@ -124,10 +83,91 @@ class SalesDetailFragment : Fragment(R.layout.fragment_sales_detail) {
     }
 
     private fun observeData() {
+        // Observer for the ingredient list
         viewModel.ingredientBreakdown.observe(viewLifecycleOwner) { result ->
-            if (result is Resource.Success) {
-                ingredientAdapter.updateData(result.data ?: emptyList())
+            when (result) {
+                is Resource.Success -> {
+                    binding.progressBarIngredients.isVisible = false
+                    ingredientAdapter.updateData(result.data ?: emptyList())
+                }
+                is Resource.Error -> {
+                    binding.progressBarIngredients.isVisible = false
+                    Toast.makeText(requireContext(), result.message, Toast.LENGTH_SHORT).show()
+                }
+                is Resource.Loading -> {
+                    binding.progressBarIngredients.isVisible = true
+                }
             }
         }
+
+        // Observer for the pie chart data
+        viewModel.recipeSales.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Resource.Success -> {
+                    binding.progressBarPieChart.isVisible = false
+                    val recipeSales = result.data
+                    if (recipeSales.isNullOrEmpty()) {
+                        // Handle empty state for pie chart
+                        binding.pieChartDishBreakdown.clear()
+                        binding.pieChartDishBreakdown.invalidate()
+                        binding.tvSalesSubtitle.text = "No dishes sold on this date"
+                    } else {
+                        updatePieChart(recipeSales)
+                    }
+                }
+                is Resource.Error -> {
+                    binding.progressBarPieChart.isVisible = false
+                    Toast.makeText(requireContext(), result.message, Toast.LENGTH_SHORT).show()
+                }
+                is Resource.Loading -> {
+                    binding.progressBarPieChart.isVisible = true
+                }
+            }
+        }
+    }
+    
+    private fun updatePieChart(data: List<RecipeSalesItem>) {
+        val chartPalette = listOf(
+            ContextCompat.getColor(requireContext(), R.color.chart_1),
+            ContextCompat.getColor(requireContext(), R.color.chart_2),
+            ContextCompat.getColor(requireContext(), R.color.chart_3),
+            ContextCompat.getColor(requireContext(), R.color.chart_4),
+            ContextCompat.getColor(requireContext(), R.color.chart_5),
+            ContextCompat.getColor(requireContext(), R.color.chart_6),
+            ContextCompat.getColor(requireContext(), R.color.chart_7),
+            ContextCompat.getColor(requireContext(), R.color.chart_8),
+            ContextCompat.getColor(requireContext(), R.color.chart_9),
+            ContextCompat.getColor(requireContext(), R.color.chart_10)
+        )
+
+        val rawEntries = data.map { PieEntry(it.quantity.toFloat(), it.name) }
+
+        // Calculate total dishes sold from real data
+        val totalDishes = rawEntries.sumOf { it.value.toDouble() }.toInt()
+        binding.tvSalesSubtitle.text = "Total dishes sold: $totalDishes"
+
+        // Logic to group smaller slices into "Others"
+        val finalEntries = if (rawEntries.size > 10) {
+            val topNine = rawEntries.sortedByDescending { it.value }.take(9)
+            val othersSum = rawEntries.sortedByDescending { it.value }.drop(9).sumOf { it.value.toDouble() }.toFloat()
+            topNine + PieEntry(othersSum, "Others")
+        } else {
+            rawEntries
+        }
+
+        val dataSet = PieDataSet(finalEntries, "").apply {
+            colors = chartPalette
+            valueTextSize = 11f
+            valueTextColor = Color.WHITE
+            valueFormatter = LargeValueFormatter()
+        }
+
+        binding.pieChartDishBreakdown.data = PieData(dataSet)
+        binding.pieChartDishBreakdown.invalidate()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null // Avoid memory leaks
     }
 }
