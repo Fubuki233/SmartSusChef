@@ -218,10 +218,11 @@ public class SalesService : ISalesService
             .ToListAsync();
 
         return salesData
-            .Select(s => new RecipeSalesDto(
-                s.RecipeId.ToString(),
-                s.Recipe.Name,
-                s.Quantity
+            .GroupBy(s => s.RecipeId)
+            .Select(g => new RecipeSalesDto(
+                g.Key.ToString(),
+                g.First().Recipe.Name,
+                g.Sum(s => s.Quantity)
             ))
             .ToList();
     }
@@ -264,52 +265,65 @@ public class SalesService : ISalesService
                 && recipeIds.Contains(s.RecipeId))
             .ToListAsync();
 
-        // Use transactions to ensure data consistency
-        using var transaction = await _context.Database.BeginTransactionAsync();
+        // Check if we are running in memory (for tests)
+        var isInMemory = _context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory";
 
-        try
+        if (isInMemory)
         {
-            foreach (var item in groupedImport)
+            await ProcessImportAsync(groupedImport, existingRecords);
+        }
+        else
+        {
+            // Use transactions to ensure data consistency
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var existing = existingRecords
-                    .FirstOrDefault(s => s.Date == item.Date && s.RecipeId == item.RecipeId);
-
-                if (existing != null)
-                {
-                    // Update existing records
-                    existing.Quantity = item.Quantity;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                }
-                else
-                {
-                    // Insert new record
-                    _context.SalesData.Add(new SalesData
-                    {
-                        Id = Guid.NewGuid(),
-                        StoreId = CurrentStoreId,
-                        Date = item.Date,
-                        RecipeId = item.RecipeId,
-                        Quantity = item.Quantity,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    });
-                }
+                await ProcessImportAsync(groupedImport, existingRecords);
+                await transaction.CommitAsync();
             }
+            catch (DbUpdateException ex) when (IsDuplicateKeyException(ex))
+            {
+                await transaction.RollbackAsync();
+                throw new InvalidOperationException(
+                    "Duplicate records detected. This should not happen with proper validation.");
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+    }
 
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch (DbUpdateException ex) when (IsDuplicateKeyException(ex))
+    private async Task ProcessImportAsync(IEnumerable<dynamic> groupedImport, List<SalesData> existingRecords)
+    {
+        foreach (var item in groupedImport)
         {
-            await transaction.RollbackAsync();
-            throw new InvalidOperationException(
-                "Duplicate records detected. This should not happen with proper validation.");
+            var existing = existingRecords
+                .FirstOrDefault(s => s.Date == item.Date && s.RecipeId == item.RecipeId);
+
+            if (existing != null)
+            {
+                // Update existing records
+                existing.Quantity = item.Quantity;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                // Insert new record
+                _context.SalesData.Add(new SalesData
+                {
+                    Id = Guid.NewGuid(),
+                    StoreId = CurrentStoreId,
+                    Date = item.Date,
+                    RecipeId = item.RecipeId,
+                    Quantity = item.Quantity,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
         }
-        catch (Exception)
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        await _context.SaveChangesAsync();
     }
 
     private static bool IsDuplicateKeyException(DbUpdateException ex)
