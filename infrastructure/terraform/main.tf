@@ -509,6 +509,7 @@ resource "aws_ecs_service" "backend" {
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = var.environment == "uat" ? 1 : 2
   launch_type     = "FARGATE"
+  force_new_deployment = true
 
   network_configuration {
     subnets          = module.vpc.private_subnets
@@ -536,6 +537,7 @@ resource "aws_ecs_service" "frontend" {
   task_definition = aws_ecs_task_definition.frontend.arn
   desired_count   = var.environment == "uat" ? 1 : 2
   launch_type     = "FARGATE"
+  force_new_deployment = true
 
   network_configuration {
     subnets          = module.vpc.private_subnets
