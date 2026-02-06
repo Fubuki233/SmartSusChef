@@ -20,7 +20,13 @@ data class SalesDataDto(
     val recipeName: String,
 
     @SerializedName("quantity")
-    val quantity: Int
+    val quantity: Int,
+
+    @SerializedName("createdAt")
+    val createdAt: String,
+
+    @SerializedName("updatedAt")
+    val updatedAt: String
 )
 
 /**

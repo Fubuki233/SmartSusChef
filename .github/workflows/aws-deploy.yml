@@ -15,7 +15,7 @@ permissions:
 env:
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '20.x'
-  AWS_REGION: ap-southeast-1  # Singapore region
+  AWS_REGION: ap-southeast-1  
   ECR_REPOSITORY_BACKEND: smartsuschef-backend
   ECR_REPOSITORY_FRONTEND: smartsuschef-frontend
   ECS_CLUSTER: smartsuschef-cluster

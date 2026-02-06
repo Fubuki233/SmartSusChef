@@ -10,6 +10,7 @@ import com.smartsuschef.mobile.network.dto.ChangePasswordRequest
 import com.smartsuschef.mobile.network.dto.UpdateProfileRequest
 import com.smartsuschef.mobile.network.dto.UserDto
 import com.smartsuschef.mobile.util.Resource
+import com.smartsuschef.mobile.util.EmailValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -17,7 +18,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val usersRepository: UsersRepository
+    private val usersRepository: UsersRepository,
+    private val emailValidator: EmailValidator
 ) : ViewModel() {
 
     // Current user data
@@ -25,10 +27,10 @@ class SettingsViewModel @Inject constructor(
     val currentUser: LiveData<UserDto?> = _currentUser
 
     // Loading states
-    private val _isLoadingProfile = MutableLiveData<Boolean>()
+    private val _isLoadingProfile = MutableLiveData(false)
     val isLoadingProfile: LiveData<Boolean> = _isLoadingProfile
 
-    private val _isLoadingPassword = MutableLiveData<Boolean>()
+    private val _isLoadingPassword = MutableLiveData(false)
     val isLoadingPassword: LiveData<Boolean> = _isLoadingPassword
 
     // Result messages
@@ -163,6 +165,6 @@ class SettingsViewModel @Inject constructor(
      * Email validation helper
      */
     private fun isValidEmail(email: String): Boolean {
-        return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+        return emailValidator.isValid(email)
     }
 }
