@@ -5,6 +5,10 @@ using Microsoft.OpenApi.Models;
 using SmartSusChef.Api.Data;
 using SmartSusChef.Api.Services;
 using System.Text;
+using System.Runtime.CompilerServices;
+
+// Allow the test project to access internal members
+[assembly: InternalsVisibleTo("SmartSusChef.Api.Tests")]
 
 var builder = WebApplication.CreateBuilder(args);
 

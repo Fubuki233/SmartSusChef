@@ -9,14 +9,15 @@
         <IsTestProject>true</IsTestProject>
 
         <CollectCoverage>true</CollectCoverage>
-        <CoverletOutputFormat>cobertura</CoverletOutputFormat>
-        <CoverletOutput>$(MSBuildProjectDirectory)/../coverage_report/</CoverletOutput>
-        <CoverletOutputIsPath>true</CoverletOutputIsPath>
+        <CoverletOutputFormat>opencover</CoverletOutputFormat>
+        <CoverletOutput>$(MSBuildProjectDirectory)/../SmartSusChef.Api/coverage.xml</CoverletOutput>
         <ExcludeByFile>$(MSBuildProjectDirectory)/obj/**/*</ExcludeByFile>
-        <ExcludeByFile>$(MSBuildProjectDirectory)/Migrations/*.cs</ExcludeByFile>
+        <!-- Exclude Migrations from coverage -->
+        <Exclude>[SmartSusChef.Api]SmartSusChef.Api.Migrations.*</Exclude>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="coverlet.msbuild" Version="6.0.0" />
         <PackageReference Include="coverlet.collector" Version="6.0.0"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0"/>

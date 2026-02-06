@@ -113,4 +113,113 @@ public class HolidayServiceTests
         Assert.True(signal.IsHoliday);
         Assert.Equal("国庆节", signal.HolidayName); // Verify the local name is parsed correctly
     }
+
+    [Fact]
+    public async Task GetCountryCodeFromCoordinatesAsync_ShouldReturnCode_WhenApiCallSucceeds()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var jsonResponse = @"{
+            ""address"": {
+                ""country_code"": ""sg""
+            }
+        }";
+        var mockHttpMessageHandler = new Mock<HttpMessageHandler>();
+        mockHttpMessageHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(jsonResponse)
+            });
+        var httpClient = new HttpClient(mockHttpMessageHandler.Object);
+        var mockConfiguration = new Mock<IConfiguration>();
+        
+        var service = new HolidayService(httpClient, mockConfiguration.Object, context);
+
+        // Act
+        var result = await service.GetCountryCodeFromCoordinatesAsync(1.35m, 103.81m);
+
+        // Assert
+        Assert.Equal("SG", result);
+    }
+
+    [Fact]
+    public async Task GetCountryCodeFromCoordinatesAsync_ShouldReturnNull_WhenApiCallFails()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var mockHttpMessageHandler = new Mock<HttpMessageHandler>();
+        mockHttpMessageHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.BadRequest
+            });
+        var httpClient = new HttpClient(mockHttpMessageHandler.Object);
+        var mockConfiguration = new Mock<IConfiguration>();
+        
+        var service = new HolidayService(httpClient, mockConfiguration.Object, context);
+
+        // Act
+        // Use different coordinates to avoid cache hit from previous test
+        var result = await service.GetCountryCodeFromCoordinatesAsync(51.50m, -0.12m);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetHolidaysAsync_ShouldReturnEmptyList_WhenApiCallFails()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var mockHttpMessageHandler = new Mock<HttpMessageHandler>();
+        mockHttpMessageHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.BadRequest
+            });
+        var httpClient = new HttpClient(mockHttpMessageHandler.Object);
+        var mockConfiguration = new Mock<IConfiguration>();
+        mockConfiguration.Setup(c => c["ExternalApis:HolidayApiUrl"]).Returns("https://date.nager.at/api/v3/PublicHolidays");
+
+        var service = new HolidayService(httpClient, mockConfiguration.Object, context);
+
+        // Act
+        var result = await service.GetHolidaysAsync(2024, "US");
+
+        // Assert
+        Assert.Empty(result);
+    }
+
+    [Theory]
+    [InlineData("2024-05-25", true)] // Start of Summer Holiday
+    [InlineData("2024-06-23", true)] // End of Summer Holiday
+    [InlineData("2024-06-01", true)] // Middle of Summer Holiday
+    [InlineData("2024-01-02", false)] // Regular Tuesday
+    public void IsSchoolHoliday_ShouldReturnCorrectStatus(string dateStr, bool expected)
+    {
+        // Arrange
+        var date = DateTime.Parse(dateStr);
+
+        // Act
+        var result = HolidayService.IsSchoolHoliday(date);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
 }

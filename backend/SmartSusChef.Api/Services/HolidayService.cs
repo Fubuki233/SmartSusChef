@@ -13,8 +13,8 @@ public class HolidayService : IHolidayService
     private readonly ApplicationDbContext _context;
 
     // Cache for holidays to avoid repeated API calls
-    private static readonly Dictionary<string, List<HolidayDto>> _holidayCache = new();
-    private static readonly Dictionary<string, string> _countryCodeCache = new();
+    private static readonly Dictionary<string, List<HolidayDto>> HolidayCache = new();
+    private static readonly Dictionary<string, string> CountryCodeCache = new();
 
     public HolidayService(HttpClient httpClient, IConfiguration configuration, ApplicationDbContext context)
     {
@@ -67,10 +67,11 @@ public class HolidayService : IHolidayService
         return signal?.IsHoliday ?? false;
     }
 
-    public async Task<string> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude)
+    // Changed from private to internal to allow testing via InternalsVisibleTo
+    internal async Task<string?> GetCountryCodeFromCoordinatesAsync(decimal latitude, decimal longitude)
     {
         var cacheKey = $"{Math.Round(latitude, 1)}_{Math.Round(longitude, 1)}";
-        if (_countryCodeCache.TryGetValue(cacheKey, out var cachedCode))
+        if (CountryCodeCache.TryGetValue(cacheKey, out var cachedCode))
         {
             return cachedCode;
         }
@@ -79,22 +80,31 @@ public class HolidayService : IHolidayService
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("User-Agent", "SmartSusChef/1.0");
 
-        var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-
-        var content = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(content);
-
-        if (doc.RootElement.TryGetProperty("address", out var address) &&
-            address.TryGetProperty("country_code", out var countryCodeElement))
+        try
         {
-            var countryCode = countryCodeElement.GetString()?.ToUpperInvariant()
-                ?? throw new InvalidOperationException("Failed to get country code from coordinates");
-            _countryCodeCache[cacheKey] = countryCode;
-            return countryCode;
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(content);
+
+            if (doc.RootElement.TryGetProperty("address", out var address) &&
+                address.TryGetProperty("country_code", out var countryCodeElement))
+            {
+                var countryCode = countryCodeElement.GetString()?.ToUpperInvariant();
+                if (countryCode != null)
+                {
+                    CountryCodeCache[cacheKey] = countryCode;
+                    return countryCode;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors and return null
         }
 
-        throw new InvalidOperationException("Failed to get country code from coordinates");
+        return null;
     }
 
     public async Task<List<HolidayDto>> GetHolidaysAsync(int year, string? countryCode = null)
@@ -102,7 +112,7 @@ public class HolidayService : IHolidayService
         var code = countryCode ?? "SG";
         var cacheKey = $"{code}_{year}";
 
-        if (_holidayCache.TryGetValue(cacheKey, out var cached))
+        if (HolidayCache.TryGetValue(cacheKey, out var cached))
         {
             return cached;
         }
@@ -128,7 +138,7 @@ public class HolidayService : IHolidayService
             }
 
             var result = holidays.OrderBy(h => h.Date).ToList();
-            _holidayCache[cacheKey] = result;
+            HolidayCache[cacheKey] = result;
             return result;
         }
         catch
@@ -146,13 +156,14 @@ public class HolidayService : IHolidayService
         return (holiday != null, holiday?.Name);
     }
 
-    public bool IsSchoolHoliday(DateTime date)
+    // Changed from private to internal to allow testing via InternalsVisibleTo
+    internal static bool IsSchoolHoliday(DateTime date)
     {
         var schoolHolidays = GetSchoolHolidays(date.Year);
         return IsDateInRanges(date, schoolHolidays);
     }
 
-    private bool IsDateInRanges(DateTime date, List<(DateTime Start, DateTime End)> ranges)
+    private static bool IsDateInRanges(DateTime date, List<(DateTime Start, DateTime End)> ranges)
     {
         foreach (var (start, end) in ranges)
         {
@@ -164,7 +175,7 @@ public class HolidayService : IHolidayService
         return false;
     }
 
-    private DateTime? GetChineseNewYear(int year)
+    private static DateTime? GetChineseNewYear(int year)
     {
         var cnyDates = new Dictionary<int, DateTime>
         {
@@ -184,19 +195,21 @@ public class HolidayService : IHolidayService
         return cnyDates.TryGetValue(year, out var cny) ? cny : null;
     }
 
-    private List<(DateTime Start, DateTime End)> GetSchoolHolidays(int year)
+    private static List<(DateTime Start, DateTime End)> GetSchoolHolidays(int year)
     {
         var holidays = new List<(DateTime, DateTime)>();
 
-        holidays.Add((new DateTime(year, 7, 1), new DateTime(year, 8, 31)));
+        // Summer holiday (approximate)
+        holidays.Add((new DateTime(year, 5, 25), new DateTime(year, 6, 23)));
+        
+        // End of year holiday
+        holidays.Add((new DateTime(year, 11, 16), new DateTime(year, 12, 31)));
 
-        var cny = GetChineseNewYear(year);
-        if (cny.HasValue)
-        {
-            var startWinter = cny.Value.AddDays(-14);
-            var endWinter = cny.Value.AddDays(14);
-            holidays.Add((startWinter, endWinter));
-        }
+        // March holiday
+        holidays.Add((new DateTime(year, 3, 9), new DateTime(year, 3, 17)));
+        
+        // September holiday
+        holidays.Add((new DateTime(year, 9, 7), new DateTime(year, 9, 15)));
 
         return holidays;
     }

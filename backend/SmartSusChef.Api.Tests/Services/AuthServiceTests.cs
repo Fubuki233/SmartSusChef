@@ -6,6 +6,7 @@ using SmartSusChef.Api.Models;
 using SmartSusChef.Api.DTOs;
 using Moq;
 using Microsoft.Extensions.Configuration;
+using System.Reflection;
 
 namespace SmartSusChef.Api.Tests.Services;
 
@@ -144,6 +145,26 @@ public class AuthServiceTests
         Assert.Equal("newuser", result.Username);
         var userInDb = await context.Users.FirstOrDefaultAsync(u => u.Username == "newuser");
         Assert.NotNull(userInDb);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_ShouldReturnNull_WhenUsernameExists()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var config = GetConfiguration();
+        var service = new AuthService(context, config);
+        var storeId = 1;
+        context.Users.Add(new User { Id = Guid.NewGuid(), Username = "existinguser", StoreId = storeId });
+        await context.SaveChangesAsync();
+
+        var request = new CreateUserRequest("existinguser", "password", "New User", "new@example.com", "Employee");
+
+        // Act
+        var result = await service.CreateUserAsync(request, storeId);
+
+        // Assert
+        Assert.Null(result);
     }
 
     [Fact]
@@ -288,5 +309,19 @@ public class AuthServiceTests
 
         // Assert
         Assert.True(result);
+    }
+
+    [Fact]
+    public void GenerateUniqueStoreId_ShouldReturnPositiveInteger()
+    {
+        // Arrange
+        // Use reflection to invoke private static method
+        var methodInfo = typeof(AuthService).GetMethod("GenerateUniqueStoreId", BindingFlags.NonPublic | BindingFlags.Static);
+
+        // Act
+        var result = (int)methodInfo?.Invoke(null, null)!;
+
+        // Assert
+        Assert.True(result > 0);
     }
 }
