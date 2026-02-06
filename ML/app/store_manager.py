@@ -36,6 +36,7 @@ class StoreModelManager:
         self._training_lock = threading.Lock()
         self._training_in_progress: Dict[int, bool] = {}
         self._training_progress: Dict[int, Dict[str, Any]] = {}  # {store_id: {trained, failed, total, current_dish}}
+        self._engine = None  # Cached SQLAlchemy engine
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -82,6 +83,22 @@ class StoreModelManager:
     def _get_db_url() -> Optional[str]:
         return os.getenv("DATABASE_URL")
 
+    def _get_engine(self):
+        """Return a cached SQLAlchemy engine (create once, reuse)."""
+        if self._engine is None:
+            db_url = self._get_db_url()
+            if not db_url:
+                return None
+            # Add connect_timeout to avoid hanging on unreachable DB
+            connect_args = {"connect_timeout": 5}
+            self._engine = create_engine(
+                db_url,
+                pool_pre_ping=True,
+                pool_recycle=300,
+                connect_args=connect_args,
+            )
+        return self._engine
+
     def fetch_store_sales(
         self, store_id: int
     ) -> Tuple[Optional[pd.DataFrame], int]:
@@ -92,13 +109,12 @@ class StoreModelManager:
         The SQL matches the EF Core schema:
           SalesData.Date, Recipes.Name, SalesData.Quantity
         """
-        db_url = self._get_db_url()
-        if not db_url:
+        engine = self._get_engine()
+        if not engine:
             logger.warning("DATABASE_URL not set — cannot fetch store sales.")
             return None, 0
 
         try:
-            engine = create_engine(db_url)
             query = text("""
                 SELECT s.Date   AS date,
                        r.Name   AS dish,
@@ -127,11 +143,10 @@ class StoreModelManager:
 
     def fetch_store_location(self, store_id: int) -> Tuple[Optional[float], Optional[float], Optional[str]]:
         """Fetch store lat/lon/country_code from the database."""
-        db_url = self._get_db_url()
-        if not db_url:
+        engine = self._get_engine()
+        if not engine:
             return None, None, None
         try:
-            engine = create_engine(db_url)
             query = text("""
                 SELECT Latitude, Longitude, CountryCode
                 FROM Store
