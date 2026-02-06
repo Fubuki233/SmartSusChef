@@ -201,6 +201,42 @@
             "Resource": "*"
         },
         {
+            "Sid": "ServiceDiscovery",
+            "Effect": "Allow",
+            "Action": [
+                "servicediscovery:CreatePrivateDnsNamespace",
+                "servicediscovery:DeleteNamespace",
+                "servicediscovery:GetNamespace",
+                "servicediscovery:ListNamespaces",
+                "servicediscovery:GetOperation",
+                "servicediscovery:ListOperations",
+                "servicediscovery:CreateService",
+                "servicediscovery:DeleteService",
+                "servicediscovery:GetService",
+                "servicediscovery:ListServices",
+                "servicediscovery:RegisterInstance",
+                "servicediscovery:DeregisterInstance",
+                "servicediscovery:ListInstances",
+                "servicediscovery:TagResource",
+                "servicediscovery:UntagResource"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Route53ForServiceDiscovery",
+            "Effect": "Allow",
+            "Action": [
+                "route53:CreateHostedZone",
+                "route53:DeleteHostedZone",
+                "route53:GetHostedZone",
+                "route53:ListHostedZones",
+                "route53:ChangeResourceRecordSets",
+                "route53:ListResourceRecordSets",
+                "route53:GetChange"
+            ],
+            "Resource": "*"
+        },
+        {
             "Sid": "STS",
             "Effect": "Allow",
             "Action": [

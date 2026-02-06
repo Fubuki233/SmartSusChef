@@ -74,7 +74,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -89,10 +89,24 @@ builder.Services.AddScoped<IIngredientService, IngredientService>();
 builder.Services.AddScoped<IRecipeService, RecipeService>();
 builder.Services.AddScoped<ISalesService, SalesService>();
 builder.Services.AddScoped<IWastageService, WastageService>();
-builder.Services.AddScoped<IForecastService, MockForecastService>();
 builder.Services.AddScoped<IWeatherService, WeatherService>();
 builder.Services.AddScoped<IHolidayService, HolidayService>();
 builder.Services.AddScoped<IStoreService, StoreService>();
+
+// ML Prediction Service — calls the FastAPI ML backend
+var mlApiUrl = builder.Configuration["ExternalApis:MlApiUrl"] ?? "http://localhost:8000";
+builder.Services.AddHttpClient<IMlPredictionService, MlPredictionService>(client =>
+{
+    client.BaseAddress = new Uri(mlApiUrl);
+    client.Timeout = TimeSpan.FromSeconds(120); // Training checks may take longer
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseProxy = false   // Bypass local proxy (e.g. Clash) for ML service calls
+});
+
+// Forecast Service — uses ML backend with fallback to simple heuristic
+builder.Services.AddScoped<IForecastService, MlForecastService>();
 
 // Configure HttpClient with timeout for external API calls
 builder.Services.AddHttpClient<IWeatherService, WeatherService>(client =>
@@ -120,14 +134,14 @@ using (var scope = app.Services.CreateScope())
         command.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users'";
         var tableExists = Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
         await connection.CloseAsync();
-        
+
         if (!tableExists)
         {
             Console.WriteLine("Users table not found, recreating database schema...");
             // Delete migration history to force re-apply
             await dbContext.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `__EFMigrationsHistory`");
         }
-        
+
         dbContext.Database.Migrate();
         Console.WriteLine("Database migrations applied successfully.");
     }
@@ -148,6 +162,9 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Health check endpoint for ALB/ECS
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 app.MapControllers();
 

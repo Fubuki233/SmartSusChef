@@ -4,20 +4,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app
 import { Button } from '@/app/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/app/components/ui/dialog';
-import { Upload, Download, AlertCircle, CheckCircle, ArrowRight, ChefHat, FileText, AlertTriangle } from 'lucide-react';
+import { Upload, Download, AlertCircle, CheckCircle, ArrowRight, ChefHat, FileText, AlertTriangle, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { parse } from 'papaparse';
 import { format } from 'date-fns';
-import { CSVValidator } from '@/app/utils/csvValidator';
+import { CSVValidator, DATE_FORMATS } from '@/app/utils/csvValidator';
 import { CSVValidationError } from '@/app/types/csv';
 import { SalesData } from '@/app/types';
+import { salesApi } from '@/app/services/api';
 
 interface CSVRow {
   Date: string;
   Dish_Name: string;
   Quantity_Sold: string;
-  Total_Revenue_SGD?: string;
-  Unit_Cost_SGD?: string;
 }
 
 export function ImportSalesData() {
@@ -28,6 +27,7 @@ export function ImportSalesData() {
   const [showPreview, setShowPreview] = useState(false);
   const [duplicates, setDuplicates] = useState<{ date: string; dish: string; rows: number[] }[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [dateFormat, setDateFormat] = useState(DATE_FORMATS[0].value);
 
   // Add after the existing state declarations
   const [overwriteConfirmData, setOverwriteConfirmData] = useState<{
@@ -218,12 +218,12 @@ export function ImportSalesData() {
   };
 
   const handleDownloadTemplate = () => {
+    const fmt = DATE_FORMATS.find(f => f.value === dateFormat) || DATE_FORMATS[0];
     const template = [
-      ['Date', 'Dish_Name', 'Quantity_Sold', 'Total_Revenue_SGD', 'Unit_Cost_SGD'],
-      ['2026-01-20', 'Laksa', '85', '510.00', '6.00'],
-      ['2026-01-20', 'Hainanese Chicken Rice', '120', '660.00', '5.50'],
-      ['2026-01-21', 'Laksa', '70', '420.00', '6.00'],
-      ['2026-01-21', 'Chicken Salad', '45', '360.00', '8.00'],
+      ['Date', 'Dish_Name', 'Quantity_Sold'],
+      [fmt.example, 'Laksa', '85'],
+      [fmt.example, 'Hainanese Chicken Rice', '120'],
+      [fmt.example, 'Chicken Salad', '45'],
     ];
 
     const csv = template.map(row => row.join(',')).join('\n');
@@ -268,7 +268,7 @@ export function ImportSalesData() {
           }
 
           // Use CSV Validator
-          const validator = new CSVValidator(recipes);
+          const validator = new CSVValidator(recipes, dateFormat);
           const validationResult = validator.validate(results.data);
 
           if (validationResult.errors.length > 50) {
@@ -333,9 +333,6 @@ export function ImportSalesData() {
       return;
     }
 
-    const recipeMap = new Map(recipes.map(r => [r.name.toLowerCase(), r.id]));
-    const salesToImport: { date: string; recipeId: string; quantity: number }[] = [];
-
     // Check for duplicates within the imported data
     const seenInImport = new Set<string>();
     const duplicatesInImport: string[] = [];
@@ -348,16 +345,6 @@ export function ImportSalesData() {
       } else {
         seenInImport.add(key);
       }
-
-      const recipeId = recipeMap.get(row.Dish_Name.trim().toLowerCase());
-      if (recipeId) {
-        const quantity = parseFloat(row.Quantity_Sold);
-        salesToImport.push({
-          date: row.Date,
-          recipeId,
-          quantity,
-        });
-      }
     });
 
     if (duplicatesInImport.length > 0) {
@@ -365,44 +352,34 @@ export function ImportSalesData() {
       return;
     }
 
+    const salesToImport = csvData.map(row => ({
+      date: row.Date,
+      dishName: row.Dish_Name.trim(),
+      quantity: parseInt(row.Quantity_Sold, 10),
+    }));
+
     setIsImporting(true);
     try {
-      // Check which records will overwrite existing data
-      const duplicates = checkForExistingDuplicates(salesToImport);
+      const result = await salesApi.importByName({ salesData: salesToImport, dateFormat });
 
-      if (duplicates.length > 0) {
-        // Display a confirmation pop-up window for coverage
-        setOverwriteConfirmData({
-          isOpen: true,
-          duplicates: duplicates,
-          importData: salesToImport,
-        });
-      } else {
-        // No duplicate records, import directly.
-        // Using the bulk import API - this requires converting the data to SalesData format
-        const salesDataToImport: SalesData[] = salesToImport.map((sale, index) => ({
-          id: `import-${Date.now()}-${index}`, // Temporary ID
-          date: sale.date,
-          recipeId: sale.recipeId,
-          quantity: sale.quantity,
-          // Other fields can be empty and will be processed in the backend
-          createdAt: new Date().toISOString(),
-          modifiedAt: new Date().toISOString(),
-          editHistory: []
-        }));
-
-        // Calling import functions
-        await importSalesData(salesDataToImport);
-        toast.success(`Successfully imported ${salesToImport.length} sales records`);
-        setCsvData([]);
-        setErrors([]);
-        setShowPreview(false);
+      let msg = `Successfully imported ${result.imported} sales records`;
+      if (result.newDishesCreated > 0) {
+        msg += `. Auto-created ${result.newDishesCreated} new dish(es): ${result.newDishes.join(', ')}`;
       }
+      toast.success(msg);
+
+      // Refresh app data
+      setCsvData([]);
+      setErrors([]);
+      setShowPreview(false);
+
+      // Trigger a page reload to refresh recipes + sales data
+      window.location.reload();
     } catch (error: any) {
       if (error.message?.includes('duplicate')) {
         toast.error('Duplicate records detected. The system prevents duplicate entries for the same date and recipe.');
       } else {
-        toast.error('Failed to import sales data');
+        toast.error(`Failed to import sales data: ${error.message}`);
       }
     } finally {
       setIsImporting(false);
@@ -425,27 +402,55 @@ export function ImportSalesData() {
         <p className="text-gray-600 mt-1">Upload CSV file from your POS system</p>
       </div>
 
-      {/* Template Download */}
+      {/* Date Format & Template */}
       <Card className="border-[#4F6F52]/20">
         <CardHeader>
-          <CardTitle>Step 1: Download Template</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-[#4F6F52]" />
+            Step 1: Select Date Format & Download Template
+          </CardTitle>
           <CardDescription>
-            Use our standard template to ensure your data is formatted correctly
+            Choose the date format used in your CSV file, then download the template
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Date Format Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Date Format in CSV</label>
+            <select
+              value={dateFormat}
+              title="Select date format for CSV import"
+              onChange={(e) => {
+                setDateFormat(e.target.value);
+                // Reset validation when format changes
+                if (csvData.length > 0) {
+                  setCsvData([]);
+                  setErrors([]);
+                  setShowPreview(false);
+                  toast.info('Date format changed. Please re-upload your CSV file.');
+                }
+              }}
+              className="w-full max-w-md border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4F6F52] focus:border-[#4F6F52] bg-white"
+            >
+              {DATE_FORMATS.map((fmt) => (
+                <option key={fmt.value} value={fmt.value}>
+                  {fmt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Template Download */}
           <Button onClick={handleDownloadTemplate} variant="outline" className="gap-2">
             <Download className="w-4 h-4" />
             Download Sample Template (.csv)
           </Button>
-          <div className="mt-4 p-4 bg-[#E6EFE0] rounded-lg border border-[#4F6F52]/20">
+          <div className="p-4 bg-[#E6EFE0] rounded-lg border border-[#4F6F52]/20">
             <p className="text-sm font-medium text-[#1A1C18] mb-2">Required Columns:</p>
             <ul className="text-sm text-gray-700 space-y-1">
-              <li>• <strong>Date</strong>: YYYY-MM-DD format (e.g., 2026-01-20)</li>
-              <li>• <strong>Dish_Name</strong>: Must match exactly with recipes in your database</li>
+              <li>• <strong>Date</strong>: {DATE_FORMATS.find(f => f.value === dateFormat)?.label || dateFormat}</li>
+              <li>• <strong>Dish_Name</strong>: Dish name (new dishes will be auto-created)</li>
               <li>• <strong>Quantity_Sold</strong>: Number of dishes sold</li>
-              <li>• <strong>Total_Revenue_SGD</strong>: Optional (will auto-correct "S$ 5" to "5.00")</li>
-              <li>• <strong>Unit_Cost_SGD</strong>: Optional</li>
             </ul>
           </div>
         </CardContent>
@@ -501,7 +506,7 @@ export function ImportSalesData() {
               Upload Failed: {errors.length} issue{errors.length > 1 ? 's' : ''} detected
             </CardTitle>
             <CardDescription>
-              Please fix the errors below before importing. Missing dishes must be added to Recipe Management first.
+              Please fix the errors below before importing.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -822,7 +827,6 @@ export function ImportSalesData() {
                     <TableHead>Date</TableHead>
                     <TableHead>Dish Name</TableHead>
                     <TableHead>Quantity</TableHead>
-                    <TableHead>Revenue (S$)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -831,7 +835,6 @@ export function ImportSalesData() {
                       <TableCell className="font-mono">{row.Date}</TableCell>
                       <TableCell className="font-medium">{row.Dish_Name}</TableCell>
                       <TableCell>{row.Quantity_Sold}</TableCell>
-                      <TableCell>{row.Total_Revenue_SGD || '-'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

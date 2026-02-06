@@ -9,8 +9,8 @@ import { getStandardizedQuantity } from '@/app/utils/unitConversion';
 import { calculateRecipeCarbon, calculateRecipeWeight } from '@/app/utils/recipeCalculations';
 
 interface WastageTrendChartProps {
-  dateRange: 'today' | '7days' | 'custom';
-  onDateRangeChange: (range: 'today' | '7days' | 'custom') => void;
+  dateRange: 'today' | '7days' | '30days' | '90days' | 'all' | 'custom';
+  onDateRangeChange: (range: 'today' | '7days' | '30days' | '90days' | 'all' | 'custom') => void;
   maxDays?: number;
   onBarClick?: (date: string) => void;
   selectedDate?: string | null;
@@ -19,7 +19,7 @@ interface WastageTrendChartProps {
 export function WastageTrendChart({
   dateRange,
   onDateRangeChange,
-  maxDays = 30,
+  maxDays,
   onBarClick,
   selectedDate,
 }: WastageTrendChartProps) {
@@ -27,30 +27,58 @@ export function WastageTrendChart({
 
   const { chartData, totalCarbonFootprint } = useMemo(() => {
     const today = new Date();
-    const daysToShow = dateRange === 'today' ? 1 : Math.min(maxDays, dateRange === '7days' ? 7 : 30);
+
+    // Calculate daysToShow based on the selected range
+    let daysToShow: number;
+    if (dateRange === 'today') {
+      daysToShow = 1;
+    } else if (dateRange === '7days') {
+      daysToShow = 7;
+    } else if (dateRange === '30days') {
+      daysToShow = 30;
+    } else if (dateRange === '90days') {
+      daysToShow = 90;
+    } else if (dateRange === 'all') {
+      if (wastageData.length === 0) {
+        daysToShow = 30;
+      } else {
+        const earliest = wastageData.reduce((min, w) => w.date < min ? w.date : min, wastageData[0].date);
+        const earliestDate = new Date(earliest);
+        earliestDate.setHours(0, 0, 0, 0);
+        daysToShow = Math.max(1, Math.ceil((today.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      }
+    } else {
+      daysToShow = maxDays ? Math.min(maxDays, 30) : 30;
+    }
+
+    // Apply maxDays cap if set
+    if (maxDays && dateRange !== 'all') {
+      daysToShow = Math.min(daysToShow, maxDays);
+    }
+
     const startDate = subDays(today, daysToShow - 1);
 
     const ingredientMap = new Map(ingredients.map((i) => [i.id, { ...i }]));
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
-    
+
     const groupedByDate: { [key: string]: { weightKg: number; carbon: number } } = {};
 
     wastageData.forEach((waste) => {
       const wasteDate = parseISO(waste.date);
       if (wasteDate >= startDate && wasteDate <= today) {
         const dateKey = waste.date;
-        
+
         if (!groupedByDate[dateKey]) {
           groupedByDate[dateKey] = { weightKg: 0, carbon: 0 };
         }
-        
+
         let weightInKg = 0;
         let carbonEmission = 0;
 
         if (waste.recipeId) {
           const portionWeight = calculateRecipeWeight(waste.recipeId, recipeMap, ingredientMap);
           const portionCarbon = calculateRecipeCarbon(waste.recipeId, recipeMap, ingredientMap);
-          
+
           weightInKg = portionWeight * waste.quantity;
           carbonEmission = portionCarbon * waste.quantity;
 
@@ -69,13 +97,13 @@ export function WastageTrendChart({
 
     const data = [];
     let totalCarbon = 0;
-    
+
     for (let i = daysToShow - 1; i >= 0; i--) {
       const date = subDays(today, i);
       const dateKey = format(date, 'yyyy-MM-dd');
       const dayData = groupedByDate[dateKey] || { weightKg: 0, carbon: 0 };
       totalCarbon += dayData.carbon;
-      
+
       data.push({
         date: dateKey,
         displayDate: format(date, 'd MMM'),
@@ -148,13 +176,15 @@ export function WastageTrendChart({
             </CardDescription>
           </div>
           <Select value={dateRange} onValueChange={(value: any) => onDateRangeChange(value)}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="today">Today</SelectItem>
               <SelectItem value="7days">Last 7 Days</SelectItem>
-              {maxDays > 7 && <SelectItem value="custom">Last 30 Days</SelectItem>}
+              {(!maxDays || maxDays > 7) && <SelectItem value="30days">Last 30 Days</SelectItem>}
+              {(!maxDays || maxDays > 30) && <SelectItem value="90days">Last 90 Days</SelectItem>}
+              {!maxDays && <SelectItem value="all">All Time</SelectItem>}
             </SelectContent>
           </Select>
         </div>
@@ -170,8 +200,8 @@ export function WastageTrendChart({
               textAnchor="end"
               height={60}
             />
-            <YAxis yAxisId="left" tick={{ fontSize: 12 }} label={{ value: 'Wastage (kg)', angle: -90, position: 'insideLeft' }}/>
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} label={{ value: 'Carbon (kg CO₂)', angle: 90, position: 'insideRight' }}/>
+            <YAxis yAxisId="left" tick={{ fontSize: 12 }} label={{ value: 'Wastage (kg)', angle: -90, position: 'insideLeft' }} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} label={{ value: 'Carbon (kg CO₂)', angle: 90, position: 'insideRight' }} />
             <Tooltip />
             <Legend />
             <Bar

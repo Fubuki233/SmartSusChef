@@ -13,6 +13,7 @@ public interface ISalesService
     Task<List<IngredientUsageDto>> GetIngredientUsageByDateAsync(DateTime date);
     Task<List<RecipeSalesDto>> GetRecipeSalesByDateAsync(DateTime date);
     Task ImportAsync(List<CreateSalesDataRequest> salesData);
+    Task<ImportSalesByNameResponse> ImportByNameAsync(List<ImportSalesByNameItem> salesData, string? dateFormat = null);
     /// Integrates GlobalCalendarSignals (Weather/Holidays) with Sales Trends
     Task<List<SalesWithSignalsDto>> GetSalesTrendsWithSignalsAsync(DateTime startDate, DateTime endDate);
 }

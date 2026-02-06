@@ -1,8 +1,8 @@
-name: Deploy ML API to ECS
+name: Deploy ML API to ECS (Legacy)
 
+# NOTE: This workflow is superseded by aws-deploy.yml
+# Kept for reference only — manual trigger only
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
 
 env:

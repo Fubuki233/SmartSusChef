@@ -99,6 +99,56 @@ _silence_logs()
 
 
 # ---------------------------------------------------------------------------
+# GPU Detection
+# ---------------------------------------------------------------------------
+def _detect_gpu() -> Dict[str, bool]:
+    """Auto-detect available GPU support for each tree framework."""
+    gpu = {"xgboost": False, "catboost": False, "lightgbm": False}
+
+    # XGBoost: check for CUDA device
+    try:
+        import xgboost as _xgb
+        _test = _xgb.XGBRegressor(tree_method="hist", device="cuda", n_estimators=1)
+        _test.fit(np.array([[0]]), np.array([0]))
+        gpu["xgboost"] = True
+    except Exception:
+        pass
+
+    # CatBoost: check for GPU task_type
+    try:
+        from catboost import CatBoostRegressor as _CB
+        _test = _CB(iterations=1, task_type="GPU", verbose=False)
+        _test.fit(np.array([[0]]), np.array([0]))
+        gpu["catboost"] = True
+    except Exception:
+        pass
+
+    # LightGBM: check for GPU device
+    try:
+        import lightgbm as _lgb
+        _test = _lgb.LGBMRegressor(n_estimators=1, device="gpu", verbose=-1)
+        _test.fit(np.array([[0]]), np.array([0]))
+        gpu["lightgbm"] = True
+    except Exception:
+        pass
+
+    return gpu
+
+
+_GPU_AVAILABLE: Dict[str, bool] | None = None
+
+
+def get_gpu_flags() -> Dict[str, bool]:
+    """Return cached GPU detection results (runs once per process)."""
+    global _GPU_AVAILABLE
+    if _GPU_AVAILABLE is None:
+        _GPU_AVAILABLE = _detect_gpu()
+        for fw, ok in _GPU_AVAILABLE.items():
+            logger.info("GPU %s for %s", "enabled" if ok else "not available", fw)
+    return _GPU_AVAILABLE
+
+
+# ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 @dataclass
@@ -113,6 +163,7 @@ class PipelineConfig:
     n_optuna_trials: int = 30
     max_workers: int = 4
     model_dir: str = "models"
+    use_gpu: bool = True  # Auto-detect GPU; set False to force CPU
 
     # Fallback location for geocoding failures (9.2)
     default_fallback_address: str = "Shanghai, China"
@@ -290,13 +341,20 @@ def fetch_weather_from_db(start_date, end_date):
         return None
 
 
-def add_local_context(df, address, config: PipelineConfig = CFG):
+def add_local_context(df, address, config: PipelineConfig = CFG,
+                      latitude=None, longitude=None, country_code=None):
     """
     Enriches the sales data with local context features (Holidays + Weather).
     Uses geocoding to detect location and Open-Meteo for real weather data.
     Falls back to config.default_fallback_* if geocoding or weather fails.
+
+    If latitude, longitude, and country_code are provided directly,
+    geocoding is skipped.
     """
-    lat, lon, country_code = get_location_details(address)
+    if latitude is not None and longitude is not None and country_code:
+        lat, lon = latitude, longitude
+    else:
+        lat, lon, country_code = get_location_details(address)
 
     # Fallback if geocoding fails (using configurable defaults from 9.2)
     if lat is None:
@@ -361,8 +419,8 @@ def fetch_training_data():
         try:
             engine = create_engine(DB_URL)
             query = """
-            SELECT s.Date as date, r.Name as dish, s.QuantitySold as sales
-            FROM Sales s JOIN Recipes r ON s.RecipeId = r.Id
+            SELECT s.Date as date, r.Name as dish, s.Quantity as sales
+            FROM SalesData s JOIN Recipes r ON s.RecipeId = r.Id
             ORDER BY s.Date ASC
             """
             df = pd.read_sql(query, engine)
@@ -592,6 +650,7 @@ def _eval_hybrid_mae(
     """
     fold_maes = []
     tree_n_jobs = 1 if config.max_workers > 1 else -1
+    gpu = get_gpu_flags() if config.use_gpu else {}
 
     for fold in fold_cache:
         X_train = fold["X_train"]
@@ -603,31 +662,37 @@ def _eval_hybrid_mae(
         if model_type == "xgboost":
             if XGBRegressor is None:
                 raise ImportError("XGBoost is required but not installed.")
+            xgb_extra = {"tree_method": "hist", "device": "cuda"} if gpu.get("xgboost") else {}
             model = XGBRegressor(
                 n_estimators=100,
                 random_state=config.random_seed,
                 n_jobs=tree_n_jobs,
+                **xgb_extra,
                 **trial_params,
             )
             model.fit(X_train, y_train, verbose=False)
         elif model_type == "catboost":
             if CatBoostRegressor is None:
                 raise ImportError("CatBoost is required but not installed.")
+            cb_extra = {"task_type": "GPU"} if gpu.get("catboost") else {}
             model = CatBoostRegressor(
                 iterations=100,
                 random_seed=config.random_seed,
                 verbose=False,
+                **cb_extra,
                 **trial_params,
             )
             model.fit(X_train, y_train, verbose=False)
         elif model_type == "lightgbm":
             if lgb is None:
                 raise ImportError("LightGBM is required but not installed.")
+            lgb_extra = {"device": "gpu"} if gpu.get("lightgbm") else {}
             model = lgb.LGBMRegressor(
                 n_estimators=100,
                 random_state=config.random_seed,
                 n_jobs=tree_n_jobs,
                 verbose=-1,
+                **lgb_extra,
                 **trial_params,
             )
             model.fit(X_train, y_train)
@@ -783,29 +848,36 @@ def process_dish(dish_name: str, shared_df: pd.DataFrame, country_code: str, con
 
     # 2. Train champion tree model on residuals
     tree_n_jobs = 1 if config.max_workers > 1 else -1
+    gpu = get_gpu_flags() if config.use_gpu else {}
 
     if champion == "xgboost":
+        xgb_extra = {"tree_method": "hist", "device": "cuda"} if gpu.get("xgboost") else {}
         model = XGBRegressor(
             n_estimators=100,
             random_state=config.random_seed,
             n_jobs=tree_n_jobs,
+            **xgb_extra,
             **params_map[champion],
         )
         model.fit(X_full, y_full, verbose=False)
     elif champion == "catboost":
+        cb_extra = {"task_type": "GPU"} if gpu.get("catboost") else {}
         model = CatBoostRegressor(
             iterations=100,
             random_seed=config.random_seed,
             verbose=False,
+            **cb_extra,
             **params_map[champion],
         )
         model.fit(X_full, y_full, verbose=False)
     else:  # lightgbm
+        lgb_extra = {"device": "gpu"} if gpu.get("lightgbm") else {}
         model = lgb.LGBMRegressor(
             n_estimators=100,
             random_state=config.random_seed,
             n_jobs=tree_n_jobs,
             verbose=-1,
+            **lgb_extra,
             **params_map[champion],
         )
         model.fit(X_full, y_full)

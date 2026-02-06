@@ -73,35 +73,43 @@ export function PredictionSummary() {
         </div>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="displayDate"
-              tick={{ fontSize: 12 }}
-              angle={-45}
-              textAnchor="end"
-              height={60}
-            />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(value: number) => [value, 'Dishes']} />
-            <Legend />
-            <Bar
-              dataKey="forecast"
-              fill="#B4A373"
-              name="Forecast"
-              radius={[8, 8, 0, 0]}
-            />
-            <Line
-              type="monotone"
-              dataKey="forecast"
-              stroke="#E74C3C"
-              strokeWidth={3}
-              dot={{ fill: '#E74C3C', r: 4 }}
-              name="Forecast Trend"
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+        {totalForecast === 0 && forecastData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <Sparkles className="w-10 h-10 mb-3 opacity-40" />
+            <p className="text-sm">No prediction data available yet.</p>
+            <p className="text-xs mt-1">Train ML models first to generate forecasts.</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="displayDate"
+                tick={{ fontSize: 12 }}
+                angle={-45}
+                textAnchor="end"
+                height={60}
+              />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(value: number) => [value, 'Dishes']} />
+              <Legend />
+              <Bar
+                dataKey="forecast"
+                fill="#B4A373"
+                name="Forecast"
+                radius={[8, 8, 0, 0]}
+              />
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                stroke="#E74C3C"
+                strokeWidth={3}
+                dot={{ fill: '#E74C3C', r: 4 }}
+                name="Forecast Trend"
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

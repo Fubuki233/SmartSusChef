@@ -98,73 +98,81 @@ export function DishesForecast() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-            <XAxis
-              dataKey="displayDate"
-              tick={{ fontSize: 12 }}
-              angle={-45}
-              textAnchor="end"
-              height={60}
-            />
-            <YAxis
-              label={{ value: 'Total Dishes', angle: -90, position: 'insideLeft' }}
-              tick={{ fontSize: 12 }}
-            />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (active && payload && payload.length) {
-                  const data = payload[0].payload;
-                  let total = 0;
-                  return (
-                    <div className="bg-white p-3 border rounded-lg shadow-lg max-w-xs">
-                      <p className="font-semibold text-sm">{data.day}</p>
-                      <p className="text-xs text-gray-600 mb-2">{data.displayDate}</p>
-                      <div className="space-y-1">
-                        {payload.map((entry: any, index: number) => {
-                          const value = entry.value || 0;
-                          total += value;
-                          if (value > 0) {
-                            return (
-                              <div key={index} className="flex items-center justify-between gap-4 text-xs">
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-3 h-3 rounded-sm"
-                                    style={{ backgroundColor: entry.fill }}
-                                  />
-                                  <span>{entry.name}</span>
-                                </div>
-                                <span className="font-semibold">{value}</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </div>
-                      <div className="mt-2 pt-2 border-t">
-                        <p className="text-sm font-semibold text-[#4F6F52]">
-                          Total: {total} dishes
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: '12px' }} />
-            {mainRecipes.map((recipe, index) => (
-              <Bar
-                key={recipe.id}
-                dataKey={recipe.name}
-                stackId="dishes"
-                fill={CHART_COLORS[index % CHART_COLORS.length]}
-                radius={index === mainRecipes.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+        {totalForWeek === 0 && forecastData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <TrendingUp className="w-10 h-10 mb-3 opacity-40" />
+            <p className="text-sm">No dish forecast data available yet.</p>
+            <p className="text-xs mt-1">Train ML models first to generate dish-level forecasts.</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <XAxis
+                dataKey="displayDate"
+                tick={{ fontSize: 12 }}
+                angle={-45}
+                textAnchor="end"
+                height={60}
               />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
+              <YAxis
+                label={{ value: 'Total Dishes', angle: -90, position: 'insideLeft' }}
+                tick={{ fontSize: 12 }}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    let total = 0;
+                    return (
+                      <div className="bg-white p-3 border rounded-lg shadow-lg max-w-xs">
+                        <p className="font-semibold text-sm">{data.day}</p>
+                        <p className="text-xs text-gray-600 mb-2">{data.displayDate}</p>
+                        <div className="space-y-1">
+                          {payload.map((entry: any, index: number) => {
+                            const value = entry.value || 0;
+                            total += value;
+                            if (value > 0) {
+                              return (
+                                <div key={index} className="flex items-center justify-between gap-4 text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-3 h-3 rounded-sm"
+                                      style={{ backgroundColor: entry.fill }}
+                                    />
+                                    <span>{entry.name}</span>
+                                  </div>
+                                  <span className="font-semibold">{value}</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                        <div className="mt-2 pt-2 border-t">
+                          <p className="text-sm font-semibold text-[#4F6F52]">
+                            Total: {total} dishes
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: '12px' }} />
+              {mainRecipes.map((recipe, index) => (
+                <Bar
+                  key={recipe.id}
+                  dataKey={recipe.name}
+                  stackId="dishes"
+                  fill={CHART_COLORS[index % CHART_COLORS.length]}
+                  radius={index === mainRecipes.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );
