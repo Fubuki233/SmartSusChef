@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace SmartSusChef.Api.DTOs;
 
 public record RecipeDto(
@@ -19,7 +21,7 @@ public record RecipeIngredientDto(
 );
 
 public record CreateRecipeRequest(
-    string Name,
+    [Required][StringLength(100)] string Name,
     bool IsSellable,
     bool IsSubRecipe,
     List<CreateRecipeIngredientRequest> Ingredients
@@ -28,11 +30,11 @@ public record CreateRecipeRequest(
 public record CreateRecipeIngredientRequest(
     string? IngredientId,
     string? ChildRecipeId,
-    decimal Quantity
+    [Range(0.0001, double.MaxValue)] decimal Quantity
 );
 
 public record UpdateRecipeRequest(
-    string Name,
+    [Required][StringLength(100)] string Name,
     bool IsSellable,
     bool IsSubRecipe,
     List<CreateRecipeIngredientRequest> Ingredients

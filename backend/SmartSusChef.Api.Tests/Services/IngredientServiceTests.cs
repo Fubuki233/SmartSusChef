@@ -42,6 +42,39 @@ public class IngredientServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_ShouldThrowException_WhenNameIsDuplicate()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        context.Ingredients.Add(new Ingredient { Id = Guid.NewGuid(), Name = "Flour", StoreId = storeId, Unit = "kg" });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new IngredientService(context, mockCurrentUserService.Object);
+        var request = new DTOs.CreateIngredientRequest("Flour", "kg", 0.5m);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(request));
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldThrowException_WhenUnitIsInvalid()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new IngredientService(context, mockCurrentUserService.Object);
+        var request = new DTOs.CreateIngredientRequest("Sugar", "invalid_unit", 0.5m);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(request));
+    }
+
+    [Fact]
     public async Task GetAllAsync_ShouldReturnOnlyIngredientsForCurrentStore()
     {
         // Arrange
