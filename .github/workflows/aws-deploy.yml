@@ -23,6 +23,52 @@ env:
 
 jobs:
   # ==========================================
+  # STAGE 0: Detect Changes (skip unchanged services)
+  # ==========================================
+  detect-changes:
+    name: "Detect Changes"
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      ml: ${{ steps.filter.outputs.ml }}
+      infra: ${{ steps.filter.outputs.infra }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            ml:
+              - 'ML/**'
+            infra:
+              - 'infrastructure/**'
+              - '.aws/**'
+              - '.github/workflows/**'
+              - 'docker-compose.yml'
+
+      - name: Generate version
+        id: version
+        run: echo "version=$(date +'%Y%m%d')-${{ github.run_number }}-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        run: |
+          echo "## Changes Detected" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Changed |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ${{ steps.filter.outputs.backend }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ steps.filter.outputs.frontend }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ML | ${{ steps.filter.outputs.ml }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Infra/CI | ${{ steps.filter.outputs.infra }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
   # STAGE 1: Security Scanning (DevSecOps)
   # ==========================================
   security-scan:
@@ -88,18 +134,13 @@ jobs:
   # ==========================================
   backend-build:
     name: "Backend Build & Test"
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
-
-    outputs:
-      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Generate version
-        id: version
-        run: echo "version=$(date +'%Y%m%d')-${{ github.run_number }}-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -129,6 +170,8 @@ jobs:
   # ==========================================
   frontend-build:
     name: "Frontend Build & Test"
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -172,6 +215,8 @@ jobs:
   # ==========================================
   ml-build:
     name: "ML Service Build & Test"
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.ml == 'true' || needs.detect-changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -208,8 +253,10 @@ jobs:
   docker-build-push:
     name: "Build & Push Docker Images"
     runs-on: ubuntu-latest
-    needs: [backend-build, frontend-build, ml-build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [detect-changes, backend-build, frontend-build, ml-build]
+    if: |
+      !cancelled() && !failure() &&
+      github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     outputs:
       backend-image: ${{ steps.build-backend.outputs.image }}
@@ -238,39 +285,58 @@ jobs:
         id: build-backend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ needs.backend-build.outputs.version }}
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG \
-                        -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest ./backend
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          if [ "${{ needs.detect-changes.outputs.backend }}" = "true" ] || [ "${{ needs.detect-changes.outputs.infra }}" = "true" ]; then
+            echo "Building backend image..."
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG \
+                          -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest ./backend
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "Backend unchanged, skipping build"
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build and push Frontend image
         id: build-frontend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ needs.backend-build.outputs.version }}
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG \
-                        -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest ./frontend
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          if [ "${{ needs.detect-changes.outputs.frontend }}" = "true" ] || [ "${{ needs.detect-changes.outputs.infra }}" = "true" ]; then
+            echo "Building frontend image..."
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG \
+                          -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest ./frontend
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "Frontend unchanged, skipping build"
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build and push ML image
         id: build-ml
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ needs.backend-build.outputs.version }}
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_ML:$IMAGE_TAG \
-                        -t $ECR_REGISTRY/$ECR_REPOSITORY_ML:latest ./ML
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_ML:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY_ML:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_ML:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          if [ "${{ needs.detect-changes.outputs.ml }}" = "true" ] || [ "${{ needs.detect-changes.outputs.infra }}" = "true" ]; then
+            echo "Building ML image..."
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_ML:$IMAGE_TAG \
+                          -t $ECR_REGISTRY/$ECR_REPOSITORY_ML:latest ./ML
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_ML:$IMAGE_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY_ML:latest
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_ML:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "ML unchanged, skipping build"
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY_ML:latest" >> $GITHUB_OUTPUT
+          fi
 
       - name: Trivy scan - Backend image
+        if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:latest
@@ -279,6 +345,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Trivy scan - Frontend image
+        if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
@@ -287,6 +354,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Trivy scan - ML image
+        if: needs.detect-changes.outputs.ml == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_ML }}:latest
@@ -300,7 +368,7 @@ jobs:
   deploy-uat:
     name: "Deploy to UAT"
     runs-on: ubuntu-latest
-    needs: [docker-build-push]
+    needs: [docker-build-push, detect-changes]
     environment:
       name: uat
       url: http://smartsuschef-uat-alb-374711244.ap-southeast-1.elb.amazonaws.com
@@ -367,6 +435,7 @@ jobs:
           image: ${{ needs.docker-build-push.outputs.ml-image }}
 
       - name: Deploy ML Service to UAT ECS
+        if: needs.detect-changes.outputs.ml == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
@@ -376,6 +445,7 @@ jobs:
           wait-for-minutes: 15
 
       - name: Deploy Backend to UAT ECS
+        if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def-backend.outputs.task-definition }}
@@ -385,6 +455,7 @@ jobs:
           wait-for-minutes: 15
 
       - name: Deploy Frontend to UAT ECS
+        if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
@@ -408,7 +479,7 @@ jobs:
   deploy-production:
     name: "Deploy to Production"
     runs-on: ubuntu-latest
-    needs: [deploy-uat, docker-build-push]
+    needs: [deploy-uat, docker-build-push, detect-changes]
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
@@ -476,6 +547,7 @@ jobs:
           image: ${{ needs.docker-build-push.outputs.ml-image }}
 
       - name: Deploy ML to Production ECS
+        if: needs.detect-changes.outputs.ml == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
@@ -485,6 +557,7 @@ jobs:
           wait-for-minutes: 15
 
       - name: Deploy Backend to Production ECS
+        if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def-backend.outputs.task-definition }}
@@ -494,6 +567,7 @@ jobs:
           wait-for-minutes: 15
 
       - name: Deploy Frontend to Production ECS
+        if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infra == 'true'
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
@@ -514,7 +588,7 @@ jobs:
   notify:
     name: "Pipeline Summary"
     runs-on: ubuntu-latest
-    needs: [security-scan, trivy-scan, backend-build, frontend-build, ml-build, docker-build-push, deploy-uat]
+    needs: [detect-changes, security-scan, trivy-scan, backend-build, frontend-build, ml-build, docker-build-push, deploy-uat]
     if: always()
 
     steps:
