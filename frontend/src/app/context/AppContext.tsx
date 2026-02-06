@@ -66,10 +66,10 @@ interface AppContextType {
   forecastData: ForecastData[];
   addIngredient: (ingredient: Omit<Ingredient, "id">) => Promise<void>;
   updateIngredient: (id: string, ingredient: Partial<Ingredient>) => Promise<void>;
-  deleteIngredient: (id: string) => Promise<void>;
+  deleteIngredient: (id: string, cascadeDelete?: boolean) => Promise<void>;
   addRecipe: (recipe: Omit<Recipe, "id">) => Promise<void>;
   updateRecipe: (id: string, recipe: Partial<Recipe>) => Promise<void>;
-  deleteRecipe: (id: string) => Promise<void>;
+  deleteRecipe: (id: string, cascadeDelete?: boolean) => Promise<void>;
   addSalesData: (data: Omit<SalesData, "id">) => Promise<void>;
   updateSalesData: (id: string, data: Partial<SalesData>) => Promise<void>;
   deleteSalesData: (id: string) => Promise<void>;
@@ -479,8 +479,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const deleteIngredient = async (id: string) => {
+  const deleteIngredient = async (id: string, cascadeDelete: boolean = false) => {
     try {
+      // If cascade delete is enabled, first delete all related wastage data
+      if (cascadeDelete) {
+        const relatedWastageData = wastageData.filter(w => w.ingredientId === id);
+        await Promise.all(
+          relatedWastageData.map(waste => wastageApi.delete(waste.id))
+        );
+        setWastageData(prev => prev.filter(w => w.ingredientId !== id));
+      }
+
+      // Then delete the ingredient
       await ingredientsApi.delete(id);
       setIngredients(prev => prev.filter(i => i.id !== id));
     } catch (error) {
@@ -533,8 +543,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const deleteRecipe = async (id: string) => {
+  const deleteRecipe = async (id: string, cascadeDelete: boolean = false) => {
     try {
+      // If cascade delete is enabled, first delete all related sales and wastage data
+      if (cascadeDelete) {
+        const relatedSalesData = salesData.filter(s => s.recipeId === id);
+        const relatedWastageData = wastageData.filter(w => w.recipeId === id);
+
+        await Promise.all([
+          ...relatedSalesData.map(sale => salesApi.delete(sale.id)),
+          ...relatedWastageData.map(waste => wastageApi.delete(waste.id)),
+        ]);
+
+        setSalesData(prev => prev.filter(s => s.recipeId !== id));
+        setWastageData(prev => prev.filter(w => w.recipeId !== id));
+      }
+
+      // Then delete the recipe
       await recipesApi.delete(id);
       setRecipes(prev => prev.filter(r => r.id !== id));
     } catch (error) {

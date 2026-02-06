@@ -11,14 +11,14 @@ import { toast } from 'sonner';
 import { Ingredient } from '@/app/types';
 
 export function IngredientManagement() {
-  const { ingredients, addIngredient, updateIngredient, deleteIngredient } = useApp();
+  const { ingredients, addIngredient, updateIngredient, deleteIngredient, wastageData } = useApp();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [carbonFootprint, setCarbonFootprint] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [deletingIngredient, setDeletingIngredient] = useState<{ id: string; name: string } | null>(null);
+  const [deletingIngredient, setDeletingIngredient] = useState<{ id: string; name: string; wastageCount: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -81,21 +81,44 @@ export function IngredientManagement() {
   };
 
   const handleOpenDeleteDialog = (id: string, name: string) => {
-    setDeletingIngredient({ id, name });
+    // Check if ingredient exists in Wastage Data
+    const wastageCount = wastageData.filter(waste => waste.ingredientId === id).length;
+
+    setDeletingIngredient({ id, name, wastageCount });
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     if (!deletingIngredient) return;
 
+    const { wastageCount } = deletingIngredient;
+    const hasRelatedData = wastageCount > 0;
+
+    // If no related data, just delete
+    if (!hasRelatedData) {
+      setIsDeleting(true);
+      try {
+        await deleteIngredient(deletingIngredient.id, false);
+        toast.success('Ingredient deleted successfully');
+        setIsDeleteDialogOpen(false);
+        setDeletingIngredient(null);
+      } catch (error) {
+        toast.error('Failed to delete ingredient');
+      } finally {
+        setIsDeleting(false);
+      }
+      return;
+    }
+
+    // If related data exists, delete with cascade
     setIsDeleting(true);
     try {
-      await deleteIngredient(deletingIngredient.id);
-      toast.success('Ingredient deleted successfully');
+      await deleteIngredient(deletingIngredient.id, true);
+      toast.success(`Ingredient and ${wastageCount} related wastage record${wastageCount > 1 ? 's' : ''} deleted successfully`);
       setIsDeleteDialogOpen(false);
       setDeletingIngredient(null);
     } catch (error) {
-      toast.error('Failed to delete ingredient');
+      toast.error('Failed to delete ingredient and related data');
     } finally {
       setIsDeleting(false);
     }
@@ -237,22 +260,45 @@ export function IngredientManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-gray-700">
-                Are you sure you want to delete this ingredient?
-              </p>
               {deletingIngredient && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="text-sm">
-                    <div className="text-gray-600">Ingredient Name:</div>
-                    <div className="font-medium text-gray-900 mt-1">
-                      {deletingIngredient.name}
-                    </div>
-                  </div>
-                </div>
+                <>
+                  {deletingIngredient.wastageCount > 0 ? (
+                    <>
+                      <p className="text-gray-700">
+                        This ingredient has related wastage data records. Deleting it will also remove:
+                      </p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+                        <div className="font-medium text-amber-900">{deletingIngredient.name}</div>
+                        <div className="space-y-1 text-sm">
+                          <div className="text-gray-700">
+                            • <span className="font-semibold text-amber-700">{deletingIngredient.wastageCount}</span> Wastage Data record{deletingIngredient.wastageCount > 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        ⚠️ Warning: This will permanently delete the ingredient and all {deletingIngredient.wastageCount} related wastage record{deletingIngredient.wastageCount > 1 ? 's' : ''}. This action cannot be undone.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-700">
+                        Are you sure you want to delete this ingredient?
+                      </p>
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="text-sm">
+                          <div className="text-gray-600">Ingredient Name:</div>
+                          <div className="font-medium text-gray-900 mt-1">
+                            {deletingIngredient.name}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        Warning: This action cannot be undone.
+                      </p>
+                    </>
+                  )}
+                </>
               )}
-              <p className="text-sm text-red-600 font-medium">
-                Warning: This action cannot be undone.
-              </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button

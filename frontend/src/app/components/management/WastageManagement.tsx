@@ -79,20 +79,10 @@ export function WastageManagement() {
     const thirtyDaysAgo = subDays(today, 30);
     thirtyDaysAgo.setHours(0, 0, 0, 0); // Start of 30 days ago
 
-    console.log('[WastageManagement] Total wastageData:', wastageData.length);
-    console.log('[WastageManagement] Date range:', thirtyDaysAgo.toISOString(), 'to', today.toISOString());
-    console.log('[WastageManagement] Sample wastageData:', wastageData.slice(0, 3));
-
     let data = wastageData.filter((waste) => {
       const wasteDate = parseISO(waste.date); // Use parseISO for reliable date parsing
-      const isInRange = wasteDate >= thirtyDaysAgo && wasteDate <= today;
-      if (!isInRange) {
-        console.log('[WastageManagement] Filtered out (date):', waste.date, wasteDate.toISOString());
-      }
-      return isInRange;
+      return wasteDate >= thirtyDaysAgo && wasteDate <= today;
     });
-
-    console.log('[WastageManagement] After date filter:', data.length);
 
     if (selectedType !== 'all') {
       data = data.filter((waste) => {
@@ -104,8 +94,6 @@ export function WastageManagement() {
           (selectedType === 'Raw' && info.type === 'Raw');
       });
     }
-
-    console.log('[WastageManagement] Final filtered data:', data.length);
 
     return data.sort((a, b) => b.date.localeCompare(a.date));
   }, [wastageData, selectedType, recipes, ingredients]);

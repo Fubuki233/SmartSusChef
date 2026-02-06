@@ -21,12 +21,12 @@ interface FormRow {
 }
 
 export function RecipeManagement() {
-  const { recipes, ingredients, addRecipe, updateRecipe, deleteRecipe, storeSettings } = useApp();
+  const { recipes, ingredients, addRecipe, updateRecipe, deleteRecipe, storeSettings, salesData, wastageData } = useApp();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [deletingRecipe, setDeletingRecipe] = useState<{ id: string; name: string } | null>(null);
+  const [deletingRecipe, setDeletingRecipe] = useState<{ id: string; name: string; salesCount: number; wastageCount: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -157,21 +157,45 @@ export function RecipeManagement() {
   };
 
   const handleOpenDeleteDialog = (id: string, name: string) => {
-    setDeletingRecipe({ id, name });
+    // Check if recipe exists in Sales Data or Wastage Data
+    const salesCount = salesData.filter(sale => sale.recipeId === id).length;
+    const wastageCount = wastageData.filter(waste => waste.recipeId === id).length;
+
+    setDeletingRecipe({ id, name, salesCount, wastageCount });
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     if (!deletingRecipe) return;
 
+    const { salesCount, wastageCount } = deletingRecipe;
+    const hasRelatedData = salesCount > 0 || wastageCount > 0;
+
+    // If no related data, just delete
+    if (!hasRelatedData) {
+      setIsDeleting(true);
+      try {
+        await deleteRecipe(deletingRecipe.id, false);
+        toast.success('Recipe deleted successfully');
+        setIsDeleteDialogOpen(false);
+        setDeletingRecipe(null);
+      } catch (error) {
+        toast.error('Failed to delete recipe');
+      } finally {
+        setIsDeleting(false);
+      }
+      return;
+    }
+
+    // If related data exists, delete with cascade
     setIsDeleting(true);
     try {
-      await deleteRecipe(deletingRecipe.id);
-      toast.success('Recipe deleted successfully');
+      await deleteRecipe(deletingRecipe.id, true);
+      toast.success(`Recipe and ${salesCount + wastageCount} related records deleted successfully`);
       setIsDeleteDialogOpen(false);
       setDeletingRecipe(null);
     } catch (error) {
-      toast.error('Failed to delete recipe');
+      toast.error('Failed to delete recipe and related data');
     } finally {
       setIsDeleting(false);
     }
@@ -442,22 +466,52 @@ export function RecipeManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-gray-700">
-                Are you sure you want to delete this recipe?
-              </p>
               {deletingRecipe && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="text-sm">
-                    <div className="text-gray-600">Recipe Name:</div>
-                    <div className="font-medium text-gray-900 mt-1">
-                      {deletingRecipe.name}
-                    </div>
-                  </div>
-                </div>
+                <>
+                  {deletingRecipe.salesCount > 0 || deletingRecipe.wastageCount > 0 ? (
+                    <>
+                      <p className="text-gray-700">
+                        This recipe has related data records. Deleting it will also remove:
+                      </p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+                        <div className="font-medium text-amber-900">{deletingRecipe.name}</div>
+                        <div className="space-y-1 text-sm">
+                          {deletingRecipe.salesCount > 0 && (
+                            <div className="text-gray-700">
+                              • <span className="font-semibold text-amber-700">{deletingRecipe.salesCount}</span> Sales Data record{deletingRecipe.salesCount > 1 ? 's' : ''}
+                            </div>
+                          )}
+                          {deletingRecipe.wastageCount > 0 && (
+                            <div className="text-gray-700">
+                              • <span className="font-semibold text-amber-700">{deletingRecipe.wastageCount}</span> Wastage Data record{deletingRecipe.wastageCount > 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        ⚠️ Warning: This will permanently delete the recipe and all {deletingRecipe.salesCount + deletingRecipe.wastageCount} related data records. This action cannot be undone.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-700">
+                        Are you sure you want to delete this recipe?
+                      </p>
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="text-sm">
+                          <div className="text-gray-600">Recipe Name:</div>
+                          <div className="font-medium text-gray-900 mt-1">
+                            {deletingRecipe.name}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        Warning: This action cannot be undone.
+                      </p>
+                    </>
+                  )}
+                </>
               )}
-              <p className="text-sm text-red-600 font-medium">
-                Warning: This action cannot be undone.
-              </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button
