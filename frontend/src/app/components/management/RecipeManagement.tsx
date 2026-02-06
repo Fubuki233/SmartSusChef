@@ -27,6 +27,8 @@ export function RecipeManagement() {
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingRecipe, setDeletingRecipe] = useState<{ id: string; name: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   interface RecipeFormState {
     name: string;
@@ -137,6 +139,7 @@ export function RecipeManagement() {
       ingredients: formattedIngredients,
     };
 
+    setIsSubmitting(true);
     try {
       if (editingRecipe) {
         await updateRecipe(editingRecipe.id, recipeData);
@@ -148,6 +151,8 @@ export function RecipeManagement() {
       setIsDialogOpen(false);
     } catch (error) {
       toast.error('Failed to save recipe');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -159,6 +164,7 @@ export function RecipeManagement() {
   const handleDeleteConfirm = async () => {
     if (!deletingRecipe) return;
 
+    setIsDeleting(true);
     try {
       await deleteRecipe(deletingRecipe.id);
       toast.success('Recipe deleted successfully');
@@ -166,6 +172,8 @@ export function RecipeManagement() {
       setDeletingRecipe(null);
     } catch (error) {
       toast.error('Failed to delete recipe');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -413,10 +421,10 @@ export function RecipeManagement() {
           </div>
 
           <DialogFooter className="p-6 pt-4 bg-gray-50 border-t border-gray-100 gap-3">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="rounded-[32px] px-6 border-gray-300 h-10 font-medium hover:bg-gray-100">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting} className="rounded-[32px] px-6 border-gray-300 h-10 font-medium hover:bg-gray-100">
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-8 h-10 font-medium shadow-sm transition-all hover:shadow-md">
+            <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-8 h-10 font-medium shadow-sm transition-all hover:shadow-md">
               {editingRecipe ? 'Save Changes' : 'Create Recipe'}
             </Button>
           </DialogFooter>
@@ -455,6 +463,7 @@ export function RecipeManagement() {
               <Button
                 variant="outline"
                 onClick={() => setIsDeleteDialogOpen(false)}
+                disabled={isDeleting}
                 className="rounded-[32px] px-6 hover:bg-gray-100"
               >
                 Cancel
@@ -462,6 +471,7 @@ export function RecipeManagement() {
               <Button
                 variant="destructive"
                 onClick={handleDeleteConfirm}
+                disabled={isDeleting}
                 className="bg-red-600 hover:bg-red-700 rounded-[32px] px-6"
               >
                 Yes, Delete Recipe

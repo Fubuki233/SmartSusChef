@@ -34,26 +34,36 @@ public class ForecastController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ForecastDto>>> GetForecast([FromQuery] int days = 7)
+    public async Task<ActionResult<List<ForecastDto>>> GetForecast([FromQuery] int days = 7, [FromQuery] int includePastDays = 0)
     {
         if (days < 1 || days > 30)
         {
             return BadRequest(new { message = "Days must be between 1 and 30" });
         }
 
-        var forecast = await _forecastService.GetForecastAsync(days);
+        if (includePastDays < 0 || includePastDays > 30)
+        {
+            return BadRequest(new { message = "includePastDays must be between 0 and 30" });
+        }
+
+        var forecast = await _forecastService.GetForecastAsync(days, includePastDays);
         return Ok(forecast);
     }
 
     [HttpGet("summary")]
-    public async Task<ActionResult<List<ForecastSummaryDto>>> GetForecastSummary([FromQuery] int days = 7)
+    public async Task<ActionResult<List<ForecastSummaryDto>>> GetForecastSummary([FromQuery] int days = 7, [FromQuery] int includePastDays = 0)
     {
         if (days < 1 || days > 30)
         {
             return BadRequest(new { message = "Days must be between 1 and 30" });
         }
 
-        var summary = await _forecastService.GetForecastSummaryAsync(days);
+        if (includePastDays < 0 || includePastDays > 30)
+        {
+            return BadRequest(new { message = "includePastDays must be between 0 and 30" });
+        }
+
+        var summary = await _forecastService.GetForecastSummaryAsync(days, includePastDays);
         return Ok(summary);
     }
 

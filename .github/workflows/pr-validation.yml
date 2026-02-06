@@ -154,9 +154,9 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const backendStatus = '${{ needs.backend-validate.result }}' === 'success' ? '✅' : '❌';
-            const frontendStatus = '${{ needs.frontend-validate.result }}' === 'success' ? '✅' : '❌';
-            const dockerStatus = '${{ needs.docker-test.result }}' === 'success' ? '✅' : '❌';
+            const backendStatus = '${{ needs.backend-validate.result }}' === 'success' ? 'True' : 'False';
+            const frontendStatus = '${{ needs.frontend-validate.result }}' === 'success' ? 'True' : 'False';
+            const dockerStatus = '${{ needs.docker-test.result }}' === 'success' ? 'True' : 'False';
             
             const body = `## CI/CD Status Report
             

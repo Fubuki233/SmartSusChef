@@ -38,6 +38,15 @@
                     android:text="Dish Sales Distribution"
                     android:textStyle="bold" />
 
+                <TextView
+                    android:id="@+id/tvSalesSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Total dishes sold: 0"
+                    android:textColor="@color/muted_text"
+                    android:textSize="12sp" />
+
                 <com.github.mikephil.charting.charts.PieChart
                     android:id="@+id/pieChartDishBreakdown"
                     android:layout_width="match_parent"

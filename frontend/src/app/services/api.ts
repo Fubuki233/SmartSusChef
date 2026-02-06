@@ -540,11 +540,11 @@ export interface HolidayDto {
 }
 
 export const forecastApi = {
-  get: (days: number = 7): Promise<ForecastDto[]> =>
-    fetchWithAuth(`/forecast?days=${days}`),
+  get: (days: number = 7, includePastDays: number = 0): Promise<ForecastDto[]> =>
+    fetchWithAuth(`/forecast?days=${days}&includePastDays=${includePastDays}`),
 
-  getSummary: (days: number = 7): Promise<ForecastSummaryDto[]> =>
-    fetchWithAuth(`/forecast/summary?days=${days}`),
+  getSummary: (days: number = 7, includePastDays: number = 0): Promise<ForecastSummaryDto[]> =>
+    fetchWithAuth(`/forecast/summary?days=${days}&includePastDays=${includePastDays}`),
 
   getWeather: (): Promise<WeatherDto | null> =>
     (fetchWithAuth<WeatherDto>('/forecast/weather').catch(() => null)),

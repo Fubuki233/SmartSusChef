@@ -11,13 +11,18 @@ export function PredictionDetail() {
   const { forecastData, recipes, ingredients } = useApp();
 
   const predictionData = useMemo(() => {
+    const ingredientTotals: { [ingredientId: string]: { [date: string]: number } } = {};
     const ingredientMap = new Map(ingredients.map((i) => [i.id, i]));
     const recipeMap = new Map(recipes.map((r) => [r.id, r]));
-    
-    // Intermediate storage to sum up totals before processing units
-    const ingredientTotals: { [ingredientId: string]: { [date: string]: number } } = {};
 
-    forecastData.forEach((forecast) => {
+    console.log('[PredictionDetail] Total forecast data:', forecastData.length);
+    console.log('[PredictionDetail] Recipes:', recipes.length, 'Ingredients:', ingredients.length);
+
+    // Show all unique dates in forecast data
+    const uniqueDates = [...new Set(forecastData.map(f => f.date))].sort();
+    console.log('[PredictionDetail] Available forecast dates:', uniqueDates);
+
+    forecastData.forEach(forecast => {
       const recipe = recipeMap.get(forecast.recipeId);
       if (!recipe) return;
 
@@ -32,35 +37,35 @@ export function PredictionDetail() {
         if (component.ingredientId) {
           targetId = component.ingredientId;
           quantityToAdd = component.quantity * fQty;
-          
+
           if (targetId) {
             const date = forecast.date;
             if (!ingredientTotals[targetId]) ingredientTotals[targetId] = {};
             if (!ingredientTotals[targetId][date]) ingredientTotals[targetId][date] = 0;
             ingredientTotals[targetId][date] += quantityToAdd;
           }
-        } 
-        
+        }
+
         // Case 2: Sub-Recipe
         else if (component.childRecipeId) {
-           const subRecipe = recipeMap.get(component.childRecipeId);
-           if (subRecipe) {
-             const totalSubWeight = subRecipe.ingredients.reduce((sum, i) => sum + i.quantity, 0);
-             const amountUsed = component.quantity;
+          const subRecipe = recipeMap.get(component.childRecipeId);
+          if (subRecipe) {
+            const totalSubWeight = subRecipe.ingredients.reduce((sum, i) => sum + i.quantity, 0);
+            const amountUsed = component.quantity;
 
-             if (totalSubWeight > 0) {
-               subRecipe.ingredients.forEach(subComp => {
-                 if (subComp.ingredientId) {
-                   const ratio = subComp.quantity / totalSubWeight;
-                   const subQty = ratio * amountUsed * fQty;
-                   
-                   if (!ingredientTotals[subComp.ingredientId]) ingredientTotals[subComp.ingredientId] = {};
-                   if (!ingredientTotals[subComp.ingredientId][forecast.date]) ingredientTotals[subComp.ingredientId][forecast.date] = 0;
-                   ingredientTotals[subComp.ingredientId][forecast.date] += subQty;
-                 }
-               });
-             }
-           }
+            if (totalSubWeight > 0) {
+              subRecipe.ingredients.forEach(subComp => {
+                if (subComp.ingredientId) {
+                  const ratio = subComp.quantity / totalSubWeight;
+                  const subQty = ratio * amountUsed * fQty;
+
+                  if (!ingredientTotals[subComp.ingredientId]) ingredientTotals[subComp.ingredientId] = {};
+                  if (!ingredientTotals[subComp.ingredientId][forecast.date]) ingredientTotals[subComp.ingredientId][forecast.date] = 0;
+                  ingredientTotals[subComp.ingredientId][forecast.date] += subQty;
+                }
+              });
+            }
+          }
         }
       });
     });
@@ -77,11 +82,11 @@ export function PredictionDetail() {
       if (ingredient) {
         // 1. Calculate max value to decide if we should upgrade unit
         const maxValue = Math.max(...Object.values(predictions));
-        
+
         // Use the conversion utility to determine the best unit
         const sampleConversion = convertUnit(maxValue, ingredient.unit);
         const displayUnit = sampleConversion.unit;
-        
+
         // 2. Convert all prediction values to the display unit
         const scaledPredictions: { [key: string]: number } = {};
         Object.entries(predictions).forEach(([date, val]) => {

@@ -24,6 +24,7 @@ class AuthRepository @Inject constructor(
      */
     suspend fun login(request: LoginRequest): Resource<LoginResponse> {
         return withContext(Dispatchers.IO) {
+            /*
             // --- MOCK IMPLEMENTATION FOR UI TESTING ---
             // This code pretends the login was successful without making a real network call.
             
@@ -37,8 +38,8 @@ class AuthRepository @Inject constructor(
 
             // 3. Return success
             Resource.Success(fakeResponse)
+            */
 
-            /*
             // --- ORIGINAL IMPLEMENTATION ---
             try {
                 val response = authApi.login(request)
@@ -56,7 +57,6 @@ class AuthRepository @Inject constructor(
             } catch (e: Exception) {
                 Resource.Error(e.localizedMessage ?: "An unexpected error occurred")
             }
-            */
         }
     }
 

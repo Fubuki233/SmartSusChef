@@ -1,10 +1,13 @@
 package com.smartsuschef.mobile.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.smartsuschef.mobile.network.api.*
 import com.smartsuschef.mobile.data.TokenManager
+import com.smartsuschef.mobile.util.Constants
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -18,23 +21,27 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
-/**
- * Network Module - Provides all networking dependencies via Hilt DI
- *
- * This module sets up:
- * 1. OkHttp client with auth interceptor and logging
- * 2. Retrofit instance with base URL and Gson converter
- * 3. All API service instances (Auth, Sales, Wastage, etc.)
- */
+// Create the DataStore instance as a top-level extension on Context
+private val Context.dataStore by preferencesDataStore(name = Constants.DATASTORE_NAME)
+
 @Module
 @InstallIn(SingletonComponent::class)
-object NetworkModule {
+object CoreNetworkModule {
 
     /**
      * Base URL for the API
      * Points to your teammate's server
      */
     private const val BASE_URL = "http://oversea.zyh111.icu:234/api/"
+
+    /**
+     * Provides the singleton DataStore<Preferences> instance for the app.
+     */
+    @Provides
+    @Singleton
+    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
+        return context.dataStore
+    }
 
     /**
      * Provides Gson instance for JSON serialization/deserialization
@@ -52,8 +59,8 @@ object NetworkModule {
      */
     @Provides
     @Singleton
-    fun provideTokenManager(@ApplicationContext context: Context): TokenManager {
-        return TokenManager(context)
+    fun provideTokenManager(dataStore: DataStore<Preferences>): TokenManager {
+        return TokenManager(dataStore)
     }
 
     /**
@@ -124,70 +131,5 @@ object NetworkModule {
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
-    }
-
-    // API SERVICE PROVIDERS
-
-    /**
-     * Provides AuthApiService for authentication endpoints
-     */
-    @Provides
-    @Singleton
-    fun provideAuthApiService(retrofit: Retrofit): AuthApiService {
-        return retrofit.create(AuthApiService::class.java)
-    }
-
-    /**
-     * Provides SalesApiService for sales data endpoints
-     */
-    @Provides
-    @Singleton
-    fun provideSalesApiService(retrofit: Retrofit): SalesApiService {
-        return retrofit.create(SalesApiService::class.java)
-    }
-
-    /**
-     * Provides WastageApiService for wastage data endpoints
-     */
-    @Provides
-    @Singleton
-    fun provideWastageApiService(retrofit: Retrofit): WastageApiService {
-        return retrofit.create(WastageApiService::class.java)
-    }
-
-    /**
-     * Provides ForecastApiService for forecast/weather/calendar endpoints
-     */
-    @Provides
-    @Singleton
-    fun provideForecastApiService(retrofit: Retrofit): ForecastApiService {
-        return retrofit.create(ForecastApiService::class.java)
-    }
-
-    /**
-     * Provides RecipeApiService for recipe management endpoints
-     */
-    @Provides
-    @Singleton
-    fun provideRecipeApiService(retrofit: Retrofit): RecipeApiService {
-        return retrofit.create(RecipeApiService::class.java)
-    }
-
-    /**
-     * Provides IngredientApiService for ingredient management endpoints
-     */
-    @Provides
-    @Singleton
-    fun provideIngredientApiService(retrofit: Retrofit): IngredientApiService {
-        return retrofit.create(IngredientApiService::class.java)
-    }
-
-    /**
-     * Provides StoreApiService for store information endpoints
-     */
-    @Provides
-    @Singleton
-    fun provideStoreApiService(retrofit: Retrofit): StoreApiService {
-        return retrofit.create(StoreApiService::class.java)
     }
 }

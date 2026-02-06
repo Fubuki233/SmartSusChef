@@ -16,3 +16,6 @@ xgboost
 catboost
 lightgbm
 shap
+fastapi
+uvicorn[standard]
+pydantic

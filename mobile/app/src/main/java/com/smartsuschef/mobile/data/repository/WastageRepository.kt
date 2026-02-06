@@ -100,7 +100,9 @@ class WastageRepository @Inject constructor(
             displayName = "Mocked Item",
             unit = "unit",
             quantity = request.quantity,
-            carbonFootprint = request.quantity * 1.5
+            carbonFootprint = request.quantity * 1.5,
+            createdAt = request.date,
+            updatedAt = request.date
         )
         return Resource.Success(fakeDto)
     }
@@ -115,7 +117,9 @@ class WastageRepository @Inject constructor(
             displayName = "Mocked Item",
             unit = "unit",
             quantity = request.quantity,
-            carbonFootprint = request.quantity * 1.5
+            carbonFootprint = request.quantity * 1.5,
+            createdAt = request.date,
+            updatedAt = request.date
         )
         return Resource.Success(fakeDto)
     }

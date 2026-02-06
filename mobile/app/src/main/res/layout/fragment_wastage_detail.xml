@@ -38,6 +38,15 @@
                     android:text="Wastage Breakdown"
                     android:textStyle="bold" />
 
+                <TextView
+                    android:id="@+id/tvWastageSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Total Carbon Footprint: 0.00 kg CO2"
+                    android:textColor="@color/muted_text"
+                    android:textSize="12sp" />
+
                 <com.github.mikephil.charting.charts.PieChart
                     android:id="@+id/pieChartWastageBreakdown"
                     android:layout_width="match_parent"

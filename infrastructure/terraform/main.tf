@@ -200,6 +200,15 @@ resource "aws_ecr_repository" "frontend" {
   }
 }
 
+resource "aws_ecr_repository" "ml_api" {
+  name                 = "smartsuschef-ml-api"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
 # ==========================================
 # ECS Cluster
 # ==========================================
@@ -238,7 +247,7 @@ resource "aws_lb" "main" {
 }
 
 resource "aws_lb_target_group" "backend" {
-  name        = "smartsuschef-${var.environment}-backend-tg"
+  name        = "ssc-${var.environment}-be-tg"
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = module.vpc.vpc_id
@@ -258,7 +267,7 @@ resource "aws_lb_target_group" "backend" {
 }
 
 resource "aws_lb_target_group" "frontend" {
-  name        = "smartsuschef-${var.environment}-frontend-tg"
+  name        = "ssc-${var.environment}-fe-tg"
   port        = 80
   protocol    = "HTTP"
   vpc_id      = module.vpc.vpc_id
@@ -552,6 +561,11 @@ output "ecr_backend_url" {
 output "ecr_frontend_url" {
   description = "ECR Frontend repository URL"
   value       = aws_ecr_repository.frontend.repository_url
+}
+
+output "ecr_ml_api_url" {
+  description = "ECR ML API repository URL"
+  value       = aws_ecr_repository.ml_api.repository_url
 }
 
 output "rds_endpoint" {

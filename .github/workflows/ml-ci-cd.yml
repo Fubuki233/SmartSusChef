@@ -27,7 +27,7 @@ jobs:
       - name: Set up Python 3.9
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9' # Adjust if your ML service requires a different Python version
+          python-version: '3.9' 
 
       - name: Install dependencies
         run: |
@@ -37,7 +37,6 @@ jobs:
         working-directory: ./ML
 
       - name: Run tests (if any)
-        # TODO: Replace with your actual test command, e.g., pytest
         run: echo "No ML tests configured yet. Add your test command here."
         working-directory: ./ML
 
