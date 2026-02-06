@@ -373,6 +373,7 @@ jobs:
           service: smartsuschef-uat-backend-service
           cluster: smartsuschef-uat-cluster
           wait-for-service-stability: true
+          wait-for-minutes: 15
 
       - name: Deploy Frontend to UAT ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -381,6 +382,7 @@ jobs:
           service: smartsuschef-uat-frontend-service
           cluster: smartsuschef-uat-cluster
           wait-for-service-stability: true
+          wait-for-minutes: 10
 
       - name: Deploy ML Service to UAT ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -389,6 +391,7 @@ jobs:
           service: smartsuschef-uat-ml-service
           cluster: smartsuschef-uat-cluster
           wait-for-service-stability: true
+          wait-for-minutes: 15
 
       - name: Run UAT Smoke Tests
         run: |
@@ -479,6 +482,7 @@ jobs:
           service: smartsuschef-production-backend-service
           cluster: smartsuschef-production-cluster
           wait-for-service-stability: true
+          wait-for-minutes: 15
 
       - name: Deploy Frontend to Production ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -487,6 +491,7 @@ jobs:
           service: smartsuschef-production-frontend-service
           cluster: smartsuschef-production-cluster
           wait-for-service-stability: true
+          wait-for-minutes: 10
 
       - name: Deploy ML to Production ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -495,6 +500,7 @@ jobs:
           service: smartsuschef-production-ml-service
           cluster: smartsuschef-production-cluster
           wait-for-service-stability: true
+          wait-for-minutes: 15
 
       - name: Production Smoke Tests
         run: |
