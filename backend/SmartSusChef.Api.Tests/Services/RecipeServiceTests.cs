@@ -96,6 +96,54 @@ public class RecipeServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_ShouldThrowException_WhenNameIsDuplicate()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        context.Recipes.Add(new Recipe { Id = Guid.NewGuid(), Name = "Margherita Pizza", StoreId = storeId });
+        await context.SaveChangesAsync();
+
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new RecipeService(context, mockCurrentUserService.Object);
+
+        var request = new DTOs.CreateRecipeRequest(
+            "Margherita Pizza",
+            true,
+            false,
+            new List<DTOs.CreateRecipeIngredientRequest>()
+        );
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(request));
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldThrowException_WhenIngredientStructureIsInvalid()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new RecipeService(context, mockCurrentUserService.Object);
+
+        var request = new DTOs.CreateRecipeRequest(
+            "Invalid Recipe",
+            true,
+            false,
+            new List<DTOs.CreateRecipeIngredientRequest>
+            {
+                new(null, null, 1.0m) // Both null
+            }
+        );
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(request));
+    }
+
+    [Fact]
     public async Task GetAllAsync_ShouldReturnOnlyRecipesForCurrentStore()
     {
         // Arrange

@@ -118,4 +118,67 @@ public class WastageServiceTests
         Assert.Null(savedEntry.RecipeId);
         Assert.Equal(storeId, savedEntry.StoreId);
     }
+
+    [Fact]
+    public async Task CreateAsync_ShouldThrowArgumentException_WhenQuantityIsNegative()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var service = new WastageService(context, Mock.Of<IRecipeService>(), Mock.Of<ICurrentUserService>());
+        var request = new DTOs.CreateWastageDataRequest(DateTime.UtcNow.ToString("o"), Guid.NewGuid().ToString(), null, -1.0m);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync(request));
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ShouldReturnAllWastageForStore()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var service = new WastageService(context, Mock.Of<IRecipeService>(), mockCurrentUserService.Object);
+
+        context.WastageData.Add(new WastageData { StoreId = storeId });
+        context.WastageData.Add(new WastageData { StoreId = storeId });
+        context.WastageData.Add(new WastageData { StoreId = 2 });
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetAllAsync();
+
+        // Assert
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task GetTrendAsync_ShouldReturnCorrectlyStructuredData()
+    {
+        // Arrange
+        var context = GetDbContext();
+        var storeId = 1;
+        var mockCurrentUserService = new Mock<ICurrentUserService>();
+        mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
+        var mockRecipeService = new Mock<IRecipeService>();
+        var service = new WastageService(context, mockRecipeService.Object, mockCurrentUserService.Object);
+        var date = DateTime.UtcNow.Date;
+
+        var ingredient = new Ingredient { Id = Guid.NewGuid(), Name = "Beef", CarbonFootprint = 27.0m, StoreId = storeId, Unit = "kg" };
+        context.Ingredients.Add(ingredient);
+        context.WastageData.Add(new WastageData { Date = date, StoreId = storeId, Ingredient = ingredient, Quantity = 2.0m });
+        await context.SaveChangesAsync();
+
+        // Act
+        var result = await service.GetTrendAsync(date, date);
+
+        // Assert
+        Assert.Single(result);
+        var trendDay = result.First();
+        Assert.Equal(date.ToString("yyyy-MM-dd"), trendDay.Date);
+        Assert.Equal(2.0m, trendDay.TotalQuantity);
+        Assert.Equal(54.0m, trendDay.TotalCarbonFootprint);
+        Assert.Single(trendDay.ItemBreakdown);
+    }
 }
