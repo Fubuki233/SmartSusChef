@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace SmartSusChef.Api.Models;
 
 /// <summary>
@@ -12,17 +14,36 @@ public class Store
 
 
     // Corporate & Identity Fields
+    [Required]
+    [StringLength(100)]
     public string CompanyName { get; set; } = string.Empty; //
-    public string UEN { get; set; } = string.Empty; //
+
+    [Required]
+    [StringLength(50)]
+    public string UEN { get; set; } = string.Empty; // Increased length for international business reg numbers
+
+    [Required]
+    [StringLength(100)]
     public string StoreName { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(100)]
     public string OutletLocation { get; set; } = string.Empty;
 
     // Store Details
     public DateTime OpeningDate { get; set; }
     public decimal Latitude { get; set; }
     public decimal Longitude { get; set; }
+    
+    [StringLength(3, MinimumLength = 2)]
+    [RegularExpression(@"^[A-Z]{2,3}$", ErrorMessage = "Country code must be 2 or 3 uppercase letters (ISO 3166).")]
     public string? CountryCode { get; set; }
+    
+    [StringLength(500)]
     public string? Address { get; set; }
+
+    [Required]
+    [RegularExpression(@"^\+[1-9]\d{1,14}$", ErrorMessage = "Phone number must be in E.164 format (e.g., +1234567890).")]
     public string ContactNumber { get; set; } = string.Empty;
 
     public bool IsActive { get; set; } = true;
