@@ -26,7 +26,7 @@ jobs:
   # STAGE 1: Security Scanning (DevSecOps)
   # ==========================================
   security-scan:
-    name: "🔒 Security Scan"
+    name: "Security Scan"
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -58,7 +58,7 @@ jobs:
   # STAGE 1b: Filesystem Vulnerability Scan
   # ==========================================
   trivy-scan:
-    name: "🛡️ Trivy Filesystem Scan"
+    name: "Trivy Filesystem Scan"
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -87,7 +87,7 @@ jobs:
   # STAGE 2: Backend Build & Test
   # ==========================================
   backend-build:
-    name: "🔧 Backend Build & Test"
+    name: "Backend Build & Test"
     runs-on: ubuntu-latest
 
     outputs:
@@ -128,7 +128,7 @@ jobs:
   # STAGE 2: Frontend Build & Test
   # ==========================================
   frontend-build:
-    name: "🎨 Frontend Build & Test"
+    name: "Frontend Build & Test"
     runs-on: ubuntu-latest
 
     steps:
@@ -171,7 +171,7 @@ jobs:
   # STAGE 2: ML Service Build & Test
   # ==========================================
   ml-build:
-    name: "🤖 ML Service Build & Test"
+    name: "ML Service Build & Test"
     runs-on: ubuntu-latest
 
     steps:
@@ -206,7 +206,7 @@ jobs:
   # STAGE 3: Build & Push Docker Images to ECR
   # ==========================================
   docker-build-push:
-    name: "🐳 Build & Push Docker Images"
+    name: "Build & Push Docker Images"
     runs-on: ubuntu-latest
     needs: [backend-build, frontend-build, ml-build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -298,7 +298,7 @@ jobs:
   # STAGE 4: Deploy to UAT Environment
   # ==========================================
   deploy-uat:
-    name: "🚀 Deploy to UAT"
+    name: "Deploy to UAT"
     runs-on: ubuntu-latest
     needs: [docker-build-push]
     environment:
@@ -316,11 +316,31 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Download task definitions
+      - name: Get AWS Account ID
+        id: aws-account
+        run: echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
+      - name: Load environment config
+        id: env-config
         run: |
-          aws ecs describe-task-definition --task-definition smartsuschef-uat-backend --query taskDefinition > backend-task-def.json
-          aws ecs describe-task-definition --task-definition smartsuschef-uat-frontend --query taskDefinition > frontend-task-def.json
-          aws ecs describe-task-definition --task-definition smartsuschef-uat-ml --query taskDefinition > ml-task-def.json
+          TFVARS="infrastructure/terraform/environments/uat.tfvars"
+          echo "db_password=$(grep 'db_password' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+          echo "jwt_secret=$(grep 'jwt_secret' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+          RDS_EP=$(aws rds describe-db-instances --db-instance-identifier smartsuschef-uat-db --query 'DBInstances[0].Endpoint.Address' --output text 2>/dev/null || echo "smartsuschef-uat-db.cluster.ap-southeast-1.rds.amazonaws.com")
+          echo "rds_endpoint=$RDS_EP" >> $GITHUB_OUTPUT
+
+      - name: Prepare task definitions
+        env:
+          ENVIRONMENT: uat
+          AWS_ACCOUNT_ID: ${{ steps.aws-account.outputs.account_id }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          DB_PASSWORD: ${{ steps.env-config.outputs.db_password }}
+          JWT_SECRET: ${{ steps.env-config.outputs.jwt_secret }}
+          RDS_ENDPOINT: ${{ steps.env-config.outputs.rds_endpoint }}
+        run: |
+          envsubst < .aws/task-definitions/backend.json > backend-task-def.json
+          envsubst < .aws/task-definitions/frontend.json > frontend-task-def.json
+          envsubst < .aws/task-definitions/ml.json > ml-task-def.json
 
       - name: Update Backend task definition
         id: task-def-backend
@@ -375,15 +395,15 @@ jobs:
           echo "Running UAT smoke tests..."
           sleep 30
           ALB_URL="http://smartsuschef-uat-alb-374711244.ap-southeast-1.elb.amazonaws.com"
-          curl -sf "$ALB_URL/" -o /dev/null && echo "✅ Frontend OK" || echo "⚠️ Frontend not ready"
-          curl -sf "$ALB_URL/api/health" -o /dev/null && echo "✅ Backend OK" || echo "⚠️ Backend not ready"
+          curl -sf "$ALB_URL/" -o /dev/null && echo "[PASS] Frontend OK" || echo "[WARN] Frontend not ready"
+          curl -sf "$ALB_URL/api/health" -o /dev/null && echo "[PASS] Backend OK" || echo "[WARN] Backend not ready"
           echo "UAT deployment completed!"
 
   # ==========================================
   # STAGE 5: Deploy to Production (requires GitHub Environment approval)
   # ==========================================
   deploy-production:
-    name: "🏭 Deploy to Production"
+    name: "Deploy to Production"
     runs-on: ubuntu-latest
     needs: [deploy-uat, docker-build-push]
     if: github.ref == 'refs/heads/main'
@@ -402,11 +422,31 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Download task definitions
+      - name: Get AWS Account ID
+        id: aws-account
+        run: echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
+
+      - name: Load environment config
+        id: env-config
         run: |
-          aws ecs describe-task-definition --task-definition smartsuschef-production-backend --query taskDefinition > backend-task-def.json
-          aws ecs describe-task-definition --task-definition smartsuschef-production-frontend --query taskDefinition > frontend-task-def.json
-          aws ecs describe-task-definition --task-definition smartsuschef-production-ml --query taskDefinition > ml-task-def.json
+          TFVARS="infrastructure/terraform/environments/production.tfvars"
+          echo "db_password=$(grep 'db_password' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+          echo "jwt_secret=$(grep 'jwt_secret' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
+          RDS_EP=$(aws rds describe-db-instances --db-instance-identifier smartsuschef-production-db --query 'DBInstances[0].Endpoint.Address' --output text 2>/dev/null || echo "smartsuschef-production-db.cluster.ap-southeast-1.rds.amazonaws.com")
+          echo "rds_endpoint=$RDS_EP" >> $GITHUB_OUTPUT
+
+      - name: Prepare task definitions
+        env:
+          ENVIRONMENT: production
+          AWS_ACCOUNT_ID: ${{ steps.aws-account.outputs.account_id }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          DB_PASSWORD: ${{ steps.env-config.outputs.db_password }}
+          JWT_SECRET: ${{ steps.env-config.outputs.jwt_secret }}
+          RDS_ENDPOINT: ${{ steps.env-config.outputs.rds_endpoint }}
+        run: |
+          envsubst < .aws/task-definitions/backend.json > backend-task-def.json
+          envsubst < .aws/task-definitions/frontend.json > frontend-task-def.json
+          envsubst < .aws/task-definitions/ml.json > ml-task-def.json
 
       - name: Update Backend task definition
         id: task-def-backend
@@ -460,13 +500,13 @@ jobs:
         run: |
           echo "Running production smoke tests..."
           sleep 30
-          echo "✅ Production deployment completed!"
+          echo "[PASS] Production deployment completed!"
 
   # ==========================================
   # STAGE 6: Pipeline Summary
   # ==========================================
   notify:
-    name: "📊 Pipeline Summary"
+    name: "Pipeline Summary"
     runs-on: ubuntu-latest
     needs: [security-scan, trivy-scan, backend-build, frontend-build, ml-build, docker-build-push, deploy-uat]
     if: always()
@@ -474,14 +514,14 @@ jobs:
     steps:
       - name: Generate Summary
         run: |
-          echo "## 🚀 SmartSusChef CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## SmartSusChef CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔒 Security Scan (CodeQL) | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🛡️ Trivy Filesystem Scan | ${{ needs.trivy-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔧 Backend Build & Test | ${{ needs.backend-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🎨 Frontend Build & Test | ${{ needs.frontend-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🤖 ML Service Build & Test | ${{ needs.ml-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🐳 Docker Build & Push | ${{ needs.docker-build-push.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🚀 Deploy to UAT | ${{ needs.deploy-uat.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan (CodeQL) | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Filesystem Scan | ${{ needs.trivy-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Build & Test | ${{ needs.backend-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Build & Test | ${{ needs.frontend-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ML Service Build & Test | ${{ needs.ml-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Build & Push | ${{ needs.docker-build-push.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy to UAT | ${{ needs.deploy-uat.result }} |" >> $GITHUB_STEP_SUMMARY
