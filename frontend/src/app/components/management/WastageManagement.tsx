@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/app/components/u
 import { Badge } from '@/app/components/ui/badge';
 import { Trash2, Edit, History, AlertTriangle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, differenceInDays, subDays } from 'date-fns';
+import { format, differenceInDays, subDays, parseISO } from 'date-fns';
 import { WastageData, EditHistory } from '@/app/types/index';
 import { getRecipeUnit, calculateRecipeCarbon } from '@/app/utils/recipeCalculations';
 import { getStandardizedQuantity } from '@/app/utils/unitConversion';
@@ -75,12 +75,24 @@ export function WastageManagement() {
 
   const filteredData = useMemo(() => {
     const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
     const thirtyDaysAgo = subDays(today, 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0); // Start of 30 days ago
+
+    console.log('[WastageManagement] Total wastageData:', wastageData.length);
+    console.log('[WastageManagement] Date range:', thirtyDaysAgo.toISOString(), 'to', today.toISOString());
+    console.log('[WastageManagement] Sample wastageData:', wastageData.slice(0, 3));
 
     let data = wastageData.filter((waste) => {
-      const wasteDate = new Date(waste.date);
-      return wasteDate >= thirtyDaysAgo && wasteDate <= today;
+      const wasteDate = parseISO(waste.date); // Use parseISO for reliable date parsing
+      const isInRange = wasteDate >= thirtyDaysAgo && wasteDate <= today;
+      if (!isInRange) {
+        console.log('[WastageManagement] Filtered out (date):', waste.date, wasteDate.toISOString());
+      }
+      return isInRange;
     });
+
+    console.log('[WastageManagement] After date filter:', data.length);
 
     if (selectedType !== 'all') {
       data = data.filter((waste) => {
@@ -92,6 +104,8 @@ export function WastageManagement() {
           (selectedType === 'Raw' && info.type === 'Raw');
       });
     }
+
+    console.log('[WastageManagement] Final filtered data:', data.length);
 
     return data.sort((a, b) => b.date.localeCompare(a.date));
   }, [wastageData, selectedType, recipes, ingredients]);
@@ -126,7 +140,7 @@ export function WastageManagement() {
   const canEdit = (dateStr: string): boolean => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dataDate = new Date(dateStr);
+    const dataDate = parseISO(dateStr); // Use parseISO for consistent date parsing
     dataDate.setHours(0, 0, 0, 0);
     const daysDiff = differenceInDays(today, dataDate);
     return daysDiff <= 7;
