@@ -167,9 +167,6 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health check endpoint for ALB/ECS
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
-
 app.MapControllers();
 
 app.Run();
