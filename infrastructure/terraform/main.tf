@@ -440,7 +440,7 @@ resource "aws_ecs_task_definition" "backend" {
       },
       {
         name  = "ExternalApis__MlApiUrl"
-        value = "http://ml-service.smartsuschef.local:8000"
+        value = "http://${var.environment}-ml.smartsuschef.local:8000"
       }
     ]
 
@@ -568,7 +568,7 @@ resource "aws_service_discovery_private_dns_namespace" "main" {
 }
 
 resource "aws_service_discovery_service" "ml" {
-  name = "ml-service"
+  name = "${var.environment}-ml"
 
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
@@ -700,5 +700,5 @@ output "service_discovery_namespace" {
 
 output "ml_service_dns" {
   description = "ML service internal DNS name"
-  value       = "ml-service.${aws_service_discovery_private_dns_namespace.main.name}"
+  value       = "${var.environment}-ml.${aws_service_discovery_private_dns_namespace.main.name}"
 }
