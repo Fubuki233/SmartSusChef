@@ -2,7 +2,7 @@
 environment = "production"
 
 # DB setting
-db_password = "GRP4"
+db_password = "GRP4SecurePassword123!"
 
 # JWT 
 jwt_secret = "qwertyuiopasdfghjklzxcvbnmqwertyuiop"
