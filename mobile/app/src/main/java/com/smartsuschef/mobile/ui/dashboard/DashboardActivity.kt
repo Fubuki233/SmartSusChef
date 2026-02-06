@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.view.View
+import android.text.TextUtils
 
 import com.smartsuschef.mobile.R
 import com.smartsuschef.mobile.databinding.ActivityDashboardBinding
@@ -46,9 +47,18 @@ class DashboardActivity : AppCompatActivity() {
         androidx.navigation.ui.NavigationUI.setupActionBarWithNavController(this, navController)
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            // When we are on the main tabs, show the store info
-            if (destination.id == R.id.nav_sales || destination.id == R.id.nav_forecast ||
-                destination.id == R.id.nav_wastage || destination.id == R.id.nav_input) {
+            // Define main fragments (tabs in bottom navigation)
+            val mainFragments = setOf(
+                R.id.nav_sales,
+                R.id.nav_forecast,
+                R.id.nav_wastage,
+                R.id.nav_input
+            )
+
+            // When we are on the main tabs, show the store info and hide back arrow
+            if (destination.id in mainFragments) {
+                // Hide back arrow on main fragments
+                supportActionBar?.setDisplayHomeAsUpEnabled(false)
 
                 val name = viewModel.username.value ?: "User"
                 val role = viewModel.userRole.value ?: "Employee"
@@ -57,10 +67,31 @@ class DashboardActivity : AppCompatActivity() {
                 val storeName = viewModel.storeName.value ?: "SmartSus Chef"
                 val location = viewModel.outletLocation.value ?: ""
                 supportActionBar?.title = if (location.isNotEmpty()) "$storeName | $location" else storeName
+
+                // Apply text styling for better fit
+                applyToolbarTextStyling()
             } else {
-                // Remove the subtitle on SalesDetail so the title in this Fragment looks clean
+                // Show back arrow on detail fragments
+                supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
+                // Remove the subtitle on detail fragments so the title looks clean
                 supportActionBar?.subtitle = null
             }
+        }
+    }
+
+    /**
+     * Apply text styling to toolbar to prevent truncation
+     * - Smaller text size for title and subtitle
+     * - Enable ellipsize with marquee effect
+     */
+    private fun applyToolbarTextStyling() {
+        binding.toolbar.apply {
+            // Reduce title text size to 16sp (default is 20sp)
+            setTitleTextAppearance(context, R.style.ToolbarTitleTextAppearance)
+
+            // Reduce subtitle text size to 12sp (default is 14sp)
+            setSubtitleTextAppearance(context, R.style.ToolbarSubtitleTextAppearance)
         }
     }
 
@@ -78,12 +109,14 @@ class DashboardActivity : AppCompatActivity() {
         viewModel.username.observe(this) { name ->
             val role = viewModel.userRole.value ?: "Employee"
             supportActionBar?.subtitle = "$name | ${role.lowercase().replaceFirstChar { it.uppercase() }}"
+            applyToolbarTextStyling()
         }
 
         // Observe store details
         viewModel.storeName.observe(this) { sName ->
             val location = viewModel.outletLocation.value ?: ""
             supportActionBar?.title = if (location.isNotEmpty()) "$sName | $location" else sName
+            applyToolbarTextStyling()
         }
     }
 

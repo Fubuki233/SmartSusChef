@@ -7,6 +7,13 @@
 
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+
+        <CollectCoverage>true</CollectCoverage>
+        <CoverletOutputFormat>cobertura</CoverletOutputFormat>
+        <CoverletOutput>$(MSBuildProjectDirectory)/../coverage_report/</CoverletOutput>
+        <CoverletOutputIsPath>true</CoverletOutputIsPath>
+        <ExcludeByFile>$(MSBuildProjectDirectory)/obj/**/*</ExcludeByFile>
+        <ExcludeByFile>$(MSBuildProjectDirectory)/Migrations/*.cs</ExcludeByFile>
     </PropertyGroup>
 
     <ItemGroup>

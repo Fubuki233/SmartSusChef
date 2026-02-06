@@ -19,3 +19,4 @@ shap
 fastapi
 uvicorn[standard]
 pydantic
+python-dotenv

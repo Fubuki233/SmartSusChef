@@ -22,13 +22,11 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        /*
-        To add when we have fully implemented logout
+        // Check if user is already logged in (session persistence)
         if (viewModel.isUserLoggedIn()) {
             navigateToDashboard()
             return
         }
-         */
 
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -68,7 +66,7 @@ class LoginActivity : AppCompatActivity() {
         binding.btnSendReset.setOnClickListener {
             val email = binding.etResetEmail.text.toString().trim()
             if (email.isNotEmpty()) {
-                // Simulate sending reset link
+                // TODO: Implement actual password reset API call
                 showToast("Reset link sent to $email")
                 // Toggle back to login automatically after success
                 binding.forgotPasswordForm.gone()

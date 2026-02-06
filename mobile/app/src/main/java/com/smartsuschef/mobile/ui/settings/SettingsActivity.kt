@@ -5,9 +5,11 @@ import android.view.MenuItem
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
+import androidx.core.widget.addTextChangedListener
 import com.smartsuschef.mobile.R
 import com.smartsuschef.mobile.databinding.ActivitySettingsBinding
 import com.smartsuschef.mobile.util.showToast
+import com.smartsuschef.mobile.util.PasswordValidator
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -22,6 +24,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupToolbar()
+        setupPasswordValidation()
         setupObservers()
         setupClickListeners()
     }
@@ -33,6 +36,51 @@ class SettingsActivity : AppCompatActivity() {
             setDisplayShowHomeEnabled(true)
             title = "Settings"
             subtitle = "Manage your profile and account security"
+        }
+    }
+
+    /**
+     * Setup real-time password validation
+     * Shows errors as user types in the new password field
+     */
+    private fun setupPasswordValidation() {
+        // Real-time validation for new password
+        binding.tilNewPassword.editText?.addTextChangedListener { text ->
+            val password = text?.toString() ?: ""
+
+            // Don't show errors for empty field (until user starts typing)
+            if (password.isEmpty()) {
+                binding.tilNewPassword.error = null
+                binding.tilNewPassword.isErrorEnabled = false
+                return@addTextChangedListener
+            }
+
+            // Show validation errors as user types
+            val result = PasswordValidator.validate(password)
+            binding.tilNewPassword.error = result.errorMessage
+            binding.tilNewPassword.isErrorEnabled = result.errorMessage != null
+        }
+
+        // Real-time validation for confirm password (check if matches)
+        binding.tilConfirmPassword.editText?.addTextChangedListener { text ->
+            val confirmPassword = text?.toString() ?: ""
+            val newPassword = binding.tilNewPassword.editText?.text?.toString() ?: ""
+
+            // Don't show errors for empty field
+            if (confirmPassword.isEmpty()) {
+                binding.tilConfirmPassword.error = null
+                binding.tilConfirmPassword.isErrorEnabled = false
+                return@addTextChangedListener
+            }
+
+            // Check if passwords match
+            if (confirmPassword != newPassword) {
+                binding.tilConfirmPassword.error = "Passwords do not match"
+                binding.tilConfirmPassword.isErrorEnabled = true
+            } else {
+                binding.tilConfirmPassword.error = null
+                binding.tilConfirmPassword.isErrorEnabled = false
+            }
         }
     }
 
@@ -100,6 +148,14 @@ class SettingsActivity : AppCompatActivity() {
         binding.etCurrentPassword.text?.clear()
         binding.etNewPassword.text?.clear()
         binding.etConfirmPassword.text?.clear()
+
+        // Clear any error states
+        binding.tilCurrentPassword.error = null
+        binding.tilCurrentPassword.isErrorEnabled = false
+        binding.tilNewPassword.error = null
+        binding.tilNewPassword.isErrorEnabled = false
+        binding.tilConfirmPassword.error = null
+        binding.tilConfirmPassword.isErrorEnabled = false
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

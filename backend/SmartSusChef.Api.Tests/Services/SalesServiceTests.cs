@@ -109,7 +109,6 @@ public class SalesServiceTests
         var storeId = 1;
         context.Recipes.Add(new Recipe { Id = recipeId, Name = "Test Recipe", StoreId = storeId });
         await context.SaveChangesAsync();
-        
         var mockCurrentUserService = new Mock<ICurrentUserService>();
         mockCurrentUserService.Setup(s => s.StoreId).Returns(storeId);
 

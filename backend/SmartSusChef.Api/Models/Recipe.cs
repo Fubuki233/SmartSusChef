@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace SmartSusChef.Api.Models;
@@ -6,7 +7,11 @@ public class Recipe
 {
     public Guid Id { get; set; }
     public int StoreId { get; set; }
+
+    [Required]
+    [StringLength(100)]
     public string Name { get; set; } = string.Empty;
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     
@@ -33,6 +38,8 @@ public class RecipeIngredient
     // to a parent recipe.
     public Guid? IngredientId { get; set; }
     public Guid? ChildRecipeId { get; set; }
+
+    [Range(0.0001, double.MaxValue)]
     public decimal Quantity { get; set; }
 
     // Navigation properties

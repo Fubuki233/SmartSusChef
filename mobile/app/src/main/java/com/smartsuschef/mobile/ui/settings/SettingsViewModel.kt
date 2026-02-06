@@ -11,6 +11,7 @@ import com.smartsuschef.mobile.network.dto.UpdateProfileRequest
 import com.smartsuschef.mobile.network.dto.UserDto
 import com.smartsuschef.mobile.util.Resource
 import com.smartsuschef.mobile.util.EmailValidator
+import com.smartsuschef.mobile.util.PasswordValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -101,27 +102,28 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Change password
-     */
+    // Change password with comprehensive validation
     fun changePassword(currentPassword: String, newPassword: String, confirmPassword: String) {
-        // Validation
+        // Basic validation
         if (currentPassword.isBlank()) {
             _passwordUpdateResult.value = "Current password is required"
             return
         }
-        if (newPassword.isBlank()) {
-            _passwordUpdateResult.value = "New password is required"
+
+        // Comprehensive password validation using PasswordValidator
+        val validationResult = PasswordValidator.validate(newPassword)
+        if (!validationResult.isValid) {
+            _passwordUpdateResult.value = validationResult.errorMessage
             return
         }
-        if (newPassword.length < 6) {
-            _passwordUpdateResult.value = "Password must be at least 6 characters"
-            return
-        }
+
+        // Check passwords match
         if (newPassword != confirmPassword) {
             _passwordUpdateResult.value = "Passwords do not match"
             return
         }
+
+        // Check new password is different from current
         if (currentPassword == newPassword) {
             _passwordUpdateResult.value = "New password must be different from current password"
             return
@@ -140,7 +142,7 @@ class SettingsViewModel @Inject constructor(
                     _isLoadingPassword.value = false
                 }
                 is Resource.Error -> {
-                    _passwordUpdateResult.value = "Failed to change password: ${result.message}"
+                    _passwordUpdateResult.value = result.message ?: "Failed to change password"
                     _isLoadingPassword.value = false
                 }
                 is Resource.Loading -> {
@@ -150,9 +152,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Clear result messages after they've been shown
-     */
+    // Validate password in real-time (for UI feedback)
+    fun validatePasswordFormat(password: String): String? {
+        return PasswordValidator.getErrorMessage(password)
+    }
+
+    // Clear result messages after they've been shown
+
     fun clearProfileResult() {
         _profileUpdateResult.value = null
     }
@@ -161,9 +167,7 @@ class SettingsViewModel @Inject constructor(
         _passwordUpdateResult.value = null
     }
 
-    /**
-     * Email validation helper
-     */
+    // Email validation helper
     private fun isValidEmail(email: String): Boolean {
         return emailValidator.isValid(email)
     }
