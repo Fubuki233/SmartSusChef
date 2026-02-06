@@ -47,55 +47,63 @@ class ForecastViewModel @Inject constructor(
             _ingredientForecast.value = Resource.Loading()
             _comparisonData.value = Resource.Loading()
 
-            // PART A: Load Future Forecast Data (Next 7 days)
+            // Load forecast data (future predictions + past actuals)
             when (val result = forecastRepository.getForecast(7)) {
                 is Resource.Success -> {
-                    val forecastData = result.data ?: emptyList()
+                    val allForecastData = result.data.orEmpty()
 
-                    // 1. Summary Trend (already aggregated)
-                    _summaryTrend.value = Resource.Success(forecastData)
+                    val futureForecastData = allForecastData.filter { it.quantity > 0 }
+                    val pastComparisonRawData = allForecastData.filter { it.actualQuantity > 0 }
 
-                    // 2. Store date headers for ingredient table
-                    _dateHeaders.value = forecastData.map { it.date }
+                    // 1. Summary trend
+                    _summaryTrend.value = Resource.Success(futureForecastData)
 
-                    // 3. Process Ingredient Forecast Table
-                    processIngredientTable(forecastData)
+                    // 2. Date headers for ingredient table
+                    _dateHeaders.value = futureForecastData.map { it.date }
+
+                    // 3. Ingredient forecast table
+                    processIngredientTable(futureForecastData)
+
+                    // 4. Daily dish breakdown
+                    val dailyDishForecasts = futureForecastData
+                        .groupBy { it.date }
+                        .map { (date, dailyForecasts) ->
+                            DailyDishForecast(
+                                date = date,
+                                dishes = dailyForecasts.map {
+                                    DishForecast(
+                                        name = it.recipeName,
+                                        predictedSales = it.quantity
+                                    )
+                                }
+                            )
+                        }
+                        .sortedBy { it.date }
+
+                    _dishForecasts.value = Resource.Success(dailyDishForecasts)
+
+                    // 5. Past comparison data (Predicted vs Actual)
+                    val comparisonDataProcessed = pastComparisonRawData.map { forecast ->
+                        forecast.copy(
+                            quantity = forecast.quantity,
+                            actualQuantity = forecast.actualQuantity
+                        )
+                    }
+
+                    _comparisonData.value = Resource.Success(comparisonDataProcessed)
                 }
+
                 is Resource.Error -> {
                     val errorMessage = result.message ?: "Failed to load forecast"
                     _summaryTrend.value = Resource.Error(errorMessage)
                     _ingredientForecast.value = Resource.Error(errorMessage)
+                    _dishForecasts.value = Resource.Error(errorMessage)
+                    _comparisonData.value = Resource.Error(errorMessage)
                 }
-                is Resource.Loading -> { /* Already set */ }
-            }
 
-            // PART B: Load Dish Breakdown for Stacked Bar (Next 7 days)
-            when (val dishResult = forecastRepository.getDishBreakdown(7)) {
-                is Resource.Success -> {
-                    val breakdown = dishResult.data ?: emptyMap()
-                    val dailyForecasts = breakdown.map { (date, dishes) ->
-                        DailyDishForecast(
-                            date = date,
-                            dishes = dishes.map { DishForecast(it.recipeName, it.quantity) }
-                        )
-                    }.sortedBy { it.date }
-                    _dishForecasts.value = Resource.Success(dailyForecasts)
+                is Resource.Loading -> {
+                    // Already handled
                 }
-                is Resource.Error -> {
-                    _dishForecasts.value = Resource.Error(dishResult.message ?: "Failed to load dish breakdown")
-                }
-                is Resource.Loading -> { /* Already set */ }
-            }
-
-            // PART C: Load Past Comparison Data (Previous 7 days)
-            when (val comparisonResult = forecastRepository.getPastComparison()) {
-                is Resource.Success -> {
-                    _comparisonData.value = Resource.Success(comparisonResult.data ?: emptyList())
-                }
-                is Resource.Error -> {
-                    _comparisonData.value = Resource.Error(comparisonResult.message ?: "Failed to load comparison")
-                }
-                is Resource.Loading -> { /* Already set */ }
             }
         }
     }
@@ -103,34 +111,30 @@ class ForecastViewModel @Inject constructor(
     private fun processIngredientTable(forecastData: List<ForecastDto>) {
         val dates = forecastData.map { it.date }.sorted()
 
-        // Group ingredients across all days
         val ingredientMap = mutableMapOf<String, MutableMap<String, Double>>()
 
         forecastData.forEach { forecast ->
             forecast.ingredients.forEach { ingredient ->
-                val ingName = ingredient.ingredientName
-                val ingUnit = ingredient.unit
-                val key = "$ingName ($ingUnit)"
-
-                if (!ingredientMap.containsKey(key)) {
-                    ingredientMap[key] = mutableMapOf()
-                }
-
-                ingredientMap[key]!![forecast.date] = ingredient.quantity
+                val key = "${ingredient.ingredientName} (${ingredient.unit})"
+                val dateMap = ingredientMap.getOrPut(key) { mutableMapOf() }
+                dateMap[forecast.date] = ingredient.quantity
             }
         }
 
-        // Convert to IngredientForecast list
         val ingredientList = ingredientMap.map { (nameWithUnit, dateMap) ->
-            // Extract name and unit
             val parts = nameWithUnit.split(" (")
             val name = parts[0]
             val unit = parts.getOrNull(1)?.removeSuffix(")") ?: ""
 
-            // Map quantities to the 7 days
-            val quantities = dates.map { date -> dateMap[date] ?: 0.0 }
+            val quantities = dates.map { date ->
+                dateMap[date] ?: 0.0
+            }
 
-            IngredientForecast(name, unit, quantities)
+            IngredientForecast(
+                name = name,
+                unit = unit,
+                totalQuantity = quantities
+            )
         }
 
         _ingredientForecast.value = Resource.Success(ingredientList)
@@ -153,5 +157,5 @@ data class DishForecast(
 data class IngredientForecast(
     val name: String,
     val unit: String,
-    val totalQuantity: List<Double> // 7 values for 7 days
+    val totalQuantity: List<Double>
 )

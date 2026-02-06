@@ -32,7 +32,9 @@ object CoreNetworkModule {
      * Base URL for the API
      * Points to your teammate's server
      */
-    private const val BASE_URL = "http://oversea.zyh111.icu:234/api/"
+    // private const val BASE_URL_PROD = "http://oversea.zyh111.icu:234/api/"
+    private const val BASE_URL = "http://192.168.50.133:5001/api/"
+    // private const val BASE_URL = "http://10.0.2.2:5001/api/"
 
     /**
      * Provides the singleton DataStore<Preferences> instance for the app.
