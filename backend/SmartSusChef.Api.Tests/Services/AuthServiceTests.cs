@@ -21,7 +21,7 @@ public class AuthServiceTests
 
     private IConfiguration GetConfiguration()
     {
-        var inMemorySettings = new Dictionary<string, string> {
+        var inMemorySettings = new Dictionary<string, string?> {
             {"Jwt:Key", "SuperSecretKeyForTestingPurposesOnly123!"},
             {"Jwt:Issuer", "TestIssuer"},
             {"Jwt:Audience", "TestAudience"},
