@@ -321,9 +321,10 @@ class ForecastFragment : Fragment(R.layout.fragment_forecast) {
             highLightAlpha = 0 // Disable highlight
         }
 
-        val barWidth = 0.35f
-        val groupSpace = 0.3f
-        val barSpace = 0.05f
+        // Adjusted spacing for grouped bars
+        val barWidth = 0.4f      // Width of each bar
+        val groupSpace = 0.1f    // Space between groups
+        val barSpace = 0.05f     // Space between bars in a group
 
         binding.comparisonBarChart.apply {
             data = BarData(predictedSet, actualSet).apply {
@@ -350,12 +351,18 @@ class ForecastFragment : Fragment(R.layout.fragment_forecast) {
                 labelRotationAngle = -45f
                 textSize = 8f
                 granularity = 1f
-                setCenterAxisLabels(true)
+                setCenterAxisLabels(true)  // IMPORTANT for grouped bars
                 setDrawGridLines(false)
                 textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
                 axisLineColor = Color.TRANSPARENT
+
+                // Critical X-axis range configuration
+                // For grouped bars: range = groupCount * (barWidth * 2 + barSpace + groupSpace)
                 axisMinimum = 0f
                 axisMaximum = labels.size.toFloat()
+
+                // Note: We do not use setLabelCount for grouped bars.
+                // We let the chart calculate the appropriate labels.
             }
 
             axisLeft.apply {
@@ -376,6 +383,8 @@ class ForecastFragment : Fragment(R.layout.fragment_forecast) {
                 textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
             }
 
+            // Group the bars with corrected parameters
+            // groupBars(fromX, groupSpace, barSpace)
             groupBars(0f, groupSpace, barSpace)
             invalidate()
         }
