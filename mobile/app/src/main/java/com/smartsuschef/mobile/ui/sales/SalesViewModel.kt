@@ -30,6 +30,10 @@ class SalesViewModel @Inject constructor(
     private val _ingredientBreakdown = MutableLiveData<Resource<List<IngredientRequirement>>>()
     val ingredientBreakdown: LiveData<Resource<List<IngredientRequirement>>> = _ingredientBreakdown
 
+    // Recipe sales breakdown for a specific date (for pie chart)
+    private val _recipeSales = MutableLiveData<Resource<List<RecipeSalesItem>>>()
+    val recipeSales: LiveData<Resource<List<RecipeSalesItem>>> = _recipeSales
+
     init {
         fetchOverviewData()
     }
@@ -86,8 +90,27 @@ class SalesViewModel @Inject constructor(
             }
         }
     }
+
+    fun fetchRecipeSalesForDate(date: String) {
+        viewModelScope.launch {
+            _recipeSales.value = Resource.Loading()
+            when(val result = salesRepository.getRecipeSalesByDate(date)) {
+                is Resource.Success -> {
+                    val salesItems = result.data?.map {
+                        RecipeSalesItem(it.recipeName, it.quantity)
+                    }
+                    _recipeSales.value = Resource.Success(salesItems ?: emptyList())
+                }
+                is Resource.Error -> {
+                    _recipeSales.value = Resource.Error(result.message ?: "Failed to load recipe sales breakdown")
+                }
+                else -> { /* Loading state is already set */ }
+            }
+        }
+    }
 }
 
 // Data models matching UI needs
 data class SalesTrendItem(val date: String, val sales: Int)
 data class IngredientRequirement(val name: String, val quantity: Double, val unit: String)
+data class RecipeSalesItem(val name: String, val quantity: Int)

@@ -14,18 +14,6 @@ class IngredientsRepository @Inject constructor(
     private val ingredientApiService: IngredientApiService
 ) {
     suspend fun getAll(): Resource<List<IngredientDto>> {
-        // --- MOCK IMPLEMENTATION FOR UI TESTING ---
-        val mockIngredients = listOf(
-            IngredientDto(id = "ing-1", name = "Chicken", unit = "kg", carbonFootprint = 5.0),
-            IngredientDto(id = "ing-2", name = "Rice", unit = "kg", carbonFootprint = 1.2),
-            IngredientDto(id = "ing-3", name = "Tomato", unit = "kg", carbonFootprint = 0.8),
-            IngredientDto(id = "ing-4", name = "Cucumber", unit = "kg", carbonFootprint = 0.5),
-            IngredientDto(id = "ing-5", name = "Chili Paste", unit = "L", carbonFootprint = 1.5)
-        )
-        return Resource.Success(mockIngredients)
-
-        /*
-        // --- ORIGINAL IMPLEMENTATION ---
         return withContext(Dispatchers.IO) {
             try {
                 val response = ingredientApiService.getAll()
@@ -40,7 +28,6 @@ class IngredientsRepository @Inject constructor(
                 Resource.Error("Couldn't reach the server. Check your internet connection.")
             }
         }
-        */
     }
 
     suspend fun create(request: CreateIngredientRequest): Resource<IngredientDto> {

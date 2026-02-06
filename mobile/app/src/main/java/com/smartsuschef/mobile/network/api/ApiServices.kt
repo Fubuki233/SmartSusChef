@@ -6,7 +6,8 @@ import retrofit2.http.*
 
 /**
  * API Services for SmartSus Chef (Mobile)
- * Base URL: http://oversea.zyh111.icu:234/api/
+ * // Old Base URL: http://oversea.zyh111.icu:234/api/
+ * Base URL: http://192.168.50.133:5001/api/
  * All endpoints require JWT token in Authorization header (except login/resetPassword)
  *
  * Employee Restrictions:
@@ -52,10 +53,10 @@ interface AuthApiService {
 
     /**
      * Change own password
-     * POST /api/auth/change-password
+     * PUT /api/auth/password
      * Requires: Authorization header with JWT token
      */
-    @POST("auth/change-password")
+    @PUT("auth/password")
     suspend fun changePassword(@Body request: ChangePasswordRequest): Response<Unit>
 
     /**
