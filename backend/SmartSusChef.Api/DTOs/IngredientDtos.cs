@@ -4,7 +4,9 @@ public record IngredientDto(
     string Id,
     string Name,
     string Unit,
-    decimal CarbonFootprint
+    decimal CarbonFootprint,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
 );
 
 public record CreateIngredientRequest(

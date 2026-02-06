@@ -13,7 +13,4 @@ public interface IRecipeService
     // Calculates the total carbon footprint of a recipe by recursively summing 
     // the footprint of all ingredients and child sub-recipes.
     Task<decimal> CalculateTotalCarbonFootprintAsync(Guid recipeId);
-    // Retrieves a flattened list of all raw ingredients required for a recipe, 
-    // accounting for those nested within sub-recipes.
-    Task<List<IngredientUsageDto>> GetFlattenedIngredientsAsync(Guid recipeId);
 }

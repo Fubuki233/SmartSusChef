@@ -26,3 +26,11 @@ https://open-meteo.com/en/docs
 ```bash
 https://developers.google.cn/workspace/calendar/api/guides/overview
 ```
+
+## Terraform Deployment:
+
+```bash
+cd infrastructure/terraform
+terraform init
+terraform apply -var-file="environments/uat.tfvars"
+```

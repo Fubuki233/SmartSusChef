@@ -18,6 +18,9 @@ public class ForecastController : ControllerBase
     private readonly IHolidayService _holidayService;
     private readonly IStoreService _storeService;
 
+    // Private record to hold location info for cleaner code
+    private record StoreLocationInfo(decimal? Latitude, decimal? Longitude, string? CountryCode);
+
     public ForecastController(
         IForecastService forecastService,
         IWeatherService weatherService,
@@ -31,26 +34,36 @@ public class ForecastController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ForecastDto>>> GetForecast([FromQuery] int days = 7)
+    public async Task<ActionResult<List<ForecastDto>>> GetForecast([FromQuery] int days = 7, [FromQuery] int includePastDays = 0)
     {
         if (days < 1 || days > 30)
         {
             return BadRequest(new { message = "Days must be between 1 and 30" });
         }
 
-        var forecast = await _forecastService.GetForecastAsync(days);
+        if (includePastDays < 0 || includePastDays > 30)
+        {
+            return BadRequest(new { message = "includePastDays must be between 0 and 30" });
+        }
+
+        var forecast = await _forecastService.GetForecastAsync(days, includePastDays);
         return Ok(forecast);
     }
 
     [HttpGet("summary")]
-    public async Task<ActionResult<List<ForecastSummaryDto>>> GetForecastSummary([FromQuery] int days = 7)
+    public async Task<ActionResult<List<ForecastSummaryDto>>> GetForecastSummary([FromQuery] int days = 7, [FromQuery] int includePastDays = 0)
     {
         if (days < 1 || days > 30)
         {
             return BadRequest(new { message = "Days must be between 1 and 30" });
         }
 
-        var summary = await _forecastService.GetForecastSummaryAsync(days);
+        if (includePastDays < 0 || includePastDays > 30)
+        {
+            return BadRequest(new { message = "includePastDays must be between 0 and 30" });
+        }
+
+        var summary = await _forecastService.GetForecastSummaryAsync(days, includePastDays);
         return Ok(summary);
     }
 
@@ -72,34 +85,14 @@ public class ForecastController : ControllerBase
         {
             return BadRequest(new { message = "Year must be between 2020 and 2030" });
         }
-
-        // Get store coordinates to determine country
-        var store = await _storeService.GetStoreAsync();
-        string countryCode;
-
-        if (store == null)
+        
+        var locationInfo = await GetStoreLocationInfo();
+        if (string.IsNullOrWhiteSpace(locationInfo?.CountryCode))
         {
             return Ok(new List<HolidayDto>());
         }
 
-        if (!string.IsNullOrWhiteSpace(store.CountryCode))
-        {
-            countryCode = store.CountryCode;
-        }
-        else
-        {
-            if (store.Latitude == 0 && store.Longitude == 0)
-            {
-                return Ok(new List<HolidayDto>());
-            }
-            countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
-        }
-        if (string.IsNullOrWhiteSpace(countryCode))
-        {
-            return Ok(new List<HolidayDto>());
-        }
-
-        var holidays = await _holidayService.GetHolidaysAsync(year, countryCode);
+        var holidays = await _holidayService.GetHolidaysAsync(year, locationInfo.CountryCode);
         return Ok(holidays);
     }
 
@@ -111,42 +104,14 @@ public class ForecastController : ControllerBase
     public async Task<ActionResult<TomorrowForecastDto>> GetTomorrowForecast()
     {
         var tomorrow = DateTime.UtcNow.Date.AddDays(1);
+        var locationInfo = await GetStoreLocationInfo();
 
-        decimal? latitude = null;
-        decimal? longitude = null;
-        string? countryCode = null;
-
-        var store = await _storeService.GetStoreAsync();
-        if (store != null)
-        {
-            if (!string.IsNullOrWhiteSpace(store.CountryCode))
-            {
-                countryCode = store.CountryCode;
-            }
-            else if (!(store.Latitude == 0 && store.Longitude == 0))
-            {
-                countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
-            }
-
-            if (!(store.Latitude == 0 && store.Longitude == 0))
-            {
-                latitude = store.Latitude;
-                longitude = store.Longitude;
-            }
-        }
-
-        WeatherForecastDto? weather = null;
-        if (latitude.HasValue && longitude.HasValue)
-        {
-            weather = await _weatherService.GetWeatherForecastAsync(tomorrow, latitude.Value, longitude.Value);
-        }
-
-        var calendar = await GetCalendarDayAsync(tomorrow, countryCode, latitude, longitude);
+        var calendar = await GetCalendarDayAsync(tomorrow, locationInfo);
 
         return Ok(new TomorrowForecastDto(
             tomorrow.ToString("yyyy-MM-dd"),
             calendar,
-            weather
+            calendar.Weather
         ));
     }
 
@@ -161,30 +126,8 @@ public class ForecastController : ControllerBase
             return BadRequest(new { message = "Invalid date format. Use yyyy-MM-dd" });
         }
 
-        decimal? latitude = null;
-        decimal? longitude = null;
-        string? countryCode = null;
-
-        var store = await _storeService.GetStoreAsync();
-        if (store != null)
-        {
-            if (!string.IsNullOrWhiteSpace(store.CountryCode))
-            {
-                countryCode = store.CountryCode;
-            }
-            else if (!(store.Latitude == 0 && store.Longitude == 0))
-            {
-                countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
-            }
-
-            if (!(store.Latitude == 0 && store.Longitude == 0))
-            {
-                latitude = store.Latitude;
-                longitude = store.Longitude;
-            }
-        }
-
-        var calendar = await GetCalendarDayAsync(targetDate, countryCode, latitude, longitude);
+        var locationInfo = await GetStoreLocationInfo();
+        var calendar = await GetCalendarDayAsync(targetDate, locationInfo);
         return Ok(calendar);
     }
 
@@ -216,33 +159,12 @@ public class ForecastController : ControllerBase
             return BadRequest(new { message = "Date range cannot exceed 30 days" });
         }
 
-        decimal? latitude = null;
-        decimal? longitude = null;
-        string? countryCode = null;
-
-        var store = await _storeService.GetStoreAsync();
-        if (store != null)
-        {
-            if (!string.IsNullOrWhiteSpace(store.CountryCode))
-            {
-                countryCode = store.CountryCode;
-            }
-            else if (!(store.Latitude == 0 && store.Longitude == 0))
-            {
-                countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(store.Latitude, store.Longitude);
-            }
-
-            if (!(store.Latitude == 0 && store.Longitude == 0))
-            {
-                latitude = store.Latitude;
-                longitude = store.Longitude;
-            }
-        }
-
+        var locationInfo = await GetStoreLocationInfo();
+        
         var result = new List<CalendarDayDto>();
         for (var date = start; date <= end; date = date.AddDays(1))
         {
-            var calendar = await GetCalendarDayAsync(date, countryCode, latitude, longitude);
+            var calendar = await GetCalendarDayAsync(date, locationInfo);
             result.Add(calendar);
         }
 
@@ -252,30 +174,22 @@ public class ForecastController : ControllerBase
     /// <summary>
     /// Helper method to build calendar day information
     /// </summary>
-    private async Task<CalendarDayDto> GetCalendarDayAsync(
-        DateTime date,
-        string? countryCode,
-        decimal? latitude,
-        decimal? longitude)
+    private async Task<CalendarDayDto> GetCalendarDayAsync(DateTime date, StoreLocationInfo? locationInfo)
     {
         bool isHoliday = false;
         string? holidayName = null;
-        if (!string.IsNullOrWhiteSpace(countryCode))
+        if (!string.IsNullOrWhiteSpace(locationInfo?.CountryCode))
         {
-            (isHoliday, holidayName) = await _holidayService.IsHolidayAsync(date, countryCode);
+            (isHoliday, holidayName) = await _holidayService.IsHolidayAsync(date, locationInfo.CountryCode);
         }
 
-        // Check if it's a school holiday
         var isSchoolHoliday = _holidayService.IsSchoolHoliday(date);
-
-        // Check if it's a weekend
         var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 
-        // Get weather forecast
         WeatherForecastDto? weather = null;
-        if (latitude.HasValue && longitude.HasValue)
+        if (locationInfo?.Latitude.HasValue == true && locationInfo?.Longitude.HasValue == true)
         {
-            weather = await _weatherService.GetWeatherForecastAsync(date, latitude.Value, longitude.Value);
+            weather = await _weatherService.GetWeatherForecastAsync(date, locationInfo.Latitude.Value, locationInfo.Longitude.Value);
         }
 
         return new CalendarDayDto(
@@ -286,5 +200,25 @@ public class ForecastController : ControllerBase
             isWeekend,
             weather
         );
+    }
+    
+    /// <summary>
+    /// Helper method to get location information for the current user's store.
+    /// </summary>
+    private async Task<StoreLocationInfo?> GetStoreLocationInfo()
+    {
+        var store = await _storeService.GetStoreAsync();
+        if (store == null) return null;
+
+        decimal? latitude = (store.Latitude == 0 && store.Longitude == 0) ? null : store.Latitude;
+        decimal? longitude = (store.Latitude == 0 && store.Longitude == 0) ? null : store.Longitude;
+        string? countryCode = store.CountryCode;
+
+        if (string.IsNullOrWhiteSpace(countryCode) && latitude.HasValue && longitude.HasValue)
+        {
+            countryCode = await _holidayService.GetCountryCodeFromCoordinatesAsync(latitude.Value, longitude.Value);
+        }
+
+        return new StoreLocationInfo(latitude, longitude, countryCode);
     }
 }

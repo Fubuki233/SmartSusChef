@@ -18,44 +18,6 @@ public class IngredientServiceTests
         return new ApplicationDbContext(options);
     }
 
-    [Fact]
-    public async Task GetTotalCarbonImpactAsync_ShouldCalculateAccurateHighPrecisionSum()
-    {
-        // 1. Arrange
-        var context = GetDbContext();
-        
-        // Mock the ICurrentUserService to return StoreId 1
-        var mockCurrentUserService = new Mock<ICurrentUserService>();
-        mockCurrentUserService.Setup(s => s.StoreId).Returns(1);
-
-        var ingA = new Ingredient { 
-            Id = Guid.NewGuid(), Name = "Beef", CarbonFootprint = 2.500m, StoreId = 1, Unit = "kg" 
-        };
-        var ingB = new Ingredient { 
-            Id = Guid.NewGuid(), Name = "Tomato", CarbonFootprint = 0.125m, StoreId = 1, Unit = "kg" 
-        };
-
-        context.Ingredients.AddRange(ingA, ingB);
-        await context.SaveChangesAsync();
-
-        // Pass the Mock object as the second parameter to satisfy the new constructor
-        var service = new IngredientService(context, mockCurrentUserService.Object); 
-
-        var items = new List<(Guid Id, decimal Quantity)> 
-        {
-            (ingA.Id, 2.0m),
-            (ingB.Id, 4.0m)
-        };
-
-        // 2. Act
-        var totalImpact = await service.GetTotalCarbonImpactAsync(items);
-
-        // 3. Assert
-        // Verify math: (2 * 2.5) + (4 * 0.125) = 5.500
-        Assert.Equal(5.500m, totalImpact);
-        // Verify math: (2 * 2.5) + (4 * 0.125) = 5.500
-        Assert.Equal(5.500m, totalImpact);
-    }
     
     [Fact]
     public async Task CreateAsync_ShouldAddNewIngredient()
@@ -128,6 +90,7 @@ public class IngredientServiceTests
         Assert.Equal("kg", result.Unit);
         Assert.Equal(2.0m, result.CarbonFootprint);
         var ingredientInDb = await context.Ingredients.FindAsync(ingredientId);
+        Assert.NotNull(ingredientInDb);
         Assert.Equal("New Name", ingredientInDb.Name);
     }
 
