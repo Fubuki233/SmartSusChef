@@ -116,11 +116,20 @@ resource "aws_security_group" "ecs" {
   description = "Security group for ECS tasks"
   vpc_id      = module.vpc.vpc_id
 
+  # Allow traffic from ALB
   ingress {
     from_port       = 0
     to_port         = 0
     protocol        = "-1"
     security_groups = [aws_security_group.alb.id]
+  }
+
+  # Allow inter-container communication (backend <-> ML via Cloud Map)
+  ingress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    self      = true
   }
 
   egress {
