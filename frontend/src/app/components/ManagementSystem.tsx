@@ -25,7 +25,7 @@ export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProp
     { id: 'ingredients' as MenuSection, label: 'Ingredient Management', icon: Package },
     { id: 'import' as MenuSection, label: 'Import Sales Data', icon: Upload },
     // FIX: Added Sales Data Management Link
-    { id: 'sales' as MenuSection, label: 'Sales Data Management', icon: DollarSign }, 
+    { id: 'sales' as MenuSection, label: 'Sales Data Management', icon: DollarSign },
     { id: 'wastage' as MenuSection, label: 'Wastage Data Management', icon: Trash2 },
     { id: 'export' as MenuSection, label: 'Export Data', icon: Download },
   ];
@@ -38,7 +38,7 @@ export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProp
           <h2 className="font-bold text-sm text-[#4F6F52] uppercase tracking-wider">Management Module</h2>
           <p className="text-xs text-gray-500 font-medium">{storeSettings.storeName}</p>
         </div>
-        
+
         {/* Sticky Navigation Buttons at Top */}
         <div className="p-4 border-b space-y-2 bg-white">
           <Button
@@ -50,7 +50,7 @@ export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProp
             Exit Management
           </Button>
         </div>
-        
+
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
             {menuItems.map((item) => {
@@ -59,11 +59,10 @@ export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProp
                 <li key={item.id}>
                   <button
                     onClick={() => setActiveSection(item.id)}
-                    className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-[8px] transition-colors text-left ${
-                      activeSection === item.id
+                    className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-[8px] transition-colors text-left ${activeSection === item.id
                         ? 'bg-[#4F6F52] text-white font-medium shadow-sm'
                         : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                      }`}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
                     <span>{item.label}</span>
@@ -79,10 +78,10 @@ export function ManagementSystem({ onNavigateToDashboard }: ManagementSystemProp
       <main className="flex-1 overflow-auto">
         <div className="container mx-auto px-6 py-8 max-w-6xl">
           {activeSection === 'recipes' && <RecipeManagement />}
-          {activeSection === 'ingredients' && <IngredientManagement />}
+          {activeSection === 'ingredients' && <IngredientManagement onNavigateToRecipes={() => setActiveSection('recipes')} />}
           {activeSection === 'import' && <ImportSalesData />}
           {/* FIX: Added conditional render for SalesManagement */}
-          {activeSection === 'sales' && <SalesManagement />} 
+          {activeSection === 'sales' && <SalesManagement />}
           {activeSection === 'wastage' && <WastageManagement />}
           {activeSection === 'export' && <ExportData />}
         </div>

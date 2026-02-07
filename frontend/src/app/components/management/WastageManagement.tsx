@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/app/components/u
 import { Badge } from '@/app/components/ui/badge';
 import { Trash2, Edit, History, AlertTriangle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, differenceInDays, subDays } from 'date-fns';
+import { format, differenceInDays, subDays, parseISO } from 'date-fns';
 import { WastageData, EditHistory } from '@/app/types/index';
 import { getRecipeUnit, calculateRecipeCarbon } from '@/app/utils/recipeCalculations';
 import { getStandardizedQuantity } from '@/app/utils/unitConversion';
@@ -75,10 +75,12 @@ export function WastageManagement() {
 
   const filteredData = useMemo(() => {
     const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
     const thirtyDaysAgo = subDays(today, 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0); // Start of 30 days ago
 
     let data = wastageData.filter((waste) => {
-      const wasteDate = new Date(waste.date);
+      const wasteDate = parseISO(waste.date); // Use parseISO for reliable date parsing
       return wasteDate >= thirtyDaysAgo && wasteDate <= today;
     });
 
@@ -126,7 +128,7 @@ export function WastageManagement() {
   const canEdit = (dateStr: string): boolean => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dataDate = new Date(dateStr);
+    const dataDate = parseISO(dateStr); // Use parseISO for consistent date parsing
     dataDate.setHours(0, 0, 0, 0);
     const daysDiff = differenceInDays(today, dataDate);
     return daysDiff <= 7;

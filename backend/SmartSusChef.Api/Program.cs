@@ -102,7 +102,7 @@ var mlApiUrl = builder.Configuration["ExternalApis:MlApiUrl"] ?? "http://localho
 builder.Services.AddHttpClient<IMlPredictionService, MlPredictionService>(client =>
 {
     client.BaseAddress = new Uri(mlApiUrl);
-    client.Timeout = TimeSpan.FromSeconds(120); // Training checks may take longer
+    client.Timeout = TimeSpan.FromSeconds(30);
 })
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
@@ -166,9 +166,6 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Health check endpoint for ALB/ECS
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 app.MapControllers();
 

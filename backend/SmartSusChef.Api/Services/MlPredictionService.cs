@@ -26,13 +26,19 @@ public class MlPredictionService : IMlPredictionService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Timeout for status check specifically (much shorter than training/predict).
+    /// </summary>
+    private static readonly TimeSpan StatusCheckTimeout = TimeSpan.FromSeconds(10);
+
     public async Task<MlStoreStatusDto> GetStoreStatusAsync(int storeId)
     {
         try
         {
             var requestUrl = $"/store/{storeId}/status";
             _logger.LogInformation("ML request: GET {BaseAddress}{Path}", _httpClient.BaseAddress, requestUrl);
-            var response = await _httpClient.GetAsync(requestUrl);
+            using var cts = new CancellationTokenSource(StatusCheckTimeout);
+            var response = await _httpClient.GetAsync(requestUrl, cts.Token);
             _logger.LogInformation("ML response: {StatusCode} from {RequestUri}", (int)response.StatusCode, response.RequestMessage?.RequestUri);
 
             if (!response.IsSuccessStatusCode)

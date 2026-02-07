@@ -6,21 +6,27 @@ import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/app/components/ui/dialog';
-import { Plus, Edit, Trash2, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, AlertTriangle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Ingredient } from '@/app/types';
 
-export function IngredientManagement() {
-  const { ingredients, addIngredient, updateIngredient, deleteIngredient } = useApp();
+interface IngredientManagementProps {
+  onNavigateToRecipes?: () => void;
+}
+
+export function IngredientManagement({ onNavigateToRecipes }: IngredientManagementProps = {}) {
+  const { ingredients, addIngredient, updateIngredient, deleteIngredient, wastageData, recipes } = useApp();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [carbonFootprint, setCarbonFootprint] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [deletingIngredient, setDeletingIngredient] = useState<{ id: string; name: string } | null>(null);
+  const [deletingIngredient, setDeletingIngredient] = useState<{ id: string; name: string; wastageCount: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRecipeUsageDialogOpen, setIsRecipeUsageDialogOpen] = useState(false);
+  const [ingredientInUse, setIngredientInUse] = useState<{ id: string; name: string; usedInRecipes: string[] } | null>(null);
 
   const handleOpenDialog = (ingredient?: Ingredient) => {
     if (ingredient) {
@@ -81,21 +87,60 @@ export function IngredientManagement() {
   };
 
   const handleOpenDeleteDialog = (id: string, name: string) => {
-    setDeletingIngredient({ id, name });
+    // First check if ingredient is used in any recipes
+    const recipesUsingIngredient = recipes.filter(recipe =>
+      recipe.ingredients.some(ing => ing.ingredientId === id)
+    );
+
+    if (recipesUsingIngredient.length > 0) {
+      // Show recipe usage dialog instead of delete dialog
+      setIngredientInUse({
+        id,
+        name,
+        usedInRecipes: recipesUsingIngredient.map(r => r.name)
+      });
+      setIsRecipeUsageDialogOpen(true);
+      return;
+    }
+
+    // Check if ingredient exists in Wastage Data
+    const wastageCount = wastageData.filter(waste => waste.ingredientId === id).length;
+
+    setDeletingIngredient({ id, name, wastageCount });
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     if (!deletingIngredient) return;
 
+    const { wastageCount } = deletingIngredient;
+    const hasRelatedData = wastageCount > 0;
+
+    // If no related data, just delete
+    if (!hasRelatedData) {
+      setIsDeleting(true);
+      try {
+        await deleteIngredient(deletingIngredient.id, false);
+        toast.success('Ingredient deleted successfully');
+        setIsDeleteDialogOpen(false);
+        setDeletingIngredient(null);
+      } catch (error) {
+        toast.error('Failed to delete ingredient');
+      } finally {
+        setIsDeleting(false);
+      }
+      return;
+    }
+
+    // If related data exists, delete with cascade
     setIsDeleting(true);
     try {
-      await deleteIngredient(deletingIngredient.id);
-      toast.success('Ingredient deleted successfully');
+      await deleteIngredient(deletingIngredient.id, true);
+      toast.success(`Ingredient and ${wastageCount} related wastage record${wastageCount > 1 ? 's' : ''} deleted successfully`);
       setIsDeleteDialogOpen(false);
       setDeletingIngredient(null);
     } catch (error) {
-      toast.error('Failed to delete ingredient');
+      toast.error('Failed to delete ingredient and related data');
     } finally {
       setIsDeleting(false);
     }
@@ -237,22 +282,45 @@ export function IngredientManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-gray-700">
-                Are you sure you want to delete this ingredient?
-              </p>
               {deletingIngredient && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="text-sm">
-                    <div className="text-gray-600">Ingredient Name:</div>
-                    <div className="font-medium text-gray-900 mt-1">
-                      {deletingIngredient.name}
-                    </div>
-                  </div>
-                </div>
+                <>
+                  {deletingIngredient.wastageCount > 0 ? (
+                    <>
+                      <p className="text-gray-700">
+                        This ingredient has related wastage data records. Deleting it will also remove:
+                      </p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+                        <div className="font-medium text-amber-900">{deletingIngredient.name}</div>
+                        <div className="space-y-1 text-sm">
+                          <div className="text-gray-700">
+                            • <span className="font-semibold text-amber-700">{deletingIngredient.wastageCount}</span> Wastage Data record{deletingIngredient.wastageCount > 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        ⚠️ Warning: This will permanently delete the ingredient and all {deletingIngredient.wastageCount} related wastage record{deletingIngredient.wastageCount > 1 ? 's' : ''}. This action cannot be undone.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-700">
+                        Are you sure you want to delete this ingredient?
+                      </p>
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="text-sm">
+                          <div className="text-gray-600">Ingredient Name:</div>
+                          <div className="font-medium text-gray-900 mt-1">
+                            {deletingIngredient.name}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        Warning: This action cannot be undone.
+                      </p>
+                    </>
+                  )}
+                </>
               )}
-              <p className="text-sm text-red-600 font-medium">
-                Warning: This action cannot be undone.
-              </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button
@@ -271,6 +339,67 @@ export function IngredientManagement() {
               >
                 Yes, Delete Ingredient
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recipe Usage Warning Dialog */}
+      <Dialog open={isRecipeUsageDialogOpen} onOpenChange={setIsRecipeUsageDialogOpen}>
+        <DialogContent className="max-w-md rounded-[12px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              Cannot Delete Ingredient
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {ingredientInUse && (
+              <>
+                <p className="text-gray-700">
+                  This ingredient <span className="font-semibold">{ingredientInUse.name}</span> is currently used in the following recipe{ingredientInUse.usedInRecipes.length > 1 ? 's' : ''}:
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
+                  <ul className="space-y-2">
+                    {ingredientInUse.usedInRecipes.map((recipeName, index) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-amber-600 mt-0.5">•</span>
+                        <span className="text-gray-900 font-medium">{recipeName}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-900">
+                    <strong>Note:</strong> You need to remove this ingredient from {ingredientInUse.usedInRecipes.length > 1 ? 'these recipes' : 'this recipe'} before you can delete it.
+                  </p>
+                </div>
+              </>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsRecipeUsageDialogOpen(false);
+                  setIngredientInUse(null);
+                }}
+                className="rounded-[32px] px-6 hover:bg-gray-100"
+              >
+                Cancel
+              </Button>
+              {onNavigateToRecipes && (
+                <Button
+                  onClick={() => {
+                    setIsRecipeUsageDialogOpen(false);
+                    setIngredientInUse(null);
+                    onNavigateToRecipes();
+                  }}
+                  className="bg-[#4F6F52] hover:bg-[#3D563F] text-white rounded-[32px] px-6 gap-2"
+                >
+                  Go to Recipe Management
+                  <ExternalLink className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>

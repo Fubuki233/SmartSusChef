@@ -4,13 +4,11 @@ name: Mobile CI/CD
 
 on:
   push:
-    branches:
-      - main
+    branches: [main, develop]
     paths:
       - 'mobile/**'
   pull_request:
-    branches:
-      - main
+    branches: [main, develop]
     paths:
       - 'mobile/**'
   workflow_dispatch: # Allows manual trigger

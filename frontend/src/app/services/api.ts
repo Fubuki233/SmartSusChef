@@ -476,6 +476,7 @@ export interface WastageDataDto {
   unit: string;
   quantity: number;
   carbonFootprint: number;
+  createdAt: string;
   updatedAt: string;
 }
 

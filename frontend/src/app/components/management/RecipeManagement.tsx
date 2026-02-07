@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue, SelectSeparator } from '@/app/components/ui/select';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Badge } from '@/app/components/ui/badge';
-import { Plus, Edit, Trash2, ChefHat, Utensils, Wheat } from 'lucide-react';
+import { Plus, Edit, Trash2, ChefHat, Utensils, Wheat, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Recipe } from '@/app/types/index';
 
@@ -21,14 +21,16 @@ interface FormRow {
 }
 
 export function RecipeManagement() {
-  const { recipes, ingredients, addRecipe, updateRecipe, deleteRecipe, storeSettings } = useApp();
+  const { recipes, ingredients, addRecipe, updateRecipe, deleteRecipe, storeSettings, salesData, wastageData } = useApp();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [deletingRecipe, setDeletingRecipe] = useState<{ id: string; name: string } | null>(null);
+  const [deletingRecipe, setDeletingRecipe] = useState<{ id: string; name: string; salesCount: number; wastageCount: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRecipeUsageDialogOpen, setIsRecipeUsageDialogOpen] = useState(false);
+  const [recipeInUse, setRecipeInUse] = useState<{ id: string; name: string; usedInRecipes: string[] } | null>(null);
 
   interface RecipeFormState {
     name: string;
@@ -157,21 +159,64 @@ export function RecipeManagement() {
   };
 
   const handleOpenDeleteDialog = (id: string, name: string) => {
-    setDeletingRecipe({ id, name });
+    // First check if this is a sub-recipe used in other recipes
+    const recipeToDelete = recipes.find(r => r.id === id);
+    if (recipeToDelete?.isSubRecipe) {
+      const recipesUsingSubRecipe = recipes.filter(recipe =>
+        recipe.ingredients.some(ing => ing.childRecipeId === id)
+      );
+
+      if (recipesUsingSubRecipe.length > 0) {
+        // Show recipe usage dialog instead of delete dialog
+        setRecipeInUse({
+          id,
+          name,
+          usedInRecipes: recipesUsingSubRecipe.map(r => r.name)
+        });
+        setIsRecipeUsageDialogOpen(true);
+        return;
+      }
+    }
+
+    // Check if recipe exists in Sales Data or Wastage Data
+    const salesCount = salesData.filter(sale => sale.recipeId === id).length;
+    const wastageCount = wastageData.filter(waste => waste.recipeId === id).length;
+
+    setDeletingRecipe({ id, name, salesCount, wastageCount });
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
     if (!deletingRecipe) return;
 
+    const { salesCount, wastageCount } = deletingRecipe;
+    const hasRelatedData = salesCount > 0 || wastageCount > 0;
+
+    // If no related data, just delete
+    if (!hasRelatedData) {
+      setIsDeleting(true);
+      try {
+        await deleteRecipe(deletingRecipe.id, false);
+        toast.success('Recipe deleted successfully');
+        setIsDeleteDialogOpen(false);
+        setDeletingRecipe(null);
+      } catch (error) {
+        toast.error('Failed to delete recipe');
+      } finally {
+        setIsDeleting(false);
+      }
+      return;
+    }
+
+    // If related data exists, delete with cascade
     setIsDeleting(true);
     try {
-      await deleteRecipe(deletingRecipe.id);
-      toast.success('Recipe deleted successfully');
+      await deleteRecipe(deletingRecipe.id, true);
+      toast.success(`Recipe and ${salesCount + wastageCount} related records deleted successfully`);
       setIsDeleteDialogOpen(false);
       setDeletingRecipe(null);
     } catch (error) {
-      toast.error('Failed to delete recipe');
+      toast.error('Failed to delete recipe and related data');
     } finally {
       setIsDeleting(false);
     }
@@ -442,22 +487,52 @@ export function RecipeManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <p className="text-gray-700">
-                Are you sure you want to delete this recipe?
-              </p>
               {deletingRecipe && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="text-sm">
-                    <div className="text-gray-600">Recipe Name:</div>
-                    <div className="font-medium text-gray-900 mt-1">
-                      {deletingRecipe.name}
-                    </div>
-                  </div>
-                </div>
+                <>
+                  {deletingRecipe.salesCount > 0 || deletingRecipe.wastageCount > 0 ? (
+                    <>
+                      <p className="text-gray-700">
+                        This recipe has related data records. Deleting it will also remove:
+                      </p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+                        <div className="font-medium text-amber-900">{deletingRecipe.name}</div>
+                        <div className="space-y-1 text-sm">
+                          {deletingRecipe.salesCount > 0 && (
+                            <div className="text-gray-700">
+                              • <span className="font-semibold text-amber-700">{deletingRecipe.salesCount}</span> Sales Data record{deletingRecipe.salesCount > 1 ? 's' : ''}
+                            </div>
+                          )}
+                          {deletingRecipe.wastageCount > 0 && (
+                            <div className="text-gray-700">
+                              • <span className="font-semibold text-amber-700">{deletingRecipe.wastageCount}</span> Wastage Data record{deletingRecipe.wastageCount > 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        ⚠️ Warning: This will permanently delete the recipe and all {deletingRecipe.salesCount + deletingRecipe.wastageCount} related data records. This action cannot be undone.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-700">
+                        Are you sure you want to delete this recipe?
+                      </p>
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="text-sm">
+                          <div className="text-gray-600">Recipe Name:</div>
+                          <div className="font-medium text-gray-900 mt-1">
+                            {deletingRecipe.name}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-red-600 font-medium">
+                        Warning: This action cannot be undone.
+                      </p>
+                    </>
+                  )}
+                </>
               )}
-              <p className="text-sm text-red-600 font-medium">
-                Warning: This action cannot be undone.
-              </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button
@@ -475,6 +550,54 @@ export function RecipeManagement() {
                 className="bg-red-600 hover:bg-red-700 rounded-[32px] px-6"
               >
                 Yes, Delete Recipe
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recipe Usage Warning Dialog */}
+      <Dialog open={isRecipeUsageDialogOpen} onOpenChange={setIsRecipeUsageDialogOpen}>
+        <DialogContent className="max-w-md rounded-[12px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              Cannot Delete Sub-Recipe
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {recipeInUse && (
+              <>
+                <p className="text-gray-700">
+                  This sub-recipe <span className="font-semibold">{recipeInUse.name}</span> is currently used in the following main dish{recipeInUse.usedInRecipes.length > 1 ? 'es' : ''}:
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
+                  <ul className="space-y-2">
+                    {recipeInUse.usedInRecipes.map((recipeName, index) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-amber-600 mt-0.5">•</span>
+                        <span className="text-gray-900 font-medium">{recipeName}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-900">
+                    <strong>Note:</strong> You need to remove this sub-recipe from {recipeInUse.usedInRecipes.length > 1 ? 'these dishes' : 'this dish'} before you can delete it.
+                  </p>
+                </div>
+              </>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsRecipeUsageDialogOpen(false);
+                  setRecipeInUse(null);
+                }}
+                className="rounded-[32px] px-6 hover:bg-gray-100"
+              >
+                OK, I Understand
               </Button>
             </div>
           </div>

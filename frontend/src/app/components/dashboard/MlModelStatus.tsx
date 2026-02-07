@@ -64,17 +64,26 @@ export function MlModelStatusCard() {
     const [loading, setLoading] = useState(true);
     const [training, setTraining] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [slowLoad, setSlowLoad] = useState(false);
 
     const fetchStatus = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-            const data = await mlApi.getStatus();
-            setStatus(data);
+            // Use AbortController with 10s timeout to avoid hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            try {
+                const data = await mlApi.getStatus();
+                setStatus(data);
+            } finally {
+                clearTimeout(timeoutId);
+            }
         } catch (err) {
             console.error('[MlModelStatus] Failed to fetch status:', err);
             setError('Unable to connect to ML service');
-            setStatus(null);
+            // Keep previous status if available so the card doesn't flicker
+            setStatus(prev => prev ?? null);
         } finally {
             setLoading(false);
         }
@@ -83,6 +92,15 @@ export function MlModelStatusCard() {
     useEffect(() => {
         fetchStatus();
     }, [fetchStatus]);
+
+    // Show fallback if initial load takes more than 3 seconds
+    useEffect(() => {
+        if (loading && !status) {
+            const timer = setTimeout(() => setSlowLoad(true), 3000);
+            return () => clearTimeout(timer);
+        }
+        setSlowLoad(false);
+    }, [loading, status]);
 
     // Track previous status to detect training → ready transition
     const prevStatusRef = useRef<string | null>(null);
@@ -153,8 +171,18 @@ export function MlModelStatusCard() {
         return (
             <Card className="rounded-[8px]">
                 <CardContent className="flex items-center justify-center py-8">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-500">Checking ML model status...</span>
+                    {slowLoad ? (
+                        <div className="text-center">
+                            <AlertTriangle className="w-5 h-5 text-amber-400 mx-auto mb-2" />
+                            <span className="text-sm text-gray-500">ML service is slow to respond...</span>
+                            <p className="text-xs text-gray-400 mt-1">Predictions below are still available</p>
+                        </div>
+                    ) : (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin text-gray-400 mr-2" />
+                            <span className="text-sm text-gray-500">Checking ML model status...</span>
+                        </>
+                    )}
                 </CardContent>
             </Card>
         );
