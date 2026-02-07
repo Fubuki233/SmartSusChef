@@ -13,6 +13,7 @@ permissions:
 env:
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '20.x'
+  JAVA_VERSION: '17'
 
 jobs:
   # ==========================================
@@ -107,6 +108,38 @@ jobs:
           cd frontend
           npm run build
 
+# ==========================================
+# Mobile Validation
+# ==========================================
+  mobile-validate:
+    name: Mobile Validation
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.changed_files, 'mobile/') || github.event.pull_request.changed_files == ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        working-directory: ./mobile
+
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug
+        working-directory: ./mobile
+
+      - name: Run Unit Tests
+        run: ./gradlew test
+        working-directory: ./mobile
+        continue-on-error: true
+
   # ==========================================
   # Docker Build Test
   # ==========================================
@@ -144,7 +177,7 @@ jobs:
   comment:
     name: PR Status Comment
     runs-on: ubuntu-latest
-    needs: [validate, backend-validate, frontend-validate, docker-test]
+    needs: [validate, backend-validate, frontend-validate, mobile-validate, docker-test]
     if: always()
     permissions:
       pull-requests: write
@@ -156,6 +189,7 @@ jobs:
           script: |
             const backendStatus = '${{ needs.backend-validate.result }}' === 'success' ? 'True' : 'False';
             const frontendStatus = '${{ needs.frontend-validate.result }}' === 'success' ? 'True' : 'False';
+            const mobileStatus = '${{ needs.mobile-validate.result }}' === 'success' ? 'True' : 'False';
             const dockerStatus = '${{ needs.docker-test.result }}' === 'success' ? 'True' : 'False';
             
             const body = `## CI/CD Status Report
@@ -164,6 +198,7 @@ jobs:
             |-------|--------|
             | Backend Build & Tests | ${backendStatus} |
             | Frontend Build | ${frontendStatus} |
+            | Mobile Build & Tests | ${mobileStatus} |
             | Docker Build | ${dockerStatus} |
             
             ---
