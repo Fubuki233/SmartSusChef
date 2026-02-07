@@ -22,7 +22,7 @@ public class UsersController : ControllerBase
     /// Get all users in the store (Manager only)
     /// </summary>
     [HttpGet]
-    // Removed [Authorize(Roles = "Manager")] to prevent 403 loops for Employees
+    [Authorize(Roles = "Manager")]
     public async Task<ActionResult<List<UserListDto>>> GetAllUsers()
     {
         var storeId = GetStoreIdFromClaims();

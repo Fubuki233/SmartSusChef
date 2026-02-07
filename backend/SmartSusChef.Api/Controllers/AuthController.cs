@@ -10,10 +10,12 @@ namespace SmartSusChef.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ILogger<AuthController> logger)
     {
         _authService = authService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -66,12 +68,14 @@ public class AuthController : ControllerBase
         }
 
         var tempPassword = await _authService.ResetPasswordAsync(request.EmailOrUsername);
-        if (tempPassword == null)
+
+        // Always return the same response to prevent user enumeration
+        if (tempPassword != null)
         {
-            return NotFound(new { message = "User not found" });
+            _logger.LogWarning("Password reset completed for account: {Account}", request.EmailOrUsername);
         }
 
-        return Ok(new ForgotPasswordResponse(tempPassword));
+        return Ok(new ForgotPasswordResponse("If the account exists, the password has been reset. Please contact your store manager for the new temporary password."));
     }
 
     /// <summary>

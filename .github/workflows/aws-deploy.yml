@@ -433,9 +433,6 @@ jobs:
       - name: Load environment config
         id: env-config
         run: |
-          TFVARS="infrastructure/terraform/environments/uat.tfvars"
-          echo "db_password=$(grep 'db_password' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
-          echo "jwt_secret=$(grep 'jwt_secret' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
           RDS_EP=$(aws rds describe-db-instances --db-instance-identifier smartsuschef-uat-db --query 'DBInstances[0].Endpoint.Address' --output text 2>/dev/null || echo "smartsuschef-uat-db.cluster.ap-southeast-1.rds.amazonaws.com")
           echo "rds_endpoint=$RDS_EP" >> $GITHUB_OUTPUT
 
@@ -444,8 +441,8 @@ jobs:
           ENVIRONMENT: uat
           AWS_ACCOUNT_ID: ${{ steps.aws-account.outputs.account_id }}
           AWS_REGION: ${{ env.AWS_REGION }}
-          DB_PASSWORD: ${{ steps.env-config.outputs.db_password }}
-          JWT_SECRET: ${{ steps.env-config.outputs.jwt_secret }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           RDS_ENDPOINT: ${{ steps.env-config.outputs.rds_endpoint }}
         run: |
           envsubst < .aws/task-definitions/backend.json > backend-task-def.json
@@ -545,9 +542,6 @@ jobs:
       - name: Load environment config
         id: env-config
         run: |
-          TFVARS="infrastructure/terraform/environments/production.tfvars"
-          echo "db_password=$(grep 'db_password' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
-          echo "jwt_secret=$(grep 'jwt_secret' $TFVARS | sed 's/.*=\s*"\(.*\)"/\1/')" >> $GITHUB_OUTPUT
           RDS_EP=$(aws rds describe-db-instances --db-instance-identifier smartsuschef-production-db --query 'DBInstances[0].Endpoint.Address' --output text 2>/dev/null || echo "smartsuschef-production-db.cluster.ap-southeast-1.rds.amazonaws.com")
           echo "rds_endpoint=$RDS_EP" >> $GITHUB_OUTPUT
 
@@ -556,8 +550,8 @@ jobs:
           ENVIRONMENT: production
           AWS_ACCOUNT_ID: ${{ steps.aws-account.outputs.account_id }}
           AWS_REGION: ${{ env.AWS_REGION }}
-          DB_PASSWORD: ${{ steps.env-config.outputs.db_password }}
-          JWT_SECRET: ${{ steps.env-config.outputs.jwt_secret }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           RDS_ENDPOINT: ${{ steps.env-config.outputs.rds_endpoint }}
         run: |
           envsubst < .aws/task-definitions/backend.json > backend-task-def.json

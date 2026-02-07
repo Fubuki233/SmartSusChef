@@ -176,7 +176,7 @@ export interface ForgotPasswordRequest {
 }
 
 export interface ForgotPasswordResponse {
-  temporaryPassword: string;
+  message: string;
 }
 
 export const authApi = {
