@@ -373,10 +373,12 @@ export function RecipeManagement() {
                   id="is-sub-recipe"
                   checked={isSubRecipe}
                   onCheckedChange={(checked) => handleSubRecipeToggle(checked as boolean)}
+                  disabled={!!editingRecipe}
                   className="data-[state=checked]:bg-[#4F6F52] border-gray-400 rounded-[4px]"
                 />
-                <Label htmlFor="is-sub-recipe" className="text-sm font-medium cursor-pointer text-gray-700">
+                <Label htmlFor="is-sub-recipe" className={`text-sm font-medium ${editingRecipe ? 'cursor-not-allowed text-gray-400' : 'cursor-pointer text-gray-700'}`}>
                   Set as Sub-Recipe (e.g. Sauce, Stock)
+                  {editingRecipe && <span className="text-xs ml-2">(Cannot be changed)</span>}
                 </Label>
               </div>
 
