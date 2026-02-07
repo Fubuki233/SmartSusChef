@@ -382,7 +382,7 @@ export interface SalesDataDto {
   recipeName: string;
   quantity: number;
   createdAt?: string;
-  modifiedAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateSalesDataRequest {
