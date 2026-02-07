@@ -4,9 +4,9 @@ name: Security Scan (CodeQL)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
   schedule:
     - cron: '30 1 * * 0' # Weekly scan on Sunday at 01:30 UTC
 
@@ -20,11 +20,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'csharp', 'javascript', 'python' ] # Scan for all languages in your project
+        language: [ 'csharp', 'javascript-typescript', 'python', 'java-kotlin' ] # Scan for all languages in your project
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up JDK17
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
