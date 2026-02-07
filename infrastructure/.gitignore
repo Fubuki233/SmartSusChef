@@ -1,7 +1,5 @@
 
 *.pem
 *.key
-*.tfvars
-!*.tfvars.example
 secrets.yaml
 secrets.yml
