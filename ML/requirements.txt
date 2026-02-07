@@ -19,6 +19,5 @@ shap
 fastapi
 uvicorn[standard]
 pydantic
-python-dotenv
 celery[redis]
 redis
