@@ -18,6 +18,15 @@ services:
     networks:
       - smartsuschef_network
 
+  redis:
+    image: redis:6-alpine
+    container_name: smartsuschef_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - smartsuschef_network
+
   backend:
     build:
       context: ./backend
@@ -25,12 +34,14 @@ services:
     container_name: smartsuschef_backend
     restart: always
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: "Server=mysql;Database=smartsuschef;User=smartsuschef;Password=smartsuschef123;"
+      MLService__BaseUrl: "http://ml-api:8000"
     ports:
       - "5000:8080"
     depends_on:
       - mysql
+      - ml-api
     networks:
       - smartsuschef_network
 
@@ -44,6 +55,41 @@ services:
       - "3000:80"
     depends_on:
       - backend
+    networks:
+      - smartsuschef_network
+
+  ml-api:
+    build:
+      context: ./ML
+      dockerfile: Dockerfile
+    container_name: smartsuschef_ml_api
+    restart: always
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - DATABASE_URL=mysql+pymysql://smartsuschef:smartsuschef123@mysql:3306/smartsuschef
+      - MODEL_DIR=/app/models
+    ports:
+      - "8001:8000"
+    depends_on:
+      - redis
+      - mysql
+    networks:
+      - smartsuschef_network
+
+  ml-worker:
+    build:
+      context: ./ML
+      dockerfile: Dockerfile
+    container_name: smartsuschef_ml_worker
+    restart: always
+    command: celery -A app.celery_app worker --loglevel=info
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - DATABASE_URL=mysql+pymysql://smartsuschef:smartsuschef123@mysql:3306/smartsuschef
+      - MODEL_DIR=/app/models
+    depends_on:
+      - redis
+      - mysql
     networks:
       - smartsuschef_network
 
