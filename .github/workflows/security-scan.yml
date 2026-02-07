@@ -40,12 +40,17 @@ jobs:
           languages: ${{ matrix.language }}
           # If you have custom query packs or configuration, add them here.
 
-      - name: Autobuild (attempt)
+      - name: Manual Build for Java/Kotlin
+        if: matrix.language == 'java-kotlin'
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: ./mobile
+
+      - name: Autobuild (Other Languages)
+        if: matrix.language != 'java-kotlin'
         uses: github/codeql-action/autobuild@v3
-        # This step attempts to build your project. For .NET and Python,
-        # it might need specific build commands if autobuild fails.
-        # For C#, it typically works well with a solution file.
-        # For JavaScript/TypeScript, it generally doesn't require a build step for analysis.
+        # This step attempts to build your project. If autobuild fails, revert to specific build commands.
+        # Note that this has worked so far for .NET, Python, C# (with a solution file).
+        # JavaScript/TypeScript generally doesn't require a build step for analysis.
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
