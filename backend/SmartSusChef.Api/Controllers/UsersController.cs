@@ -36,7 +36,7 @@ public class UsersController : ControllerBase
     }
 
     /// Create a new user with a mandatory initial password (Manager only)
-    
+
     [HttpPost]
     [Authorize(Roles = "Manager")]
     public async Task<ActionResult<UserListDto>> CreateUser([FromBody] CreateUserRequest request)
