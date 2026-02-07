@@ -63,25 +63,25 @@ Start-Sleep -Seconds 2
 # -- 3) Frontend ------------------------------------------------------------
 Write-Host "[3/3] Starting Frontend (port 5173)..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command", @"
-    `$Host.UI.RawUI.WindowTitle = 'SmartSusChef - Frontend (5173)')'
+    `$Host.UI.RawUI.WindowTitle = 'SmartSusChef - Frontend (5173)'
     Set-Location '$Root\frontend'
-    Write-Host 'Installing npm dependencies...' -ForegroundColor Yellowpendencies...' -ForegroundColor Yellow
+    Write-Host 'Installing npm dependencies...' -ForegroundColor Yellow
     npm install --silent
-    Write-Host 'Frontend starting...' -ForegroundColor Green starting...' -ForegroundColor Green
+    Write-Host 'Frontend starting...' -ForegroundColor Green
     npm run dev
 "@
 
-# -- Summary ----------------------------------------------------------------# -- Summary ----------------------------------------------------------------
+# -- Summary ----------------------------------------------------------------
 Write-Host ""
-Write-Host "==========================================" -ForegroundColor Green=========================================" -ForegroundColor Green
+Write-Host "==========================================" -ForegroundColor Green
 Write-Host "  All 3 service windows launched" -ForegroundColor Green
-Write-Host "==========================================" -ForegroundColor Green====" -ForegroundColor Green
+Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Frontend   ->  http://localhost:5173" -ForegroundColor White Frontend   ->  http://localhost:5173" -ForegroundColor White
-Write-Host "  Backend    ->  http://localhost:5000" -ForegroundColor Whitee
-Write-Host "  Swagger    ->  http://localhost:5000/swagger" -ForegroundColor Whitelor White
+Write-Host "  Frontend   ->  http://localhost:5173" -ForegroundColor White
+Write-Host "  Backend    ->  http://localhost:5000" -ForegroundColor White
+Write-Host "  Swagger    ->  http://localhost:5000/swagger" -ForegroundColor White
 Write-Host "  ML API     ->  http://localhost:8000" -ForegroundColor White
-Write-Host "  ML Docs    ->  http://localhost:8000/docs" -ForegroundColor White White
+Write-Host "  ML Docs    ->  http://localhost:8000/docs" -ForegroundColor White
 Write-Host ""
-Write-Host "  To stop: close each PowerShell window" -ForegroundColor Gray To stop: close each PowerShell window" -ForegroundColor Gray
-Write-Host "==========================================" -ForegroundColor GreenundColor Green
+Write-Host "  To stop: close each PowerShell window" -ForegroundColor Gray
+Write-Host "==========================================" -ForegroundColor Green
