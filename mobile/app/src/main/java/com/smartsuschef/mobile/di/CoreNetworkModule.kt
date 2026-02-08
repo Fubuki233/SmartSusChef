@@ -1,14 +1,10 @@
 package com.smartsuschef.mobile.di
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.smartsuschef.mobile.BuildConfig
 import com.smartsuschef.mobile.data.TokenManager
-import com.smartsuschef.mobile.util.Constants
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,27 +18,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
-// Create the DataStore instance as a top-level extension on Context
-private val Context.dataStore by preferencesDataStore(name = Constants.DATASTORE_NAME)
-
 @Module
 @InstallIn(SingletonComponent::class)
 object CoreNetworkModule {
-
-    /**
-     * Base URL for the API - configured via build.gradle.kts buildConfigField
-     * Debug: http://10.0.2.2:5001/api/
-     * Release: https://smartsuschef.com/api/
-     */
-
-    /**
-     * Provides the singleton DataStore<Preferences> instance for the app.
-     */
-    @Provides
-    @Singleton
-    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
-        return context.dataStore
-    }
 
     /**
      * Provides Gson instance for JSON serialization/deserialization
@@ -56,12 +34,13 @@ object CoreNetworkModule {
     }
 
     /**
-     * Provides TokenManager for storing/retrieving JWT tokens
+     * Provides TokenManager. TokenManager now internally handles EncryptedSharedPreferences.
+     * It requires the ApplicationContext to create its own crypto components.
      */
     @Provides
     @Singleton
-    fun provideTokenManager(dataStore: DataStore<Preferences>): TokenManager {
-        return TokenManager(dataStore)
+    fun provideTokenManager(@ApplicationContext context: Context): TokenManager {
+        return TokenManager(context)
     }
 
     /**
@@ -90,7 +69,8 @@ object CoreNetworkModule {
         return Interceptor { chain ->
             val originalRequest = chain.request()
 
-            // Get token from TokenManager
+            // Get token from TokenManager.
+            // The existing TokenManager uses runBlocking internally for this synchronous call.
             val token = tokenManager.getToken()
 
             // If token exists, add it to the request header

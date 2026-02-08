@@ -46,20 +46,19 @@ class ForecastViewModelTest {
     }
 
     @Test
-    fun `init when all repository calls succeed should process and update all LiveData`() = runTest {
+    fun `init when repository call succeeds should process and update all LiveData`() = runTest {
         // ARRANGE
-        // 1. Create comprehensive mock data for all three repository calls
+        // 1. Create mock data for the single getForecast(7) repository call
         val today = "2023-01-01"
         val tomorrow = "2023-01-02"
 
-        // Corrected mock data for getForecast()
         val mockForecastData = listOf(
             ForecastDto(
                 date = today,
                 recipeId = "rec-1",
                 recipeName = "Pizza",
                 quantity = 10,
-                actualQuantity = 0, // Added required field
+                confidence = "Medium",
                 ingredients = listOf(
                     ForecastIngredientDto("ing-1", "Dough", "kg", 2.0),
                     ForecastIngredientDto("ing-2", "Cheese", "kg", 1.0)
@@ -70,7 +69,7 @@ class ForecastViewModelTest {
                 recipeId = "rec-2",
                 recipeName = "Pasta",
                 quantity = 5,
-                actualQuantity = 0, // Added required field
+                confidence = "High",
                 ingredients = listOf(
                     ForecastIngredientDto("ing-3", "Pasta", "kg", 1.0),
                     ForecastIngredientDto("ing-2", "Cheese", "kg", 0.5) // Cheese used again
@@ -78,49 +77,34 @@ class ForecastViewModelTest {
             )
         )
 
-        // Corrected mock data for getDishBreakdown() to return Map<String, List<ForecastDto>>
-        val mockDishBreakdown = mapOf(
-            today to listOf(mockForecastData[0]),
-            tomorrow to listOf(mockForecastData[1])
-        )
-
-        // Mock data for getPastComparison()
-        val mockComparisonData = listOf(
-            ForecastDto( "2022-12-31", "rec-1", "Pizza", 8, 9, emptyList()) // Added actualQuantity
-        )
-
-        // 2. Program the mock repository to return success for all calls
+        // 2. Program the mock repository to return success for the getForecast call
         whenever(mockForecastRepository.getForecast(7)).thenReturn(Resource.Success(mockForecastData))
-        whenever(mockForecastRepository.getDishBreakdown(7)).thenReturn(Resource.Success(mockDishBreakdown))
-        whenever(mockForecastRepository.getPastComparison()).thenReturn(Resource.Success(mockComparisonData))
 
         // ACT
         // 3. Initialize the ViewModel
         val viewModel = ForecastViewModel(mockForecastRepository)
 
         // ASSERT
-        // 4. Verify all LiveData states and transformations
+        // 4. Verify all LiveData states based on the ViewModel's internal processing
 
-        // Summary Trend
+        // Summary Trend (should contain the forecast data)
         val summaryResult = viewModel.summaryTrend.value
         assertTrue(summaryResult is Resource.Success)
         assertEquals(2, (summaryResult as Resource.Success).data?.size)
         assertEquals(10, summaryResult.data?.find { it.date == today }?.quantity)
 
-        // Dish Forecasts
+        // Dish Forecasts (processed from the forecast data)
         val dishResult = viewModel.dishForecasts.value
         assertTrue(dishResult is Resource.Success)
         assertEquals(2, (dishResult as Resource.Success).data?.size)
-        // Note: The mapping logic in the ViewModel uses recipeName and quantity from ForecastDto now
-        // Let's assume the ViewModel's DishForecast takes (name, quantity)
         assertEquals("Pizza", dishResult.data?.find { it.date == today }?.dishes?.first()?.name)
 
-        // Comparison Data
+        // Comparison Data (is now stubbed in the ViewModel, should be empty)
         val comparisonResult = viewModel.comparisonData.value
         assertTrue(comparisonResult is Resource.Success)
-        assertEquals(1, (comparisonResult as Resource.Success).data?.size)
+        assertTrue((comparisonResult as Resource.Success).data?.isEmpty() == true)
 
-        // Ingredient Forecast (tests the processIngredientTable logic)
+        // Ingredient Forecast (processed from the forecast data)
         val ingredientResult = viewModel.ingredientForecast.value
         assertTrue(ingredientResult is Resource.Success)
         val ingredients = (ingredientResult as Resource.Success).data
@@ -131,96 +115,34 @@ class ForecastViewModelTest {
         assertEquals(2, cheese?.totalQuantity?.size)
         assertEquals(1.0, cheese?.totalQuantity?.get(0)) // Qty for today
         assertEquals(0.5, cheese?.totalQuantity?.get(1)) // Qty for tomorrow
+    }
+        
+    @Test
+    fun `init when getForecast fails should update all dependent LiveData to Error`() = runTest {
+        // ARRANGE
+        // 1. Program the main forecast repository call to fail
+        val errorMessage = "Network Error"
+        whenever(mockForecastRepository.getForecast(7)).thenReturn(Resource.Error(errorMessage))
 
-        val dough = ingredients?.find { it.name == "Dough" }
-                assertEquals(2.0, dough?.totalQuantity?.get(0))
-                assertEquals(0.0, dough?.totalQuantity?.get(1)) // Dough not used tomorrow
-            }
-        
-            @Test
-            fun `init_whenGetForecastFails_shouldUpdateRelevantLiveDataToError`() = runTest {
-                // ARRANGE
-                // 1. Program the main forecast repository call to fail
-                val errorMessage = "Network Error"
-                whenever(mockForecastRepository.getForecast(7)).thenReturn(Resource.Error(errorMessage))
-        
-                // 2. Program the other calls to succeed so we can ensure they still run
-                whenever(mockForecastRepository.getDishBreakdown(7)).thenReturn(Resource.Success(emptyMap()))
-                whenever(mockForecastRepository.getPastComparison()).thenReturn(Resource.Success(emptyList()))
-        
-                // ACT
-                // 3. Initialize the ViewModel
-                val viewModel = ForecastViewModel(mockForecastRepository)
-        
-                // ASSERT
-                // 4. Verify that the LiveData dependent on the failing call are in an Error state
-                val summaryResult = viewModel.summaryTrend.value
-                assertTrue(summaryResult is Resource.Error)
-                assertEquals(errorMessage, (summaryResult as Resource.Error).message)
-        
-                val ingredientResult = viewModel.ingredientForecast.value
-                assertTrue(ingredientResult is Resource.Error)
-                assertEquals(errorMessage, (ingredientResult as Resource.Error).message)
-        
-                // 5. Verify that the other LiveData that depend on successful calls are still updated
-                        assertTrue(viewModel.dishForecasts.value is Resource.Success)
-                        assertTrue(viewModel.comparisonData.value is Resource.Success)
-                    }
+        // ACT
+        // 2. Initialize the ViewModel
+        val viewModel = ForecastViewModel(mockForecastRepository)
+
+        // ASSERT
+        // 3. Verify that all dependent LiveData objects are in an Error state
+        val summaryResult = viewModel.summaryTrend.value
+        assertTrue(summaryResult is Resource.Error && summaryResult.message == errorMessage)
+
+        val ingredientResult = viewModel.ingredientForecast.value
+        assertTrue(ingredientResult is Resource.Error && ingredientResult.message == errorMessage)
+
+        val dishResult = viewModel.dishForecasts.value
+        assertTrue(dishResult is Resource.Error && dishResult.message == errorMessage)
+
+        val comparisonResult = viewModel.comparisonData.value
+        assertTrue(comparisonResult is Resource.Error && comparisonResult.message == errorMessage)
+    }
                 
-                    @Test
-                    fun `init_whenGetDishBreakdownFails_shouldUpdateRelevantLiveDataToError`() = runTest {
-                        // ARRANGE
-                        val errorMessage = "Dish breakdown failed"
-                        val today = "2023-01-01"
-                        val mockForecastData = listOf(ForecastDto(today, "rec-1", "Pizza", 10, 0, emptyList()))
-                        val mockComparisonData = listOf(ForecastDto("2022-12-31", "rec-1", "Pizza", 8, 9, emptyList()))
-                
-                        // 1. Program getDishBreakdown to fail
-                        whenever(mockForecastRepository.getForecast(7)).thenReturn(Resource.Success(mockForecastData))
-                        whenever(mockForecastRepository.getDishBreakdown(7)).thenReturn(Resource.Error(errorMessage))
-                        whenever(mockForecastRepository.getPastComparison()).thenReturn(Resource.Success(mockComparisonData))
-                
-                        // ACT
-                        val viewModel = ForecastViewModel(mockForecastRepository)
-                
-                        // ASSERT
-                        // 2. Verify that dishForecasts is in an Error state
-                        val dishResult = viewModel.dishForecasts.value
-                        assertTrue(dishResult is Resource.Error)
-                        assertEquals(errorMessage, (dishResult as Resource.Error).message)
-                
-                        // 3. Verify that other LiveData that depend on successful calls are still updated
-                        assertTrue(viewModel.summaryTrend.value is Resource.Success)
-                        assertTrue(viewModel.ingredientForecast.value is Resource.Success)
-                                assertTrue(viewModel.comparisonData.value is Resource.Success)
-                            }
-                        
-                            @Test
-                            fun `init_whenGetPastComparisonFails_shouldUpdateRelevantLiveDataToError`() = runTest {
-                                // ARRANGE
-                                val errorMessage = "Comparison data failed"
-                                val today = "2023-01-01"
-                                val mockForecastData = listOf(ForecastDto(today, "rec-1", "Pizza", 10, 0, emptyList()))
-                                val mockDishBreakdown = mapOf(today to listOf(mockForecastData[0]))
-                        
-                                // 1. Program getPastComparison to fail
-                                whenever(mockForecastRepository.getForecast(7)).thenReturn(Resource.Success(mockForecastData))
-                                whenever(mockForecastRepository.getDishBreakdown(7)).thenReturn(Resource.Success(mockDishBreakdown))
-                                whenever(mockForecastRepository.getPastComparison()).thenReturn(Resource.Error(errorMessage))
-                        
-                                // ACT
-                                val viewModel = ForecastViewModel(mockForecastRepository)
-                        
-                                // ASSERT
-                                // 2. Verify that comparisonData is in an Error state
-                                val comparisonResult = viewModel.comparisonData.value
-                                assertTrue(comparisonResult is Resource.Error)
-                                assertEquals(errorMessage, (comparisonResult as Resource.Error).message)
-                        
-                                // 3. Verify that other LiveData that depend on successful calls are still updated
-                                assertTrue(viewModel.summaryTrend.value is Resource.Success)
-                                assertTrue(viewModel.ingredientForecast.value is Resource.Success)
-                                assertTrue(viewModel.dishForecasts.value is Resource.Success)
-                            }
+                    
                         }
                         

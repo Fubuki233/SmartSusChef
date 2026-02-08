@@ -17,7 +17,13 @@ data class IngredientDto(
     val unit: String,
 
     @SerializedName("carbonFootprint")
-    val carbonFootprint: Double // decimal in C#
+    val carbonFootprint: Double, // decimal in C#
+
+    @SerializedName("createdAt")
+    val createdAt: String,
+
+    @SerializedName("updatedAt")
+    val updatedAt: String
 )
 
 /**

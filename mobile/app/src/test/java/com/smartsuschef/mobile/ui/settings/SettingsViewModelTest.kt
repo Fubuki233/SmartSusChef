@@ -58,7 +58,9 @@ class SettingsViewModelTest {
         name = "Test User",
         email = "test@example.com",
         role = "Employee",
-        status = "Active"
+        status = "Active",
+        createdAt = "2026-02-08T00:00:00",
+        updatedAt = "2026-02-08T00:00:00"
     )
 
     @Before

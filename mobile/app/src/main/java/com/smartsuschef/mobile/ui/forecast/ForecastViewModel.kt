@@ -53,7 +53,6 @@ class ForecastViewModel @Inject constructor(
                     val allForecastData = result.data.orEmpty()
 
                     val futureForecastData = allForecastData.filter { it.quantity > 0 }
-                    val pastComparisonRawData = allForecastData.filter { it.actualQuantity > 0 }
 
                     // 1. Summary trend
                     _summaryTrend.value = Resource.Success(futureForecastData)
@@ -82,15 +81,9 @@ class ForecastViewModel @Inject constructor(
 
                     _dishForecasts.value = Resource.Success(dailyDishForecasts)
 
-                    // 5. Past comparison data (Predicted vs Actual)
-                    val comparisonDataProcessed = pastComparisonRawData.map { forecast ->
-                        forecast.copy(
-                            quantity = forecast.quantity,
-                            actualQuantity = forecast.actualQuantity
-                        )
-                    }
-
-                    _comparisonData.value = Resource.Success(comparisonDataProcessed)
+                    // 5. Past comparison data (Predicted vs Actual) - STUBBED
+                    // TODO: Re-implement by fetching SalesData for past 7 days and merging with forecast data
+                    _comparisonData.value = Resource.Success(emptyList())
                 }
 
                 is Resource.Error -> {

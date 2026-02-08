@@ -50,7 +50,13 @@ data class UserDto(
     val role: String, // "manager" or "employee"
 
     @SerializedName("status")
-    val status: String // "Active" or "Inactive"
+    val status: String, // "Active" or "Inactive"
+
+    @SerializedName("createdAt")
+    val createdAt: String,
+
+    @SerializedName("updatedAt")
+    val updatedAt: String
 )
 
 /**
@@ -79,10 +85,11 @@ data class ChangePasswordRequest(
 )
 
 /**
- * Password Reset Request
+ * Forgot Password Request
  * For "Forgot Password" feature on login screen
+ * Maps to: ForgotPasswordRequest in AuthDtos.cs
  */
-data class PasswordResetRequest(
-    @SerializedName("email")
-    val email: String
+data class ForgotPasswordRequest(
+    @SerializedName("emailOrUsername")
+    val emailOrUsername: String
 )
