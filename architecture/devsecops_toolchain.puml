@@ -1,0 +1,257 @@
+@startuml SmartSusChef_DevSecOps_Toolchain
+
+title SmartSusChef - DevSecOps Toolchain Architecture
+caption Shift-Left Security | Automated CI/CD | Multi-Service Deployment
+
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName "Segoe UI"
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam rectangleBorderThickness 1.5
+
+skinparam rectangle {
+    BackgroundColor<<dev>> #E8F5E9
+    BorderColor<<dev>> #4CAF50
+    BackgroundColor<<sec>> #FFEBEE
+    BorderColor<<sec>> #E53935
+    BackgroundColor<<build>> #E3F2FD
+    BorderColor<<build>> #1E88E5
+    BackgroundColor<<container>> #EDE7F6
+    BorderColor<<container>> #5E35B1
+    BackgroundColor<<deploy>> #F3E5F5
+    BorderColor<<deploy>> #8E24AA
+    BackgroundColor<<monitor>> #FFF8E1
+    BorderColor<<monitor>> #F9A825
+    BackgroundColor<<infra>> #E0F7FA
+    BorderColor<<infra>> #00838F
+}
+
+skinparam component {
+    FontSize 11
+}
+
+' ================================================================
+'  DEVELOPMENT PHASE
+' ================================================================
+rectangle "PLAN & CODE" <<dev>> {
+    actor "Developer" as dev
+    component "VS Code" as vscode
+    component "GitHub\nRepository" as github {
+        component "main branch" as main
+        component "Pull Requests" as pr
+    }
+    component "Local Dev\n(dev-start.ps1 / .sh)" as localdev {
+        component ".NET 8 API\nport 5000" as local_be
+        component "React+Vite\nport 5173" as local_fe
+        component "FastAPI ML\nport 8000" as local_ml
+    }
+}
+
+' ================================================================
+'  STAGE 0: CHANGE DETECTION
+' ================================================================
+rectangle "CHANGE DETECTION" <<build>> {
+    component "dorny/paths-filter" as pathfilter {
+        component "backend/**" as pf_be
+        component "frontend/**" as pf_fe
+        component "ML/**" as pf_ml
+        component "mobile/**" as pf_mob
+        component "infrastructure/**" as pf_infra
+    }
+    note bottom of pathfilter
+        Selective pipeline execution:
+        only changed services are
+        built, scanned, and deployed.
+    end note
+}
+
+' ================================================================
+'  STAGE 1: SECURITY (Shift-Left)
+' ================================================================
+rectangle "SECURITY SCANNING (Shift-Left)" <<sec>> {
+    component "GitHub CodeQL\nSAST Analysis" as codeql {
+        component "C# (.NET)" as cql_cs
+        component "TypeScript/JS" as cql_ts
+        component "Python" as cql_py
+        component "Java/Kotlin" as cql_java
+    }
+    component "Trivy Filesystem\nScan (SARIF)" as trivy_fs {
+        component "Dependency CVEs" as trivy_dep
+        component "Secret Detection" as trivy_sec
+    }
+    component "GitHub Security\nAlerts Dashboard" as sec_dash
+}
+
+' ================================================================
+'  STAGE 2: BUILD & TEST
+' ================================================================
+rectangle "BUILD & TEST (Parallel)" <<build>> {
+    component "Backend\n(.NET 8)" as build_be {
+        component "dotnet restore" as be_restore
+        component "dotnet build" as be_build
+        component "dotnet test\n(xUnit)" as be_test
+    }
+    component "Frontend\n(Node 20)" as build_fe {
+        component "npm ci" as fe_install
+        component "npm run build\n(Vite + TS)" as fe_build
+    }
+    component "ML Service\n(Python 3.11)" as build_ml {
+        component "pip install" as ml_install
+        component "pytest" as ml_test
+    }
+    component "Mobile\n(Android/Kotlin)" as build_mob {
+        component "Gradle\nassembleDebug" as mob_build
+        component "Gradle test" as mob_test
+    }
+}
+
+' ================================================================
+'  STAGE 3: CONTAINERIZE & SCAN
+' ================================================================
+rectangle "CONTAINER BUILD & SCAN" <<container>> {
+    component "Docker Buildx" as buildx
+    component "Amazon ECR" as ecr {
+        component "smartsuschef-backend\n:latest / :tag" as ecr_be
+        component "smartsuschef-frontend\n:latest / :tag" as ecr_fe
+        component "smartsuschef-ml-api\n:latest / :tag" as ecr_ml
+    }
+    component "Trivy Image Scan" as trivy_img {
+        component "OS CVE Scan\n(ignore-unfixed)" as trivy_os
+        component "Library CVE Scan\n(CRITICAL,HIGH)" as trivy_lib
+    }
+}
+
+' ================================================================
+'  STAGE 4-5: DEPLOY (UAT -> Production)
+' ================================================================
+rectangle "DEPLOYMENT (Parallel ECS)" <<deploy>> {
+    rectangle "UAT Environment" as uat {
+        component "ECS Fargate Cluster\n(smartsuschef-uat)" as uat_ecs {
+            component "Backend Service\nport 8080" as uat_be
+            component "Frontend Service\nport 80 (nginx)" as uat_fe
+            component "ML Service\nport 8000" as uat_ml
+        }
+        component "RDS MySQL 8.0\n(uat-db)" as uat_db
+        component "Smoke Tests\n(curl health)" as uat_smoke
+    }
+    rectangle "Production Environment" as prod {
+        component "ECS Fargate Cluster\n(smartsuschef-prod)" as prod_ecs {
+            component "Backend Service" as prod_be
+            component "Frontend Service" as prod_fe
+            component "ML Service" as prod_ml
+        }
+        component "RDS MySQL 8.0\n(prod-db)" as prod_db
+        component "ALB + HTTPS\n(TLS 1.3)" as prod_alb
+    }
+    component "GitHub Environment\nSecrets" as gh_secrets {
+        component "DB_PASSWORD" as sec_db
+        component "JWT_SECRET" as sec_jwt
+        component "AWS Credentials" as sec_aws
+    }
+}
+
+' ================================================================
+'  INFRASTRUCTURE AS CODE
+' ================================================================
+rectangle "INFRASTRUCTURE AS CODE" <<infra>> {
+    component "Terraform" as terraform {
+        component "VPC + Subnets\n(NAT Gateway)" as tf_vpc
+        component "ECS + Fargate\nTask Definitions" as tf_ecs
+        component "ALB + Listeners\n(HTTP->HTTPS)" as tf_alb
+        component "RDS + Security\nGroups" as tf_rds
+        component "ECR Repositories" as tf_ecr
+        component "Cloud Map\n(Service Discovery)" as tf_sd
+    }
+}
+
+' ================================================================
+'  MONITORING & OBSERVABILITY
+' ================================================================
+rectangle "MONITORING & OBSERVABILITY" <<monitor>> {
+    component "AWS CloudWatch" as cw {
+        component "Container Logs" as cw_logs
+        component "ECS Metrics\n(CPU/Memory)" as cw_metrics
+    }
+    component "Health Endpoints" as health {
+        component "/health (Backend)" as h_be
+        component "/health (ML)" as h_ml
+        component "/health (Frontend)" as h_fe
+    }
+    component "ALB Health Checks\n(30s interval)" as alb_health
+    component "GitHub Actions\nPipeline Summary" as gh_summary
+}
+
+' ================================================================
+'  FLOW CONNECTIONS
+' ================================================================
+
+' Dev flow
+dev --> vscode
+vscode --> github : git push
+github --> localdev : dev-start scripts
+
+' Trigger
+main --> pathfilter : push / PR triggers\nGitHub Actions
+
+' Security (parallel with build)
+pathfilter --> codeql : All languages\n(4 parallel jobs)
+pathfilter --> trivy_fs : Filesystem scan
+codeql --> sec_dash : Upload SARIF
+trivy_fs --> sec_dash : Upload SARIF
+
+' Build (parallel, selective)
+pathfilter --> build_be : if backend changed
+pathfilter --> build_fe : if frontend changed
+pathfilter --> build_ml : if ML changed
+pathfilter --> build_mob : if mobile changed
+
+' Container
+build_be --> buildx
+build_fe --> buildx
+build_ml --> buildx
+buildx --> ecr : Push images
+ecr --> trivy_img : Scan images\n(exit-code: 1)
+
+' Deploy
+trivy_img --> uat_ecs : Parallel deploy\n(3 services at once)
+gh_secrets --> uat_ecs : Inject secrets\nvia env vars
+uat_ecs --> uat_db
+uat_smoke --> prod_ecs : After UAT passes
+gh_secrets --> prod_ecs
+prod_ecs --> prod_db
+prod_alb --> prod_ecs : Route traffic
+
+' Monitoring
+prod_ecs --> cw : Stream logs
+prod_ecs --> health : Expose endpoints
+prod_alb --> alb_health : Check targets
+cw --> gh_summary
+
+' IaC
+terraform -[dotted]-> uat : Provision
+terraform -[dotted]-> prod : Provision
+
+' ================================================================
+'  LEGEND
+' ================================================================
+legend right
+  |= Color |= Phase |
+  | <#E8F5E9> | Plan & Code |
+  | <#FFEBEE> | Security Scanning |
+  | <#E3F2FD> | Build & Test |
+  | <#EDE7F6> | Container & Image Scan |
+  | <#F3E5F5> | Deployment |
+  | <#E0F7FA> | Infrastructure as Code |
+  | <#FFF8E1> | Monitoring |
+
+  **Key DevSecOps Practices:**
+  * Shift-left: CodeQL SAST on every push
+  * Supply chain: Trivy filesystem + image scans
+  * Secrets: GitHub Environment Secrets (not in code)
+  * HTTPS enforced: TLS 1.3, HTTP->HTTPS redirect
+  * Least privilege: ECS SG port-restricted
+  * Selective CI: path-based change detection
+  * Parallel deploy: 3 ECS services simultaneously
+end legend
+
+@enduml
