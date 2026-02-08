@@ -19,8 +19,8 @@ data class ForecastDto(
     @SerializedName("quantity")
     val quantity: Int,
 
-    @SerializedName("actualQuantity")
-    val actualQuantity: Int,
+    @SerializedName("confidence")
+    val confidence: String,
 
     @SerializedName("ingredients")
     val ingredients: List<ForecastIngredientDto>

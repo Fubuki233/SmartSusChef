@@ -68,7 +68,7 @@ class AuthRepositoryTest {
     fun `login success should return success resource and save token`() = runTest {
         // ARRANGE
         val loginRequest = LoginRequest("user", "pass")
-        val userDto = UserDto("id", "user", "Test User", "email", "employee", "Active")
+        val userDto = UserDto("id", "user", "Test User", "email", "employee", "Active", "2026-02-08T00:00:00", "2026-02-08T00:00:00")
         val loginResponse = LoginResponse("test-token", userDto, false)
         val successResponse = Response.success(loginResponse)
         whenever(mockAuthApi.login(any())).thenReturn(successResponse)
