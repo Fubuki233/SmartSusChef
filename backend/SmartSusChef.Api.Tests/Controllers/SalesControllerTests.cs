@@ -54,6 +54,37 @@ public class SalesControllerTests
     }
 
     [Fact]
+    public async Task GetById_ShouldReturnOk_WhenFound()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var salesData = new SalesDataDto(id.ToString(), DateTime.UtcNow.ToString(), Guid.NewGuid().ToString(), "Pizza", 10, DateTime.UtcNow, DateTime.UtcNow);
+        _mockSalesService.Setup(s => s.GetByIdAsync(id)).ReturnsAsync(salesData);
+
+        // Act
+        var result = await _controller.GetById(id);
+
+        // Assert
+        var actionResult = Assert.IsType<OkObjectResult>(result.Result);
+        var value = Assert.IsType<SalesDataDto>(actionResult.Value);
+        Assert.Equal(id.ToString(), value.Id);
+    }
+
+    [Fact]
+    public async Task GetById_ShouldReturnNotFound_WhenMissing()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        _mockSalesService.Setup(s => s.GetByIdAsync(id)).ReturnsAsync((SalesDataDto?)null);
+
+        // Act
+        var result = await _controller.GetById(id);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
+    [Fact]
     public async Task Create_ShouldReturnCreatedAtAction_WhenSuccessful()
     {
         // Arrange
@@ -81,5 +112,66 @@ public class SalesControllerTests
 
         // Assert
         Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Update_ShouldReturnOk_WhenFound()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var request = new UpdateSalesDataRequest(15);
+        var salesData = new SalesDataDto(id.ToString(), DateTime.UtcNow.ToString(), Guid.NewGuid().ToString(), "Pizza", 15, DateTime.UtcNow, DateTime.UtcNow);
+        _mockSalesService.Setup(s => s.UpdateAsync(id, request)).ReturnsAsync(salesData);
+
+        // Act
+        var result = await _controller.Update(id, request);
+
+        // Assert
+        var actionResult = Assert.IsType<OkObjectResult>(result.Result);
+        var value = Assert.IsType<SalesDataDto>(actionResult.Value);
+        Assert.Equal(15, value.Quantity);
+    }
+
+    [Fact]
+    public async Task Update_ShouldReturnNotFound_WhenMissing()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        var request = new UpdateSalesDataRequest(15);
+        _mockSalesService.Setup(s => s.UpdateAsync(id, request)).ReturnsAsync((SalesDataDto?)null);
+
+        // Act
+        var result = await _controller.Update(id, request);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Delete_ShouldReturnNoContent_WhenDeleted()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        _mockSalesService.Setup(s => s.DeleteAsync(id)).ReturnsAsync(true);
+
+        // Act
+        var result = await _controller.Delete(id);
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task Delete_ShouldReturnNotFound_WhenMissing()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        _mockSalesService.Setup(s => s.DeleteAsync(id)).ReturnsAsync(false);
+
+        // Act
+        var result = await _controller.Delete(id);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
     }
 }
