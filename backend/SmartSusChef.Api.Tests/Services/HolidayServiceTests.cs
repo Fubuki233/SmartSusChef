@@ -359,4 +359,31 @@ public class HolidayServiceTests
         Assert.True(isHoliday);
         Assert.Equal("Christmas Day", name);
     }
+
+    [Fact]
+    public void GetChineseNewYear_ShouldReturnDate_WhenKnownYear()
+    {
+        // Arrange
+        var method = typeof(HolidayService).GetMethod("GetChineseNewYear", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        // Act
+        var result = (DateTime?)method!.Invoke(null, new object[] { 2024 });
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(new DateTime(2024, 2, 10), result!.Value.Date);
+    }
+
+    [Fact]
+    public void GetChineseNewYear_ShouldReturnNull_WhenUnknownYear()
+    {
+        // Arrange
+        var method = typeof(HolidayService).GetMethod("GetChineseNewYear", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        // Act
+        var result = (DateTime?)method!.Invoke(null, new object[] { 2019 });
+
+        // Assert
+        Assert.Null(result);
+    }
 }
