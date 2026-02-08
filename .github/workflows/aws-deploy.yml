@@ -479,35 +479,72 @@ jobs:
           container-name: smartsuschef-ml
           image: ${{ needs.docker-build-push.outputs.ml-image }}
 
-      - name: Deploy ML Service to UAT ECS
-        if: needs.detect-changes.outputs.ml == 'true' || needs.detect-changes.outputs.infra == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
-          service: smartsuschef-uat-ml-service
-          cluster: smartsuschef-uat-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 15
+      - name: Deploy all services to UAT ECS (parallel)
+        env:
+          CLUSTER: smartsuschef-uat-cluster
+          ML_CHANGED: ${{ needs.detect-changes.outputs.ml }}
+          BACKEND_CHANGED: ${{ needs.detect-changes.outputs.backend }}
+          FRONTEND_CHANGED: ${{ needs.detect-changes.outputs.frontend }}
+          INFRA_CHANGED: ${{ needs.detect-changes.outputs.infra }}
+          ML_TASK_DEF: ${{ steps.task-def-ml.outputs.task-definition }}
+          BACKEND_TASK_DEF: ${{ steps.task-def-backend.outputs.task-definition }}
+          FRONTEND_TASK_DEF: ${{ steps.task-def-frontend.outputs.task-definition }}
+        run: |
+          PIDS=""
+          SERVICES=""
 
-      - name: Deploy Backend to UAT ECS
-        if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infra == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-backend.outputs.task-definition }}
-          service: smartsuschef-uat-backend-service
-          cluster: smartsuschef-uat-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 15
+          deploy_service() {
+            local name=$1 task_def=$2 service=$3
+            echo "[$name] Registering task definition..."
+            TASK_ARN=$(aws ecs register-task-definition --cli-input-json file://$task_def --query 'taskDefinition.taskDefinitionArn' --output text)
+            echo "[$name] Updating service with $TASK_ARN..."
+            aws ecs update-service --cluster $CLUSTER --service $service --task-definition $TASK_ARN --force-new-deployment --no-cli-pager > /dev/null
+            echo "[$name] Deployment triggered."
+          }
 
-      - name: Deploy Frontend to UAT ECS
-        if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infra == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
-          service: smartsuschef-uat-frontend-service
-          cluster: smartsuschef-uat-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 15
+          if [ "$ML_CHANGED" = "true" ] || [ "$INFRA_CHANGED" = "true" ]; then
+            deploy_service "ML" "$ML_TASK_DEF" "smartsuschef-uat-ml-service"
+            SERVICES="$SERVICES smartsuschef-uat-ml-service"
+          else
+            echo "[ML] No changes, skipping."
+          fi
+
+          if [ "$BACKEND_CHANGED" = "true" ] || [ "$INFRA_CHANGED" = "true" ]; then
+            deploy_service "Backend" "$BACKEND_TASK_DEF" "smartsuschef-uat-backend-service"
+            SERVICES="$SERVICES smartsuschef-uat-backend-service"
+          else
+            echo "[Backend] No changes, skipping."
+          fi
+
+          if [ "$FRONTEND_CHANGED" = "true" ] || [ "$INFRA_CHANGED" = "true" ]; then
+            deploy_service "Frontend" "$FRONTEND_TASK_DEF" "smartsuschef-uat-frontend-service"
+            SERVICES="$SERVICES smartsuschef-uat-frontend-service"
+          else
+            echo "[Frontend] No changes, skipping."
+          fi
+
+          if [ -n "$SERVICES" ]; then
+            echo "Waiting for all services to stabilize in parallel..."
+            for svc in $SERVICES; do
+              echo "  Waiting: $svc"
+              aws ecs wait services-stable --cluster $CLUSTER --services $svc &
+              PIDS="$PIDS $!"
+            done
+            FAILED=0
+            for pid in $PIDS; do
+              if ! wait $pid; then
+                echo "[ERROR] A service failed to stabilize (pid $pid)"
+                FAILED=1
+              fi
+            done
+            if [ $FAILED -ne 0 ]; then
+              echo "::error::One or more services failed to stabilize"
+              exit 1
+            fi
+            echo "All services stable!"
+          else
+            echo "No services to deploy."
+          fi
 
       - name: Run UAT Smoke Tests
         run: |
@@ -590,35 +627,72 @@ jobs:
           container-name: smartsuschef-ml
           image: ${{ needs.docker-build-push.outputs.ml-image }}
 
-      - name: Deploy ML to Production ECS
-        if: needs.detect-changes.outputs.ml == 'true' || needs.detect-changes.outputs.infra == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-ml.outputs.task-definition }}
-          service: smartsuschef-production-ml-service
-          cluster: smartsuschef-production-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 15
+      - name: Deploy all services to Production ECS (parallel)
+        env:
+          CLUSTER: smartsuschef-production-cluster
+          ML_CHANGED: ${{ needs.detect-changes.outputs.ml }}
+          BACKEND_CHANGED: ${{ needs.detect-changes.outputs.backend }}
+          FRONTEND_CHANGED: ${{ needs.detect-changes.outputs.frontend }}
+          INFRA_CHANGED: ${{ needs.detect-changes.outputs.infra }}
+          ML_TASK_DEF: ${{ steps.task-def-ml.outputs.task-definition }}
+          BACKEND_TASK_DEF: ${{ steps.task-def-backend.outputs.task-definition }}
+          FRONTEND_TASK_DEF: ${{ steps.task-def-frontend.outputs.task-definition }}
+        run: |
+          PIDS=""
+          SERVICES=""
 
-      - name: Deploy Backend to Production ECS
-        if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.infra == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-backend.outputs.task-definition }}
-          service: smartsuschef-production-backend-service
-          cluster: smartsuschef-production-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 15
+          deploy_service() {
+            local name=$1 task_def=$2 service=$3
+            echo "[$name] Registering task definition..."
+            TASK_ARN=$(aws ecs register-task-definition --cli-input-json file://$task_def --query 'taskDefinition.taskDefinitionArn' --output text)
+            echo "[$name] Updating service with $TASK_ARN..."
+            aws ecs update-service --cluster $CLUSTER --service $service --task-definition $TASK_ARN --force-new-deployment --no-cli-pager > /dev/null
+            echo "[$name] Deployment triggered."
+          }
 
-      - name: Deploy Frontend to Production ECS
-        if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.infra == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
-          service: smartsuschef-production-frontend-service
-          cluster: smartsuschef-production-cluster
-          wait-for-service-stability: true
-          wait-for-minutes: 15
+          if [ "$ML_CHANGED" = "true" ] || [ "$INFRA_CHANGED" = "true" ]; then
+            deploy_service "ML" "$ML_TASK_DEF" "smartsuschef-production-ml-service"
+            SERVICES="$SERVICES smartsuschef-production-ml-service"
+          else
+            echo "[ML] No changes, skipping."
+          fi
+
+          if [ "$BACKEND_CHANGED" = "true" ] || [ "$INFRA_CHANGED" = "true" ]; then
+            deploy_service "Backend" "$BACKEND_TASK_DEF" "smartsuschef-production-backend-service"
+            SERVICES="$SERVICES smartsuschef-production-backend-service"
+          else
+            echo "[Backend] No changes, skipping."
+          fi
+
+          if [ "$FRONTEND_CHANGED" = "true" ] || [ "$INFRA_CHANGED" = "true" ]; then
+            deploy_service "Frontend" "$FRONTEND_TASK_DEF" "smartsuschef-production-frontend-service"
+            SERVICES="$SERVICES smartsuschef-production-frontend-service"
+          else
+            echo "[Frontend] No changes, skipping."
+          fi
+
+          if [ -n "$SERVICES" ]; then
+            echo "Waiting for all services to stabilize in parallel..."
+            for svc in $SERVICES; do
+              echo "  Waiting: $svc"
+              aws ecs wait services-stable --cluster $CLUSTER --services $svc &
+              PIDS="$PIDS $!"
+            done
+            FAILED=0
+            for pid in $PIDS; do
+              if ! wait $pid; then
+                echo "[ERROR] A service failed to stabilize (pid $pid)"
+                FAILED=1
+              fi
+            done
+            if [ $FAILED -ne 0 ]; then
+              echo "::error::One or more services failed to stabilize"
+              exit 1
+            fi
+            echo "All services stable!"
+          else
+            echo "No services to deploy."
+          fi
 
       - name: Production Smoke Tests
         run: |
