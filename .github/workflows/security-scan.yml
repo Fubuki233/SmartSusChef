@@ -48,9 +48,5 @@ jobs:
       - name: Autobuild (Other Languages)
         if: matrix.language != 'java-kotlin'
         uses: github/codeql-action/autobuild@v3
-        # This step attempts to build your project. If autobuild fails, revert to specific build commands.
-        # Note that this has worked so far for .NET, Python, C# (with a solution file).
-        # JavaScript/TypeScript generally doesn't require a build step for analysis.
-
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

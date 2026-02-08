@@ -123,7 +123,7 @@ var mlApiUrl = builder.Configuration["ExternalApis:MlApiUrl"] ?? "http://localho
 builder.Services.AddHttpClient<IMlPredictionService, MlPredictionService>(client =>
 {
     client.BaseAddress = new Uri(mlApiUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = TimeSpan.FromSeconds(120); // ML predicts all dishes + weather in one call
 })
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {

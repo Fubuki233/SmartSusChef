@@ -295,6 +295,33 @@ def store_predict(store_id: int, req: StorePredictRequest) -> Dict[str, Any]:
         lon = lon or db_lon
         cc = cc or db_cc
 
+    # Fetch weather ONCE for all dishes (avoid 17x duplicate API calls)
+    shared_weather_rows = None
+    if lat is not None and lon is not None:
+        try:
+            from app.inference import _fetch_weather_forecast
+            weather_df = _fetch_weather_forecast(
+                latitude=float(lat),
+                longitude=float(lon),
+                forecast_days=min(16, req.horizon_days + 2),
+            )
+            shared_weather_rows = weather_df.to_dict(orient="records")
+            # Convert dates to string for JSON serialization
+            for row in shared_weather_rows:
+                if hasattr(row.get("date"), "strftime"):
+                    row["date"] = row["date"].strftime("%Y-%m-%d")
+            import logging
+            logging.getLogger(__name__).info(
+                "Store %d: Fetched weather once for %d days, sharing across %d dishes",
+                store_id, len(shared_weather_rows), len(dishes),
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Store %d: Weather API failed (%s), predictions will use fallback",
+                store_id, e,
+            )
+
     all_predictions: Dict[str, Any] = {}
 
     for dish in dishes:
@@ -326,6 +353,7 @@ def store_predict(store_id: int, req: StorePredictRequest) -> Dict[str, Any]:
                 latitude=lat,
                 longitude=lon,
                 country_code=cc,
+                weather_rows=shared_weather_rows,
             )
             all_predictions[dish] = result
         except Exception as e:
