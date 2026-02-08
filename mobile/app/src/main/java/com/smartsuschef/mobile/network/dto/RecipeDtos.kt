@@ -20,7 +20,13 @@ data class RecipeDto(
     val isSubRecipe: Boolean,
 
     @SerializedName("ingredients")
-    val ingredients: List<RecipeIngredientDto>
+    val ingredients: List<RecipeIngredientDto>,
+
+    @SerializedName("createdAt")
+    val createdAt: String,
+
+    @SerializedName("updatedAt")
+    val updatedAt: String
 )
 
 /**

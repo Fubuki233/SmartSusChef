@@ -68,7 +68,7 @@ class LoginViewModelTest {
         val loginRequest = LoginRequest("test", "password")
 
         // 2. Define the expected successful output from our mock repository
-        val mockUser = UserDto("id", "test", "Test User", "email", "employee", "Active")
+        val mockUser = UserDto("id", "test", "Test User", "email", "employee", "Active", "2026-02-08T00:00:00", "2026-02-08T00:00:00")
         val mockResponse = LoginResponse("fake-token", mockUser, storeSetupRequired = false)
         val expectedResult = Resource.Success(mockResponse)
 

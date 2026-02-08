@@ -61,10 +61,10 @@ interface AuthApiService {
 
     /**
      * Request password reset (Forgot Password)
-     * POST /api/auth/reset-password
+     * POST /api/auth/forgot-password
      */
-    @POST("auth/reset-password")
-    suspend fun resetPassword(@Body request: PasswordResetRequest): Response<Unit>
+    @POST("auth/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): Response<Unit>
 }
 
 /**

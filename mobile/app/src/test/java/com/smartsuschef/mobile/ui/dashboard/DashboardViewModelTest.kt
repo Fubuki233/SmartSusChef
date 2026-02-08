@@ -66,8 +66,7 @@ class DashboardViewModelTest {
         val mockUserRole = "Manager"
         val mockStoreName = "Main Street Cafe"
         val mockOutletLocation = "Orchard Road"
-
-        val mockUserDto = UserDto("id", "username", mockUserName, "email", mockUserRole, "Active")
+        val mockUserDto = UserDto("id", "username", mockUserName, "email", mockUserRole, "Active", "2026-02-08T00:00:00", "2026-02-08T00:00:00")
         val mockStoreDto = StoreDto(1, "company", "uen", mockStoreName, mockOutletLocation, "123", "date", 0.0, 0.0, "SG", "address", true, "date", "date")
 
         // 2. Program the mocks to return the successful data
@@ -97,7 +96,7 @@ class DashboardViewModelTest {
     fun `logout should call authRepository logout`() = runTest {
         // ARRANGE
         // We must provide default, non-null responses for the calls made in the ViewModel's init block.
-        val dummyUser = UserDto("id", "user", "name", "email", "role", "Active")
+        val dummyUser = UserDto("id", "user", "name", "email", "role", "Active", "2026-02-08T00:00:00", "2026-02-08T00:00:00")
         whenever(mockTokenManager.getUserRole()).thenReturn("Employee")
         whenever(mockUsersRepository.getCurrentUser()).thenReturn(Resource.Success(dummyUser))
         // The store call won't be made if the user call returns a valid user, but it's good practice to stub it.
@@ -156,7 +155,7 @@ class DashboardViewModelTest {
         val mockUserRole = "Manager"
         val errorMessage = "Failed to load store"
 
-        val mockUserDto = UserDto("id", "username", mockUserName, "email", mockUserRole, "Active")
+        val mockUserDto = UserDto("id", "username", mockUserName, "email", mockUserRole, "Active", "2026-02-08T00:00:00", "2026-02-08T00:00:00")
 
         // 2. Program the mocks
         whenever(mockTokenManager.getUserRole()).thenReturn(mockUserRole)

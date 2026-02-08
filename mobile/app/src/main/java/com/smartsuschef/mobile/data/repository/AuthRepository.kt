@@ -3,6 +3,7 @@ package com.smartsuschef.mobile.data.repository
 import com.smartsuschef.mobile.data.TokenManager
 import com.smartsuschef.mobile.network.api.AuthApiService
 import com.smartsuschef.mobile.network.dto.ChangePasswordRequest
+import com.smartsuschef.mobile.network.dto.ForgotPasswordRequest
 import com.smartsuschef.mobile.network.dto.LoginRequest
 import com.smartsuschef.mobile.network.dto.LoginResponse
 import com.smartsuschef.mobile.util.Resource
@@ -39,6 +40,26 @@ class AuthRepository @Inject constructor(
                 }
             } catch (e: Exception) {
                 Resource.Error(e.localizedMessage ?: "An unexpected error occurred")
+            }
+        }
+    }
+
+    /**
+     * Sends a password reset request.
+     */
+    suspend fun forgotPassword(request: ForgotPasswordRequest): Resource<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = authApi.forgotPassword(request)
+                if (response.isSuccessful) {
+                    Resource.Success(Unit)
+                } else {
+                    Resource.Error("Failed to send password reset request: ${response.message()}")
+                }
+            } catch (e: HttpException) {
+                Resource.Error("An unexpected error occurred: ${e.message()}")
+            } catch (e: IOException) {
+                Resource.Error("Couldn't reach the server. Check your internet connection.")
             }
         }
     }
@@ -83,7 +104,7 @@ class AuthRepository @Inject constructor(
      * Clears local session data.
      * Essential for your security requirement to log out after inactivity.
      */
-    suspend fun logout() {
+    fun logout() {
         tokenManager.clearSession()
     }
 

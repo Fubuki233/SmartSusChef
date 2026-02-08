@@ -120,7 +120,7 @@ class DataInputViewModel @Inject constructor(
 
             val result: Resource<out Any> = if (isSalesMode) {
                 if (existingEntryId != null) {
-                    salesRepository.update(existingEntryId, UpdateSalesDataRequest(date = todayStr, recipeId = id, quantity = quantity.toInt()))
+                    salesRepository.update(existingEntryId, UpdateSalesDataRequest(quantity = quantity.toInt()))
                 } else {
                     salesRepository.create(CreateSalesDataRequest(date = todayStr, recipeId = id, quantity = quantity.toInt()))
                 }

@@ -290,104 +290,11 @@ class ForecastFragment : Fragment(R.layout.fragment_forecast) {
      * CHART 4: Comparison (Grouped Bar - Predicted vs Actual)
      */
     private fun setupComparisonChart(comparisonData: List<ForecastDto>) {
-        val predictedEntries = mutableListOf<BarEntry>()
-        val actualEntries = mutableListOf<BarEntry>()
-        val labels = mutableListOf<String>()
-
-        comparisonData.forEachIndexed { index, dto ->
-            // Attach comparison data to BOTH predicted and actual entries
-            val compData = ForecastMarkerView.ComparisonData(dto.quantity, dto.actualQuantity)
-
-            val predictedEntry = BarEntry(index.toFloat(), dto.quantity.toFloat())
-            predictedEntry.data = compData
-            predictedEntries.add(predictedEntry)
-
-            val actualEntry = BarEntry(index.toFloat(), dto.actualQuantity.toFloat())
-            actualEntry.data = compData
-            actualEntries.add(actualEntry)
-
-            labels.add(formatDate(dto.date))
-        }
-
-        val predictedSet = BarDataSet(predictedEntries, "Predicted").apply {
-            color = Color.LTGRAY
-            setDrawValues(false)
-            highLightAlpha = 0 // Disable highlight
-        }
-
-        val actualSet = BarDataSet(actualEntries, "Actual").apply {
-            color = ContextCompat.getColor(requireContext(), R.color.primary)
-            setDrawValues(false)
-            highLightAlpha = 0 // Disable highlight
-        }
-
-        // Adjusted spacing for grouped bars
-        val barWidth = 0.4f      // Width of each bar
-        val groupSpace = 0.1f    // Space between groups
-        val barSpace = 0.05f     // Space between bars in a group
-
-        binding.comparisonBarChart.apply {
-            data = BarData(predictedSet, actualSet).apply {
-                this.barWidth = barWidth
-            }
-            description.isEnabled = false
-            setDrawGridBackground(false)
-            setExtraOffsets(10f, 10f, 10f, 20f)
-
-            // Add marker
-            val markerView = ForecastMarkerView(requireContext(), R.layout.marker_view)
-            markerView.chartView = this
-            markerView.chartType = ForecastMarkerView.ChartType.COMPARISON
-            markerView.labels = labels // Pass date labels
-            marker = markerView
-
-            // Enable tap
-            isHighlightPerTapEnabled = true
-            isHighlightPerDragEnabled = false
-
-            xAxis.apply {
-                position = XAxis.XAxisPosition.BOTTOM
-                valueFormatter = IndexAxisValueFormatter(labels)
-                labelRotationAngle = -45f
-                textSize = 8f
-                granularity = 1f
-                setCenterAxisLabels(true)  // IMPORTANT for grouped bars
-                setDrawGridLines(false)
-                textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
-                axisLineColor = Color.TRANSPARENT
-
-                // Critical X-axis range configuration
-                // For grouped bars: range = groupCount * (barWidth * 2 + barSpace + groupSpace)
-                axisMinimum = 0f
-                axisMaximum = labels.size.toFloat()
-
-                // Note: We do not use setLabelCount for grouped bars.
-                // We let the chart calculate the appropriate labels.
-            }
-
-            axisLeft.apply {
-                setDrawGridLines(true)
-                gridColor = ContextCompat.getColor(requireContext(), R.color.border_grey)
-                textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
-                axisLineColor = Color.TRANSPARENT
-                axisMinimum = 0f
-            }
-
-            axisRight.isEnabled = false
-
-            legend.apply {
-                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
-                horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
-                orientation = Legend.LegendOrientation.HORIZONTAL
-                setDrawInside(false)
-                textColor = ContextCompat.getColor(requireContext(), R.color.muted_text)
-            }
-
-            // Group the bars with corrected parameters
-            // groupBars(fromX, groupSpace, barSpace)
-            groupBars(0f, groupSpace, barSpace)
-            invalidate()
-        }
+        // TODO: This chart is disabled until SalesData is fetched and merged with ForecastData.
+        // The logic below is broken because `actualQuantity` was removed from ForecastDto.
+        // The ViewModel now provides an empty list here.
+        binding.comparisonBarChart.clear()
+        binding.comparisonBarChart.invalidate()
     }
 
     private fun formatDate(dateStr: String): String {

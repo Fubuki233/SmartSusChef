@@ -16,7 +16,7 @@ object Constants {
     const val WRITE_TIMEOUT = 30L
 
     // DataStore Keys
-    const val DATASTORE_NAME = "smartsuschef_prefs"
+    const val SHARED_PREFS_FILE_NAME = "smartsuschef_prefs"
     const val KEY_AUTH_TOKEN = "auth_token"
     const val KEY_USERNAME = "username"
     const val KEY_USER_ROLE = "user_role"

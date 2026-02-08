@@ -3,13 +3,13 @@ package com.smartsuschef.mobile.di
 import com.smartsuschef.mobile.network.api.*
 import dagger.Module
 import dagger.Provides
-import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.hilt.testing.TestInstallIn // Ensure this import is present
 import javax.inject.Singleton
 
 /**
  * Hilt Module for providing MOCK ApiService implementations.
- * This module is only included in DEBUG builds.
+ * This module is only included in in test source sets.
  */
 @Module
 @TestInstallIn(
