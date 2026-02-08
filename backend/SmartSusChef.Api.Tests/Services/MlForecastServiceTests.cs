@@ -117,4 +117,37 @@ public class MlForecastServiceTests
         Assert.NotEmpty(result);
         Assert.Equal(10, result[0].TotalQuantity);
     }
+
+    [Fact]
+    public async Task GetForecastAsync_ShouldFilterNullIngredients_InForecastIngredients()
+    {
+        // Arrange
+        var storeId = 1;
+        var ingredientId = Guid.NewGuid();
+        var ingredient = new Ingredient { Id = ingredientId, Name = "Cheese", Unit = "g", StoreId = storeId };
+        var recipe = new Recipe { Id = Guid.NewGuid(), StoreId = storeId, Name = "Pizza" };
+        recipe.RecipeIngredients.Add(new RecipeIngredient { IngredientId = ingredientId, Ingredient = ingredient, Quantity = 2m });
+        recipe.RecipeIngredients.Add(new RecipeIngredient { IngredientId = null, Ingredient = null, Quantity = 1m });
+        await _context.Ingredients.AddAsync(ingredient);
+        await _context.Recipes.AddAsync(recipe);
+        await _context.SaveChangesAsync();
+
+        var mlResponse = new MlStorePredictResponseDto(storeId, "ok", null, 150, new Dictionary<string, MlDishPredictionDto>
+        {
+            ["Pizza"] = new MlDishPredictionDto("Pizza", "model", "combo", 7, DateTime.UtcNow.Date.ToString("yyyy-MM-dd"), new List<MlDayPredictionDto>
+            {
+                new(DateTime.UtcNow.Date.ToString("yyyy-MM-dd"), 10, 10, 0)
+            }, null)
+        });
+        _mockMlService.Setup(s => s.GetStorePredictionsAsync(storeId, It.IsAny<int>(), It.IsAny<decimal?>(), It.IsAny<decimal?>(), It.IsAny<string>()))
+            .ReturnsAsync(mlResponse);
+
+        // Act
+        var result = await _service.GetForecastAsync();
+
+        // Assert
+        Assert.NotEmpty(result);
+        Assert.Single(result[0].Ingredients);
+        Assert.Equal("Cheese", result[0].Ingredients[0].IngredientName);
+    }
 }

@@ -63,6 +63,46 @@ public class MlPredictionServiceTests
     }
 
     [Fact]
+    public async Task GetStoreStatusAsync_ShouldParseTrainingProgress_WhenPresent()
+    {
+        // Arrange
+        var responseContent = JsonSerializer.Serialize(new
+        {
+            store_id = 1,
+            has_models = false,
+            is_training = true,
+            dishes = new[] { "Pizza", "Burger" },
+            days_available = 120,
+            training_progress = new { trained = 3, failed = 1, total = 5, current_dish = "Pizza" }
+        });
+        SetupHttpResponse(HttpStatusCode.OK, responseContent);
+
+        // Act
+        var result = await _service.GetStoreStatusAsync(1);
+
+        // Assert
+        Assert.True(result.IsTraining);
+        Assert.NotNull(result.TrainingProgress);
+        Assert.Equal(3, result.TrainingProgress!.Trained);
+        Assert.Equal("Pizza", result.TrainingProgress.CurrentDish);
+        Assert.Equal(2, result.Dishes!.Count);
+        Assert.Equal(120, result.DaysAvailable);
+    }
+
+    [Fact]
+    public async Task GetStoreStatusAsync_ShouldReturnNotAvailable_WhenEmptyBody()
+    {
+        // Arrange
+        SetupHttpResponse(HttpStatusCode.OK, "");
+
+        // Act
+        var result = await _service.GetStoreStatusAsync(1);
+
+        // Assert
+        Assert.False(result.ServiceAvailable);
+    }
+
+    [Fact]
     public async Task GetStoreStatusAsync_ShouldReturnNotAvailable_WhenApiCallFails()
     {
         // Arrange
@@ -91,6 +131,37 @@ public class MlPredictionServiceTests
     }
 
     [Fact]
+    public async Task TriggerTrainingAsync_ShouldHandleEmptyBody()
+    {
+        // Arrange
+        SetupHttpResponse(HttpStatusCode.OK, "");
+
+        // Act
+        var result = await _service.TriggerTrainingAsync(1);
+
+        // Assert
+        Assert.Equal("unknown", result.Status);
+        Assert.Contains("empty response", result.Message);
+    }
+
+    [Fact]
+    public async Task TriggerTrainingAsync_ShouldParseDetailErrorObject()
+    {
+        // Arrange
+        var responseContent = @"{
+            ""detail"": { ""status"": ""insufficient_data"", ""message"": ""Need more data"" }
+        }";
+        SetupHttpResponse(HttpStatusCode.BadRequest, responseContent);
+
+        // Act
+        var result = await _service.TriggerTrainingAsync(1);
+
+        // Assert
+        Assert.Equal("insufficient_data", result.Status);
+        Assert.Equal("Need more data", result.Message);
+    }
+
+    [Fact]
     public async Task GetStorePredictionsAsync_ShouldReturnPredictions_WhenApiCallIsSuccessful()
     {
         // Arrange
@@ -114,5 +185,41 @@ public class MlPredictionServiceTests
         Assert.Equal("ok", result.Status);
         Assert.NotNull(result.Predictions);
         Assert.True(result.Predictions.ContainsKey("Pizza"));
+    }
+
+    [Fact]
+    public async Task GetStorePredictionsAsync_ShouldReturnError_WhenEmptyBody()
+    {
+        // Arrange
+        SetupHttpResponse(HttpStatusCode.OK, "");
+
+        // Act
+        var result = await _service.GetStorePredictionsAsync(1, 7, 1.0m, 1.0m, "US");
+
+        // Assert
+        Assert.Equal("error", result.Status);
+        Assert.Null(result.Predictions);
+        Assert.Contains("empty response", result.Message);
+    }
+
+    [Fact]
+    public async Task GetStorePredictionsAsync_ShouldHandleDishErrorEntry()
+    {
+        // Arrange
+        var responseContent = @"{
+            ""status"": ""ok"",
+            ""predictions"": {
+                ""Pizza"": { ""error"": ""model failed"" }
+            }
+        }";
+        SetupHttpResponse(HttpStatusCode.OK, responseContent);
+
+        // Act
+        var result = await _service.GetStorePredictionsAsync(1, 7, 1.0m, 1.0m, "US");
+
+        // Assert
+        Assert.Equal("ok", result.Status);
+        Assert.NotNull(result.Predictions);
+        Assert.Equal("model failed", result.Predictions!["Pizza"].Error);
     }
 }
