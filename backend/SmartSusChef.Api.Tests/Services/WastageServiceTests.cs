@@ -211,6 +211,7 @@ public class WastageServiceTests
         Assert.NotNull(result);
         Assert.Equal(20, result.Quantity);
         var dbEntry = await context.WastageData.FindAsync(wastageId);
+                Assert.NotNull(dbEntry);
         Assert.Equal(20, dbEntry.Quantity);
     }
 

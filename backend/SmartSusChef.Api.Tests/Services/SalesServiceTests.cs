@@ -163,6 +163,7 @@ public class SalesServiceTests
         Assert.NotNull(result);
         Assert.Equal(20, result.Quantity);
         var dbEntry = await context.SalesData.FindAsync(salesId);
+                Assert.NotNull(dbEntry);
         Assert.Equal(20, dbEntry.Quantity);
     }
 

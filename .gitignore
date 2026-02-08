@@ -17,6 +17,12 @@ project.lock.json
 *.nupkg
 packages/
 
+# Unit Test Coverage
+**/coverage.xml
+**/coverage_report/
+**/bin/
+**/obj/
+
 # User-specific files
 *.rsuser
 *.sln.docstates
@@ -167,3 +173,7 @@ tools/
 # Ignore local database files
 *.mdf
 *.ldf
+
+# Rider specific
+.idea/
+*.sln.DotSettings.user
