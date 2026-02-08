@@ -20,6 +20,9 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<GlobalCalendarSignals> GlobalCalendarSignals { get; set; }
 
+    // Global (read-only) ingredients shared across stores
+    public DbSet<GlobalIngredient> GlobalIngredients { get; set; }
+
     public DbSet<ForecastData> ForecastData { get; set; }
     public DbSet<HolidayCalendar> HolidayCalendars { get; set; }
     public DbSet<WeatherDaily> WeatherDaily { get; set; }
@@ -164,6 +167,15 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.RainMm).HasPrecision(10, 2);
         });
 
+        // GlobalIngredient Configuration (shared, admin-maintained)
+        modelBuilder.Entity<GlobalIngredient>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CarbonFootprint).HasPrecision(18, 3);
+            entity.HasIndex(e => e.Name).IsUnique();
+            entity.Property(e => e.IsDefault).HasDefaultValue(false);
+        });
+
         // HolidayCalendar Configuration (Country + Year)
         modelBuilder.Entity<HolidayCalendar>(entity =>
         {
@@ -267,6 +279,29 @@ public class ApplicationDbContext : DbContext
             new RecipeIngredient { Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), RecipeId = burgerId, IngredientId = beefId, Quantity = 0.2m },
             new RecipeIngredient { Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), RecipeId = burgerId, IngredientId = lettuceId, Quantity = 0.05m },
             new RecipeIngredient { Id = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff"), RecipeId = burgerId, IngredientId = tomatoId, Quantity = 0.05m }
+        );
+
+        // Seed global ingredients (20 default items)
+        modelBuilder.Entity<GlobalIngredient>().HasData(
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000001"), Name = "Tomato", Unit = "kg", CarbonFootprint = 1.10m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000002"), Name = "Cheese", Unit = "kg", CarbonFootprint = 13.50m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000003"), Name = "Flour", Unit = "kg", CarbonFootprint = 0.95m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000004"), Name = "Rice", Unit = "kg", CarbonFootprint = 2.70m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000005"), Name = "Beef", Unit = "kg", CarbonFootprint = 27.00m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000006"), Name = "Pork", Unit = "kg", CarbonFootprint = 12.10m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000007"), Name = "Chicken", Unit = "kg", CarbonFootprint = 6.90m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000008"), Name = "Lettuce", Unit = "kg", CarbonFootprint = 0.50m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000009"), Name = "Potato", Unit = "kg", CarbonFootprint = 0.30m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000A"), Name = "Onion", Unit = "kg", CarbonFootprint = 0.70m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000B"), Name = "Garlic", Unit = "kg", CarbonFootprint = 1.50m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000C"), Name = "Sugar", Unit = "kg", CarbonFootprint = 1.80m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000D"), Name = "Butter", Unit = "kg", CarbonFootprint = 11.90m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000E"), Name = "Milk", Unit = "L", CarbonFootprint = 1.90m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-00000000000F"), Name = "Egg", Unit = "pcs", CarbonFootprint = 0.30m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000010"), Name = "Olive Oil", Unit = "L", CarbonFootprint = 6.00m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000011"), Name = "Soy Sauce", Unit = "L", CarbonFootprint = 2.20m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000012"), Name = "Salt", Unit = "kg", CarbonFootprint = 0.05m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new GlobalIngredient { Id = Guid.Parse("a0000000-0000-0000-0000-000000000013"), Name = "Pepper", Unit = "kg", CarbonFootprint = 8.00m, IsDefault = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
         );
     }
 }
