@@ -120,7 +120,7 @@ public class MlPredictionService : IMlPredictionService
 
             var json = JsonSerializer.Deserialize<JsonElement>(body, JsonOptions);
 
-            var status = json.GetProperty("status").GetString() ?? "error";
+            var status = json.TryGetProperty("status", out var st) ? st.GetString() ?? "error" : "error";
             var message = json.TryGetProperty("message", out var m) ? m.GetString() : null;
 
             // Handle 400 (insufficient data) — ML returns error detail as JSON
