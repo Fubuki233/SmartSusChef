@@ -18,7 +18,31 @@ export function IngredientManagement({ onNavigateToRecipes }: IngredientManageme
   const { ingredients, addIngredient, updateIngredient, deleteIngredient, wastageData, recipes } = useApp();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
-  const [name, setName] = useState('');
+  const [selectedName, setSelectedName] = useState('');
+  const [otherName, setOtherName] = useState('');
+  // Standard ingredient list to prevent duplicates and typos (e.g., "Egg" vs "Eggs")
+  const defaultIngredientOptions = [
+    { value: 'Chicken', label: 'Chicken' },
+    { value: 'Beef', label: 'Beef' },
+    { value: 'Eggs', label: 'Eggs' },
+    { value: 'Rice', label: 'Rice' },
+    { value: 'Cooking Oil', label: 'Cooking Oil' },
+    { value: 'Salt', label: 'Salt' },
+    { value: 'Sugar', label: 'Sugar' },
+    { value: 'Garlic', label: 'Garlic' },
+    { value: 'Onion', label: 'Onion' },
+    { value: 'Tomatoes', label: 'Tomatoes' },
+    { value: 'Potatoes', label: 'Potatoes' },
+    { value: 'Carrots', label: 'Carrots' },
+    { value: 'Flour', label: 'Flour' },
+    { value: 'Milk', label: 'Milk' },
+    { value: 'Butter', label: 'Butter' },
+    { value: 'Soy Sauce', label: 'Soy Sauce' },
+    { value: 'Black Pepper', label: 'Black Pepper' },
+    { value: 'Cucumber', label: 'Cucumber' },
+    { value: 'Lemon', label: 'Lemon' },
+    { value: 'Chili', label: 'Chili' },
+  ];
   const [unit, setUnit] = useState('');
   const [carbonFootprint, setCarbonFootprint] = useState('');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -31,12 +55,22 @@ export function IngredientManagement({ onNavigateToRecipes }: IngredientManageme
   const handleOpenDialog = (ingredient?: Ingredient) => {
     if (ingredient) {
       setEditingIngredient(ingredient);
-      setName(ingredient.name);
+      // [Logic Change] If ingredient name exists in default list, preselect it; otherwise use Others
+      // This allows editing both standard and custom ingredients
+      const found = defaultIngredientOptions.find(opt => opt.value === ingredient.name);
+      if (found) {
+        setSelectedName(found.value);
+        setOtherName('');
+      } else {
+        setSelectedName('others');
+        setOtherName(ingredient.name);
+      }
       setUnit(ingredient.unit);
       setCarbonFootprint(ingredient.carbonFootprint.toString());
     } else {
       setEditingIngredient(null);
-      setName('');
+      setSelectedName('');
+      setOtherName('');
       setUnit('');
       setCarbonFootprint('');
     }
@@ -46,13 +80,17 @@ export function IngredientManagement({ onNavigateToRecipes }: IngredientManageme
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingIngredient(null);
-    setName('');
+    setSelectedName('');
+    setOtherName('');
     setUnit('');
     setCarbonFootprint('');
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !unit.trim() || !carbonFootprint) {
+    // [Logic Change] Determine final ingredient name based on dropdown selection
+    // If "Others" is selected, use the custom input value; otherwise use the dropdown selection
+    const finalName = selectedName === 'others' ? otherName : selectedName;
+    if (!finalName || !finalName.trim() || !unit.trim() || !carbonFootprint) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -64,7 +102,7 @@ export function IngredientManagement({ onNavigateToRecipes }: IngredientManageme
     }
 
     const ingredientData = {
-      name: name.trim(),
+      name: finalName.trim(),
       unit: unit.trim(),
       carbonFootprint: carbon,
     };
@@ -175,12 +213,30 @@ export function IngredientManagement({ onNavigateToRecipes }: IngredientManageme
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="ingredient-name">Ingredient Name</Label>
-                <Input
+                <select
                   id="ingredient-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Chicken Breast"
-                />
+                  className="w-full border rounded-md p-2"
+                  value={selectedName}
+                  onChange={(e) => setSelectedName(e.target.value)}
+                >
+                  <option value="">-- Select ingredient --</option>
+                  {/* [Logic Change] Display standardized ingredient options to prevent duplicates */}
+                  {defaultIngredientOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                  {/* "Others" option allows users to enter custom ingredients not in the standard list */}
+                  <option value="others">Others (Enter custom ingredient)</option>
+                </select>
+
+                {/* [Logic Change] Conditionally render custom input field when "Others" is selected */}
+                {selectedName === 'others' && (
+                  <Input
+                    id="ingredient-name-other"
+                    value={otherName}
+                    onChange={(e) => setOtherName(e.target.value)}
+                    placeholder="Please specify Ingredient Name"
+                  />
+                )}
               </div>
 
               <div className="space-y-2">

@@ -22,7 +22,7 @@ public class UsersController : ControllerBase
     /// Get all users in the store (Manager only)
     /// </summary>
     [HttpGet]
-    // Removed [Authorize(Roles = "Manager")] to prevent 403 loops for Employees
+    [Authorize(Roles = "Manager")]
     public async Task<ActionResult<List<UserListDto>>> GetAllUsers()
     {
         var storeId = GetStoreIdFromClaims();
@@ -36,7 +36,7 @@ public class UsersController : ControllerBase
     }
 
     /// Create a new user with a mandatory initial password (Manager only)
-    
+
     [HttpPost]
     [Authorize(Roles = "Manager")]
     public async Task<ActionResult<UserListDto>> CreateUser([FromBody] CreateUserRequest request)

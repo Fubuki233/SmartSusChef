@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.smartsuschef.mobile.BuildConfig
 import com.smartsuschef.mobile.data.TokenManager
 import com.smartsuschef.mobile.util.Constants
 import dagger.Module
@@ -29,12 +30,10 @@ private val Context.dataStore by preferencesDataStore(name = Constants.DATASTORE
 object CoreNetworkModule {
 
     /**
-     * Base URL for the API
-     * Points to your teammate's server
+     * Base URL for the API - configured via build.gradle.kts buildConfigField
+     * Debug: http://10.0.2.2:5001/api/
+     * Release: https://smartsuschef.com/api/
      */
-    // private const val BASE_URL_PROD = "http://oversea.zyh111.icu:234/api/"
-    private const val BASE_URL = "http://192.168.50.133:5001/api/"
-    // private const val BASE_URL = "http://10.0.2.2:5001/api/"
 
     /**
      * Provides the singleton DataStore<Preferences> instance for the app.
@@ -73,7 +72,11 @@ object CoreNetworkModule {
     @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor {
         return HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY // Change to NONE in production
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
     }
 
@@ -129,7 +132,7 @@ object CoreNetworkModule {
         gson: Gson
     ): Retrofit {
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()

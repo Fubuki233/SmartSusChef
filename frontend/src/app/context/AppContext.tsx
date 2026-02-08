@@ -137,7 +137,7 @@ const mapSalesDataDto = (dto: SalesDataDto): SalesData => ({
   recipeId: dto.recipeId,
   quantity: dto.quantity,
   createdAt: dto.createdAt,
-  modifiedAt: dto.modifiedAt,
+  modifiedAt: dto.updatedAt,
 });
 
 const mapWastageDataDto = (dto: WastageDataDto): WastageData => ({

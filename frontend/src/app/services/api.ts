@@ -49,6 +49,11 @@ async function fetchWithAuth<T>(
     throw new Error('Unauthorized');
   }
 
+  if (response.status === 403) {
+    // Insufficient permissions
+    throw new Error('Forbidden: You do not have permission to perform this action');
+  }
+
   if (response.status === 204) {
     return {} as T;
   }
@@ -90,6 +95,11 @@ async function fetchBlobWithAuth(
     // Token expired or invalid
     setAuthToken(null);
     throw new Error('Unauthorized');
+  }
+
+  if (response.status === 403) {
+    // Insufficient permissions
+    throw new Error('Forbidden: You do not have permission to perform this action');
   }
 
   if (!response.ok) {
@@ -176,7 +186,7 @@ export interface ForgotPasswordRequest {
 }
 
 export interface ForgotPasswordResponse {
-  temporaryPassword: string;
+  message: string;
 }
 
 export const authApi = {
@@ -372,7 +382,7 @@ export interface SalesDataDto {
   recipeName: string;
   quantity: number;
   createdAt?: string;
-  modifiedAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateSalesDataRequest {

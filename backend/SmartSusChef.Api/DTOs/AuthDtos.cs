@@ -73,7 +73,7 @@ public record ForgotPasswordRequest(
 );
 
 public record ForgotPasswordResponse(
-    string TemporaryPassword
+    string Message
 );
 
 public record UserListDto(

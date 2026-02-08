@@ -21,7 +21,7 @@ export function LoginPage({ onNavigateToRegister, onLoginSuccess }: LoginPagePro
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
-  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -47,11 +47,11 @@ export function LoginPage({ onNavigateToRegister, onLoginSuccess }: LoginPagePro
     e.preventDefault();
     try {
       const response = await authApi.forgotPassword({ emailOrUsername: email });
-      setTempPassword(response.temporaryPassword);
+      setResetMessage(response.message);
       setView('success');
-      toast.success('Temporary password generated');
+      toast.success('Password reset request submitted');
     } catch (err) {
-      toast.error('Failed to reset password. Please check the email/username.');
+      toast.error('Failed to reset password. Please try again later.');
     }
   };
 
@@ -67,13 +67,11 @@ export function LoginPage({ onNavigateToRegister, onLoginSuccess }: LoginPagePro
               </div>
             </div>
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-[#1A1C18]">Check your email</h2>
-              <p className="text-gray-500">We've generated a temporary password for <strong>{email}</strong></p>
-              {tempPassword && (
-                <div className="bg-[#F9FBF7] border border-[#E6EFE0] rounded-lg px-3 py-2 text-sm text-[#1A1C18]">
-                  Temporary Password: <span className="font-semibold">{tempPassword}</span>
-                </div>
-              )}
+              <h2 className="text-2xl font-bold text-[#1A1C18]">Password Reset</h2>
+              <p className="text-gray-500">{resetMessage || 'If the account exists, the password has been reset.'}</p>
+              <div className="bg-[#F9FBF7] border border-[#E6EFE0] rounded-lg px-3 py-2 text-sm text-[#1A1C18]">
+                Please contact your store manager for the new temporary password.
+              </div>
             </div>
             <Button onClick={() => setView('login')} variant="outline" className="w-full rounded-[32px] border-[#4F6F52] text-[#4F6F52]">
               Return to Login

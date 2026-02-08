@@ -73,15 +73,36 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// CORS
+// CORS - restrict to configured origins
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(_ => true)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+
+        if (allowedOrigins != null && allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            // Development only: allow localhost origins
+            policy.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
+        else
+        {
+            // Production without explicit config: same-origin only (no cross-origin allowed)
+            policy.WithOrigins("https://smartsuschef.com", "https://uat.smartsuschef.com")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
     });
 });
 
@@ -131,21 +152,6 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try
     {
-        // Check if Users table exists, if not, ensure database is created fresh
-        var connection = dbContext.Database.GetDbConnection();
-        await connection.OpenAsync();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users'";
-        var tableExists = Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
-        await connection.CloseAsync();
-
-        if (!tableExists)
-        {
-            Console.WriteLine("Users table not found, recreating database schema...");
-            // Delete migration history to force re-apply
-            await dbContext.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS `__EFMigrationsHistory`");
-        }
-
         dbContext.Database.Migrate();
         Console.WriteLine("Database migrations applied successfully.");
     }

@@ -8,18 +8,21 @@ using System;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace SmartSusChef.Api.Tests.Controllers;
 
 public class AuthControllerTests
 {
     private readonly Mock<IAuthService> _mockAuthService;
+    private readonly Mock<ILogger<AuthController>> _mockLogger;
     private readonly AuthController _controller;
 
     public AuthControllerTests()
     {
         _mockAuthService = new Mock<IAuthService>();
-        _controller = new AuthController(_mockAuthService.Object);
+        _mockLogger = new Mock<ILogger<AuthController>>();
+        _controller = new AuthController(_mockAuthService.Object, _mockLogger.Object);
     }
 
     [Fact]
@@ -126,7 +129,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task ForgotPassword_ShouldReturnOk_WithTemporaryPassword()
+    public async Task ForgotPassword_ShouldReturnOk_WithGenericMessage_WhenUserExists()
     {
         // Arrange
         var request = new ForgotPasswordRequest("test@example.com");
@@ -139,21 +142,25 @@ public class AuthControllerTests
         // Assert
         var actionResult = Assert.IsType<OkObjectResult>(result.Result);
         var value = Assert.IsType<ForgotPasswordResponse>(actionResult.Value);
-        Assert.Equal(tempPassword, value.TemporaryPassword);
+        Assert.NotNull(value.Message);
+        // Should NOT contain the actual temp password (security fix)
+        Assert.DoesNotContain(tempPassword, value.Message);
     }
 
     [Fact]
-    public async Task ForgotPassword_ShouldReturnNotFound_WhenUserIsNotFound()
+    public async Task ForgotPassword_ShouldReturnOk_WithSameMessage_WhenUserNotFound()
     {
-        // Arrange
+        // Arrange - user does not exist
         var request = new ForgotPasswordRequest("unknown@example.com");
         _mockAuthService.Setup(s => s.ResetPasswordAsync(request.EmailOrUsername)).ReturnsAsync((string?)null);
 
         // Act
         var result = await _controller.ForgotPassword(request);
 
-        // Assert
-        Assert.IsType<NotFoundObjectResult>(result.Result);
+        // Assert - should still return Ok (prevents user enumeration)
+        var actionResult = Assert.IsType<OkObjectResult>(result.Result);
+        var value = Assert.IsType<ForgotPasswordResponse>(actionResult.Value);
+        Assert.NotNull(value.Message);
     }
 
     [Fact]

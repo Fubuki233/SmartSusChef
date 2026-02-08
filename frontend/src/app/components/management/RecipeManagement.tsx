@@ -17,7 +17,7 @@ import { Recipe } from '@/app/types/index';
 interface FormRow {
   type: 'ingredient' | 'recipe';
   id: string;
-  quantity: number;
+  quantity: string | number;
 }
 
 export function RecipeManagement() {
@@ -41,7 +41,7 @@ export function RecipeManagement() {
   const initialFormState: RecipeFormState = {
     name: '',
     isSubRecipe: false,
-    formRows: [{ type: 'ingredient', id: '', quantity: 0 }],
+    formRows: [{ type: 'ingredient', id: '', quantity: '' }],
   };
 
   const [recipeForm, setRecipeForm] = useState<RecipeFormState>(initialFormState);
@@ -56,12 +56,12 @@ export function RecipeManagement() {
       const mappedRows: FormRow[] = recipe.ingredients.map(comp => ({
         type: comp.childRecipeId ? 'recipe' : 'ingredient',
         id: comp.childRecipeId || comp.ingredientId || '',
-        quantity: comp.quantity
+        quantity: comp.quantity.toString()
       }));
       setRecipeForm({
         name: recipe.name,
         isSubRecipe: recipe.isSubRecipe || false,
-        formRows: mappedRows.length > 0 ? mappedRows : [{ type: 'ingredient', id: '', quantity: 0 }]
+        formRows: mappedRows.length > 0 ? mappedRows : [{ type: 'ingredient', id: '', quantity: '' }]
       });
     } else {
       setEditingRecipe(null);
@@ -88,7 +88,7 @@ export function RecipeManagement() {
   const handleAddRow = () => {
     setRecipeForm(prev => ({
       ...prev,
-      formRows: [...prev.formRows, { type: 'ingredient', id: '', quantity: 0 }]
+      formRows: [...prev.formRows, { type: 'ingredient', id: '', quantity: '' }]
     }));
   };
 
@@ -101,7 +101,7 @@ export function RecipeManagement() {
 
   const handleQuantityChange = (index: number, value: string) => {
     const updatedRows = [...formRows];
-    updatedRows[index].quantity = parseFloat(value) || 0;
+    updatedRows[index].quantity = value;
     setRecipeForm(prev => ({ ...prev, formRows: updatedRows }));
   };
 
@@ -122,7 +122,22 @@ export function RecipeManagement() {
       return;
     }
 
-    const validComponents = formRows.filter(r => r.id && r.quantity > 0);
+    // Check if any selected component has quantity <= 0
+    const invalidComponents = formRows.filter(r => {
+      if (!r.id) return false;
+      const qty = typeof r.quantity === 'string' ? parseFloat(r.quantity) : r.quantity;
+      return isNaN(qty) || qty <= 0;
+    });
+    if (invalidComponents.length > 0) {
+      toast.error('QTY cannot be 0 or negative. Please enter a valid quantity.');
+      return;
+    }
+
+    const validComponents = formRows.filter(r => {
+      if (!r.id) return false;
+      const qty = typeof r.quantity === 'string' ? parseFloat(r.quantity) : r.quantity;
+      return !isNaN(qty) && qty > 0;
+    });
 
     if (validComponents.length === 0) {
       toast.error('Please add at least one component with quantity > 0');
@@ -132,7 +147,7 @@ export function RecipeManagement() {
     const formattedIngredients = validComponents.map(row => ({
       ingredientId: row.type === 'ingredient' ? row.id : undefined,
       childRecipeId: row.type === 'recipe' ? row.id : undefined,
-      quantity: row.quantity
+      quantity: typeof row.quantity === 'string' ? parseFloat(row.quantity) : row.quantity
     }));
 
     const recipeData = {
@@ -358,10 +373,12 @@ export function RecipeManagement() {
                   id="is-sub-recipe"
                   checked={isSubRecipe}
                   onCheckedChange={(checked) => handleSubRecipeToggle(checked as boolean)}
+                  disabled={!!editingRecipe}
                   className="data-[state=checked]:bg-[#4F6F52] border-gray-400 rounded-[4px]"
                 />
-                <Label htmlFor="is-sub-recipe" className="text-sm font-medium cursor-pointer text-gray-700">
+                <Label htmlFor="is-sub-recipe" className={`text-sm font-medium ${editingRecipe ? 'cursor-not-allowed text-gray-400' : 'cursor-pointer text-gray-700'}`}>
                   Set as Sub-Recipe (e.g. Sauce, Stock)
+                  {editingRecipe && <span className="text-xs ml-2">(Cannot be changed)</span>}
                 </Label>
               </div>
 
@@ -438,7 +455,6 @@ export function RecipeManagement() {
                       <Input
                         type="number"
                         step="0.01"
-                        min="0"
                         value={row.quantity || ''}
                         onChange={(e) => handleQuantityChange(index, e.target.value)}
                         className="bg-white rounded-[8px] h-10 border-gray-300 focus-visible:ring-[#4F6F52]"
