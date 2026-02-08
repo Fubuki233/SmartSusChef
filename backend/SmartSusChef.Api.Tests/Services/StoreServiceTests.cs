@@ -308,6 +308,7 @@ public class StoreServiceTests
         // Assert
         Assert.Null(result);
         var otherStore = await context.Store.FindAsync(otherStoreId);
+                Assert.NotNull(otherStore);
         Assert.Equal("Other Store", otherStore.StoreName); // Should not be updated
     }
 
