@@ -1,4 +1,4 @@
-````markdown
+
 # SmartSusChef
 
 ## Quick Start
@@ -72,4 +72,3 @@ terraform init
 terraform apply -var-file="environments/uat.tfvars"
 ```
 
-````
