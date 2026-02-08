@@ -120,11 +120,10 @@ export function MlModelStatusCard() {
         prevStatusRef.current = curr;
 
         if (prev === 'training' && curr === 'ready') {
-            // Training just finished — automatically fetch predictions
+            // Training just finished — refreshData triggers ML prediction via forecast endpoint
             (async () => {
                 try {
                     setLoading(true);
-                    await mlApi.predict(7);
                     await refreshData();
                     await fetchStatus();
                 } catch (err) {
@@ -155,8 +154,8 @@ export function MlModelStatusCard() {
         try {
             setLoading(true);
             setError(null);
-            await mlApi.predict(7);
-            // Refresh all app data so charts get the new predictions
+            // refreshData calls GET /api/forecast which triggers ML prediction
+            // and saves results to DB — no need for separate mlApi.predict call
             await refreshData();
             await fetchStatus();
         } catch (err) {
